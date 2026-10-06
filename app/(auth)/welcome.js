@@ -1,108 +1,115 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Modal, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useCallback, useRef, useState } from 'react';
+import { Animated, FlatList, Modal, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Text } from 'react-native-paper';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import AppButton from '../../components/ui/AppButton';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { markOnboardingSeen } from '../../features/onboarding/onboardingStorage';
 import { SUPPORTED_LANGUAGES } from '../../translations';
+import { AppSpacing, AppTouch, AppTypography } from '../../theme/tokens';
 
-const ONBOARDING_KEY = '@guardian_onboarding_seen';
+const slides = [
+  {
+    icon: 'shield-check-outline',
+    title: 'Cuida a tus hijos',
+    text: 'Cuida a tus hijos en cada trayecto escolar, en tiempo real.',
+  },
+  {
+    icon: 'qrcode',
+    title: 'Vincula al acudiente',
+    text: 'Registra a tu hijo, obtén un QR y vincúlalo.',
+  },
+  {
+    icon: 'qrcode-scan',
+    title: 'Celular del hijo',
+    text: 'Escanea el QR con tu celular y comparte tu ubicación durante el trayecto.',
+  },
+  {
+    icon: 'lock-check-outline',
+    title: 'Privacidad',
+    text: 'Tu ubicación solo se comparte durante el trayecto escolar. Tú controlas cuándo.',
+  },
+  {
+    icon: 'rocket-launch-outline',
+    title: 'Comenzar',
+    text: 'Elige cómo quieres entrar a GPS Guardian Escolar.',
+  },
+];
 
 export default function WelcomeScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const { t, lang, setLanguage } = useLanguage();
+  const { lang, setLanguage } = useLanguage();
   const { theme } = useTheme();
   const colors = theme.colors;
+  const listRef = useRef(null);
+  const fade = useRef(new Animated.Value(1)).current;
   const [activeIndex, setActiveIndex] = useState(0);
-  const [checkingSeen, setCheckingSeen] = useState(true);
   const [langModalVisible, setLangModalVisible] = useState(false);
-  const [expanded, setExpanded] = useState(false);
 
-  const slides = useMemo(() => ([
-    {
-      icon: 'shield-check-outline',
-      title: t('appName'),
-      text: t('live') === 'Live' ? 'A school safety system for families.' : 'Sistema de seguridad escolar para familias.',
-      detail: t('live') === 'Live'
-        ? 'GPS School Guardian helps parents follow children, routes, zones and alerts from a single protected experience.'
-        : 'GPS Guardian Escolar ayuda a acudientes a seguir hijos, rutas, zonas y alertas desde una experiencia protegida.',
-    },
-    {
-      icon: 'map-marker-path',
-      title: t('trackTitle'),
-      text: t('live') === 'Live' ? 'Real-time GPS tracking and route monitoring.' : 'Rastreo GPS en tiempo real y monitoreo de rutas.',
-      detail: t('live') === 'Live'
-        ? 'View the current location, route status and recent movement updates without switching tools.'
-        : 'Consulta ubicación actual, estado de ruta y actualizaciones recientes sin cambiar de herramienta.',
-    },
-    {
-      icon: 'map-marker-radius-outline',
-      title: t('zonesSafeZones'),
-      text: t('live') === 'Live' ? 'Configure safe zones and automatic alerts.' : 'Configura zonas seguras y alertas automáticas.',
-      detail: t('live') === 'Live'
-        ? 'Create school, home or custom zones so the app can notify important arrivals and departures.'
-        : 'Crea zonas de colegio, casa o personalizadas para recibir avisos de llegadas y salidas importantes.',
-    },
-    {
-      icon: 'bell-ring-outline',
-      title: t('tabNotifications'),
-      text: t('live') === 'Live' ? 'Instant alerts and event history.' : 'Alertas instantáneas e historial de eventos.',
-      detail: t('live') === 'Live'
-        ? 'Keep warnings, successful arrivals and informational events organized for quick review.'
-        : 'Mantén advertencias, llegadas exitosas y eventos informativos organizados para revisión rápida.',
-    },
-    {
-      icon: 'login',
-      title: t('live') === 'Live' ? 'Start' : 'Comenzar',
-      text: t('live') === 'Live' ? 'Access your account to protect each route.' : 'Accede a tu cuenta para proteger cada ruta.',
-      detail: t('live') === 'Live'
-        ? 'You can sign in, create an account or recover access from the login screen.'
-        : 'Podrás iniciar sesión, crear una cuenta o recuperar el acceso desde el login.',
-    },
-  ]), [t]);
+  const goToIndex = useCallback((index) => {
+    const bounded = Math.max(0, Math.min(index, slides.length - 1));
+    Animated.sequence([
+      Animated.timing(fade, { toValue: 0.55, duration: 90, useNativeDriver: true }),
+      Animated.timing(fade, { toValue: 1, duration: 160, useNativeDriver: true }),
+    ]).start();
+    listRef.current?.scrollToIndex({ index: bounded, animated: true });
+    setActiveIndex(bounded);
+  }, [fade]);
 
-  useEffect(() => {
-    (async () => {
-      const seen = await AsyncStorage.getItem(ONBOARDING_KEY);
-      if (seen === 'true') {
-        router.replace('/(auth)/login');
-        return;
-      }
-      setCheckingSeen(false);
-    })();
+  const finish = useCallback(async (pathname) => {
+    await markOnboardingSeen();
+    router.replace(pathname);
   }, [router]);
 
-  const completeOnboarding = useCallback(async () => {
-    await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
-    router.replace('/(auth)/register');
-  }, [router]);
+  const next = useCallback(() => {
+    if (activeIndex >= slides.length - 1) {
+      finish('/(auth)/register');
+      return;
+    }
+    goToIndex(activeIndex + 1);
+  }, [activeIndex, finish, goToIndex]);
 
-  const advanceSlide = useCallback(() => {
-    setActiveIndex((current) => {
-      if (current >= slides.length - 1) {
-        completeOnboarding();
-        return current;
-      }
-      const next = current + 1;
-      return next;
-    });
-  }, [completeOnboarding, slides.length]);
+  const previous = useCallback(() => {
+    goToIndex(activeIndex - 1);
+  }, [activeIndex, goToIndex]);
 
-  useEffect(() => {
-    if (checkingSeen) return undefined;
-    const timer = setInterval(advanceSlide, 3500);
-    return () => clearInterval(timer);
-  }, [advanceSlide, checkingSeen]);
+  const skip = useCallback(() => {
+    finish('/(auth)/login');
+  }, [finish]);
+
+  const renderSlide = ({ item, index }) => (
+    <Animated.View style={[styles.slide, { width, opacity: fade }]} accessibilityRole="header">
+      <MaterialCommunityIcons name={item.icon} size={48} color={colors.primary} />
+      <Text style={[styles.slideTitle, { color: colors.text }]}>{item.title}</Text>
+      <Text style={[styles.slideText, { color: colors.textSecondary }]}>{item.text}</Text>
+
+      {index === slides.length - 1 && (
+        <View style={styles.ctaStack}>
+          <AppButton title="Comenzar" onPress={() => finish('/(auth)/register')} accessibilityLabel="Comenzar registro" />
+          <AppButton title="Ya tengo cuenta" variant="secondary" onPress={() => finish('/(auth)/login')} accessibilityLabel="Ya tengo cuenta" />
+          <AppButton
+            title="Soy estudiante (escanear QR)"
+            variant="ghost"
+            onPress={() => finish('/scan-qr')}
+            accessibilityLabel="Escanear código QR del acudiente"
+            accessibilityHint="Abre la cámara para vincular este celular al estudiante"
+          />
+        </View>
+      )}
+    </Animated.View>
+  );
 
   const renderLangItem = ({ item }) => {
     const isSelected = lang === item.code;
     return (
       <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={`Cambiar idioma a ${item.label}`}
         style={[
           styles.langItem,
           { borderBottomColor: colors.border },
@@ -110,10 +117,7 @@ export default function WelcomeScreen() {
           !item.available && { opacity: 0.5 },
         ]}
         onPress={() => {
-          if (!item.available) {
-            Alert.alert(t('langComingSoon'), `${item.label} no esta disponible aun.`);
-            return;
-          }
+          if (!item.available) return;
           setLanguage(item.code);
           setLangModalVisible(false);
         }}
@@ -125,46 +129,56 @@ export default function WelcomeScreen() {
     );
   };
 
-  if (checkingSeen) {
-    return <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} />;
-  }
-
-  const activeSlide = slides[activeIndex] || slides[0];
-
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.topBar}>
         <TouchableOpacity
-          style={[styles.globeButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          style={[styles.topButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
           onPress={() => setLangModalVisible(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Cambiar idioma"
         >
           <MaterialCommunityIcons name="web" size={24} color={colors.primary} />
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.skipButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={skip}
+          accessibilityRole="button"
+          accessibilityLabel="Saltar onboarding"
+        >
+          <Text style={[styles.skipText, { color: colors.primary }]}>Saltar</Text>
+        </TouchableOpacity>
       </View>
 
-      <View style={styles.container}>
-        <Image source={require('../../assets/images/logo.png')} style={styles.logo} contentFit="contain" />
-        <View style={[styles.slide, { width }]} key={activeSlide.icon}>
-          <MaterialCommunityIcons name={activeSlide.icon} size={44} color={colors.primary} />
-          <Text style={[styles.slideTitle, { color: colors.text }]}>{activeSlide.title}</Text>
-          <Text style={[styles.slideText, { color: colors.textSecondary }]}>{activeSlide.text}</Text>
-          <TouchableOpacity
-            style={[styles.detailButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
-            onPress={() => setExpanded(value => !value)}
-            accessibilityRole="button"
-            accessibilityLabel={expanded ? 'Contraer detalle' : 'Expandir detalle'}
-          >
-            <MaterialCommunityIcons name={expanded ? 'chevron-up' : 'chevron-down'} size={24} color={colors.primary} />
-          </TouchableOpacity>
-          {expanded ? (
-            <Text style={[styles.detailText, { color: colors.textSecondary }]}>{activeSlide.detail}</Text>
-          ) : null}
-        </View>
+      <View style={styles.logoWrap}>
+        <Image
+          source={require('../../assets/images/logo.png')}
+          style={styles.logo}
+          contentFit="contain"
+          accessibilityRole="image"
+          accessibilityLabel="Logo de GPS Guardian Escolar"
+        />
+      </View>
 
-        <View style={styles.indicators}>
+      <FlatList
+        ref={listRef}
+        data={slides}
+        keyExtractor={item => item.title}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        renderItem={renderSlide}
+        onMomentumScrollEnd={(event) => {
+          const nextIndex = Math.round(event.nativeEvent.contentOffset.x / width);
+          setActiveIndex(nextIndex);
+        }}
+      />
+
+      <View style={styles.footer}>
+        <View style={styles.indicators} accessibilityRole="text" accessibilityLabel={`Página ${activeIndex + 1} de ${slides.length}`}>
           {slides.map((item, index) => (
             <View
-              key={item.icon}
+              key={item.title}
               style={[
                 styles.indicator,
                 { backgroundColor: index === activeIndex ? colors.primary : colors.border },
@@ -172,17 +186,35 @@ export default function WelcomeScreen() {
             />
           ))}
         </View>
-
+        <View style={styles.navRow}>
+          <AppButton
+            title="Atrás"
+            variant="secondary"
+            disabled={activeIndex === 0}
+            onPress={previous}
+            accessibilityLabel="Ver slide anterior"
+          />
+          <AppButton
+            title={activeIndex === slides.length - 1 ? 'Comenzar' : 'Siguiente'}
+            onPress={next}
+            accessibilityLabel={activeIndex === slides.length - 1 ? 'Comenzar registro' : 'Ver siguiente slide'}
+          />
+        </View>
       </View>
 
       <Modal visible={langModalVisible} transparent animationType="fade" onRequestClose={() => setLangModalVisible(false)}>
         <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
           <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setLangModalVisible(false)} style={styles.modalIconBtn}>
+              <TouchableOpacity
+                onPress={() => setLangModalVisible(false)}
+                style={styles.modalIconBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Cerrar selector de idioma"
+              >
                 <MaterialCommunityIcons name="close" size={24} color={colors.primary} />
               </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: colors.primary }]}>{t('profileSelectLang')}</Text>
+              <Text style={[styles.modalTitle, { color: colors.primary }]}>Selecciona idioma</Text>
             </View>
             <FlatList
               data={SUPPORTED_LANGUAGES}
@@ -202,134 +234,124 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topBar: {
-    width: '100%',
+    alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 20,
-    paddingTop: 10,
+    justifyContent: 'space-between',
+    paddingHorizontal: AppSpacing.md,
+    paddingTop: AppSpacing.sm,
     zIndex: 10,
   },
-  globeButton: {
-    padding: 10,
-    borderRadius: 25,
-    borderWidth: 1,
-  },
-  container: {
-    flex: 1,
+  topButton: {
     alignItems: 'center',
+    borderRadius: AppTouch.icon / 2,
+    borderWidth: 1,
+    height: AppTouch.icon,
     justifyContent: 'center',
+    width: AppTouch.icon,
+  },
+  skipButton: {
+    alignItems: 'center',
+    borderRadius: 999,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: AppTouch.min,
+    paddingHorizontal: AppSpacing.md,
+  },
+  skipText: {
+    ...AppTypography.sm,
+    fontWeight: '700',
+  },
+  logoWrap: {
+    alignItems: 'center',
+    paddingTop: AppSpacing.md,
   },
   logo: {
-    width: 150,
-    height: 150,
-    marginBottom: 8,
+    height: 132,
+    width: 132,
   },
   slide: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
-    minHeight: 220,
+    paddingHorizontal: AppSpacing.xl,
   },
   slideTitle: {
-    fontSize: 28,
-    fontWeight: '800',
+    ...AppTypography.xxl,
+    marginTop: AppSpacing.md,
     textAlign: 'center',
-    marginTop: 14,
   },
   slideText: {
-    fontSize: 15,
-    lineHeight: 22,
-    textAlign: 'center',
-    maxWidth: 360,
-    marginTop: 10,
-  },
-  detailButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 16,
-  },
-  detailText: {
-    fontSize: 13,
-    lineHeight: 20,
-    textAlign: 'center',
+    ...AppTypography.md,
+    marginTop: AppSpacing.sm,
     maxWidth: 380,
-    marginTop: 10,
+    textAlign: 'center',
+  },
+  ctaStack: {
+    gap: AppSpacing.sm,
+    marginTop: AppSpacing.lg,
+    maxWidth: 360,
+    width: '100%',
+  },
+  footer: {
+    gap: AppSpacing.md,
+    padding: AppSpacing.md,
   },
   indicators: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 20,
+    gap: AppSpacing.sm,
+    justifyContent: 'center',
   },
   indicator: {
-    width: 28,
-    height: 4,
-    borderRadius: 2,
+    borderRadius: 4,
+    height: 8,
+    width: 8,
   },
-  continueButton: {
-    width: '80%',
-    maxWidth: 320,
-    borderRadius: 8,
-    marginBottom: 24,
-  },
-  continueContent: {
-    height: 48,
-    flexDirection: 'row-reverse',
-  },
-  skipRow: {
-    width: '92%',
-    maxWidth: 480,
+  navRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    gap: AppSpacing.sm,
     justifyContent: 'center',
-    marginBottom: 24,
   },
   modalOverlay: {
+    alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
-    padding: 18,
+    padding: AppSpacing.lg,
   },
   modalContent: {
-    width: '100%',
-    maxWidth: 380,
     borderRadius: 12,
-    padding: 20,
     borderWidth: 1,
+    maxWidth: 380,
+    padding: AppSpacing.md,
+    width: '100%',
   },
   modalHeader: {
-    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    flexDirection: 'row',
+    marginBottom: AppSpacing.sm,
   },
   modalIconBtn: {
-    padding: 4,
-    marginRight: 10,
+    alignItems: 'center',
+    height: AppTouch.icon,
+    justifyContent: 'center',
+    marginRight: AppSpacing.sm,
+    width: AppTouch.icon,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    ...AppTypography.lg,
   },
   langItem: {
-    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 12,
     borderBottomWidth: 1,
     borderRadius: 8,
+    flexDirection: 'row',
+    minHeight: AppTouch.min,
+    paddingHorizontal: AppSpacing.sm,
   },
   langFlag: {
     fontSize: 24,
-    marginRight: 14,
+    marginRight: AppSpacing.md,
   },
   langLabel: {
+    ...AppTypography.md,
     flex: 1,
-    fontSize: 16,
   },
 });
-
-
-

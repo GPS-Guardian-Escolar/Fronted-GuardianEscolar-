@@ -1,35 +1,61 @@
 import { Slot, useRouter, useSegments } from 'expo-router';
-import { useEffect } from 'react';
+import * as TaskManager from 'expo-task-manager';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import { MD3DarkTheme, MD3LightTheme, PaperProvider } from 'react-native-paper';
 
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { LanguageProvider } from '../contexts/LanguageContext';
 import { createPaperTheme, ThemeProvider, useTheme } from '../contexts/ThemeContext';
+import { hasSeenOnboarding } from '../features/onboarding/onboardingStorage';
+import { handleLocationTask, LOCATION_TASK_NAME } from '../services/background/locationTracking';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
+  TaskManager.defineTask(LOCATION_TASK_NAME, handleLocationTask);
+}
 
 function RootLayoutNav() {
   const { isAuthenticated, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
   const { theme: themeData } = useTheme();
+  const [onboardingSeen, setOnboardingSeen] = useState(null);
 
   useEffect(() => {
-    if (loading) return;
+    let mounted = true;
+    hasSeenOnboarding()
+      .then(seen => {
+        if (mounted) setOnboardingSeen(seen);
+      })
+      .catch(() => {
+        if (mounted) setOnboardingSeen(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [segments]);
+
+  useEffect(() => {
+    if (loading || onboardingSeen === null) return;
 
     const inAuthGroup = segments[0] === '(auth)';
     const inTabsGroup = segments[0] === '(tabs)';
+    const isWelcome = inAuthGroup && segments[1] === 'welcome';
     const isStudentDashboard = segments[0] === 'student-dashboard';
+    const isScanQr = segments[0] === 'scan-qr';
 
-    if (!isAuthenticated && !inAuthGroup && !isStudentDashboard) {
+    if (!onboardingSeen && !isWelcome && !inAuthGroup) {
       router.replace('/(auth)/welcome');
-    } else if (isAuthenticated && !inTabsGroup && !isStudentDashboard) {
+    } else if (!isAuthenticated && !inAuthGroup && !isStudentDashboard && !isScanQr) {
+      router.replace('/(auth)/welcome');
+    } else if (isAuthenticated && !inTabsGroup && !isStudentDashboard && !isScanQr) {
       router.replace('/(tabs)');
     }
-  }, [isAuthenticated, loading, router, segments]);
+  }, [isAuthenticated, loading, onboardingSeen, router, segments]);
 
-  if (loading) {
+  if (loading || onboardingSeen === null) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: themeData.colors.background }}>
         <ActivityIndicator size="large" color={themeData.colors.primary} />
