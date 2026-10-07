@@ -1,33 +1,33 @@
-# 📱 Carpeta `app/` — Pantallas Principales
+﻿# ðŸ“± Carpeta `app/` â€” Pantallas Principales
 ## GPS Guardian Escolar
 
-> Esta carpeta contiene **todas las pantallas** de la aplicación, organizadas siguiendo el sistema de rutas de **Expo Router** (navegación basada en el nombre del archivo).
+> Esta carpeta contiene **todas las pantallas** de la aplicaciÃ³n, organizadas siguiendo el sistema de rutas de **Expo Router** (navegaciÃ³n basada en el nombre del archivo).
 
 ---
 
-## ¿Qué es Expo Router?
+## Â¿QuÃ© es Expo Router?
 
-Expo Router funciona como las carpetas de un sitio web: el nombre del archivo se convierte en la URL/ruta de navegación automáticamente. No hace falta definir rutas manualmente.
+Expo Router funciona como las carpetas de un sitio web: el nombre del archivo se convierte en la URL/ruta de navegaciÃ³n automÃ¡ticamente. No hace falta definir rutas manualmente.
 
 ```
 app/
-├── (auth)/        → Rutas de autenticación (NO requieren login)
-├── (tabs)/        → Rutas del menú principal (SÍ requieren login)
-├── _layout.js     → Configuración raíz de toda la app
-└── student-dashboard.js → Pantalla especial del panel del estudiante
+â”œâ”€â”€ (auth)/        â†’ Rutas de autenticaciÃ³n (NO requieren login)
+â”œâ”€â”€ (tabs)/        â†’ Rutas del menÃº principal (SÃ requieren login)
+â”œâ”€â”€ _layout.js     â†’ ConfiguraciÃ³n raÃ­z de toda la app
+â””â”€â”€ student-dashboard.js â†’ Pantalla especial del panel del estudiante
 ```
 
 ---
 
-## 📄 Archivos en la raíz de `app/`
+## ðŸ“„ Archivos en la raÃ­z de `app/`
 
 ---
 
 ### `_layout.js`
-**¿Qué hace?**
-Es el archivo más importante de toda la aplicación. Se ejecuta **primero** cada vez que la app abre. Su función es:
+**Â¿QuÃ© hace?**
+Es el archivo mÃ¡s importante de toda la aplicaciÃ³n. Se ejecuta **primero** cada vez que la app abre. Su funciÃ³n es:
 1. Envolver toda la app con los `Providers` globales (`AuthContext`, `LanguageContext`, `UserRoleContext`).
-2. Decidir si el usuario va al flujo de **autenticación** (`(auth)/`) o a las **pantallas principales** (`(tabs)/`).
+2. Decidir si el usuario va al flujo de **autenticaciÃ³n** (`(auth)/`) o a las **pantallas principales** (`(tabs)/`).
 3. Configurar la barra de estado del sistema operativo.
 
 **Sin este archivo, la app no funciona.**
@@ -35,219 +35,209 @@ Es el archivo más importante de toda la aplicación. Se ejecuta **primero** cad
 ---
 
 ### `student-dashboard.js`
-**¿Qué hace?**
+**Â¿QuÃ© hace?**
 Pantalla especial que muestra el panel de control desde el **punto de vista del estudiante** (no del padre/acudiente). Muestra el estado del trayecto activo, la ruta asignada y la zona segura actual.
 
 ---
 
-## 📁 Subcarpeta `(auth)/` — Flujo de Autenticación
+## ðŸ“ Subcarpeta `(auth)/` â€” Flujo de AutenticaciÃ³n
 
-> Las pantallas dentro de los paréntesis `(auth)` son un **grupo de rutas**. El nombre entre paréntesis **no aparece en la URL**, solo agrupa lógicamente las pantallas.
+> Las pantallas dentro de los parÃ©ntesis `(auth)` son un **grupo de rutas**. El nombre entre parÃ©ntesis **no aparece en la URL**, solo agrupa lÃ³gicamente las pantallas.
 
 ```
 (auth)/
-├── _layout.js          → Configura la navegación dentro del grupo auth
-├── welcome.js          → Pantalla de bienvenida (primera vez)
-├── info.js             → Pantalla informativa del proyecto
-├── login.js            → Inicio de sesión
-├── register.js         → Registro de nuevo acudiente
-├── forgot-password.js  → Solicitud de recuperación de contraseña
-├── verify-code.js      → Ingreso del código de verificación por email
-└── reset-password.js   → Creación de nueva contraseña
+â”œâ”€â”€ _layout.js          â†’ Configura la navegaciÃ³n dentro del grupo auth
+â”œâ”€â”€ welcome.js          â†’ Pantalla de bienvenida (primera vez)
+â”œâ”€â”€ login.js            â†’ Inicio de sesiÃ³n
+â”œâ”€â”€ register.js         â†’ Registro de nuevo acudiente
+â”œâ”€â”€ forgot-password.js  â†’ Solicitud de recuperaciÃ³n de contraseÃ±a
+â”œâ”€â”€ verify-code.js      â†’ Ingreso del cÃ³digo de verificaciÃ³n por email
+â””â”€â”€ reset-password.js   â†’ CreaciÃ³n de nueva contraseÃ±a
 ```
 
 ---
 
 ### `_layout.js` (auth)
-**¿Qué hace?**
-Define la pila de navegación (Stack Navigator) para el flujo de autenticación. Oculta el header nativo y permite las animaciones de transición entre pantallas de login.
+**Â¿QuÃ© hace?**
+Define la pila de navegaciÃ³n (Stack Navigator) para el flujo de autenticaciÃ³n. Oculta el header nativo y permite las animaciones de transiciÃ³n entre pantallas de login.
 
 ---
 
 ### `welcome.js`
-**¿Qué hace?**
-Primera pantalla que ve el usuario al instalar la app. Muestra el logo de **GPS Guardian Escolar**, el eslogan del proyecto y dos botones: "Iniciar Sesión" y "Registrarse".
+**Â¿QuÃ© hace?**
+Primera pantalla que ve el usuario al instalar la app. Muestra el logo de **GPS Guardian Escolar**, el eslogan del proyecto y dos botones: "Iniciar SesiÃ³n" y "Registrarse".
 
-**Navegación:**
-- → `login.js`
-- → `register.js`
-- → `info.js`
-
----
-
-### `info.js`
-**¿Qué hace?**
-Pantalla informativa que explica brevemente qué es Guardian Escolar y cómo funciona el sistema de seguimiento. Ideal para usuarios nuevos que quieren saber más antes de registrarse.
-
-**Navegación:**
-- ← Volver a `welcome.js`
+**NavegaciÃ³n:**
+- â†’ `login.js`
+- â†’ `register.js`
 
 ---
+
 
 ### `login.js`
-**¿Qué hace?**
-Formulario de inicio de sesión. Solicita correo electrónico y contraseña. Consume el servicio `auth.service.js` para autenticarse contra el backend. Si el login es exitoso, redirige al menú principal `(tabs)/`.
+**Â¿QuÃ© hace?**
+Formulario de inicio de sesiÃ³n. Solicita correo electrÃ³nico y contraseÃ±a. Consume el servicio `auth.service.js` para autenticarse contra el backend. Si el login es exitoso, redirige al menÃº principal `(tabs)/`.
 
 **Campos del formulario:**
-- 📧 Correo electrónico
-- 🔒 Contraseña
-- ☑️ Recordarme
+- ðŸ“§ Correo electrÃ³nico
+- ðŸ”’ ContraseÃ±a
+- â˜‘ï¸ Recordarme
 
-**Navegación:**
-- → `(tabs)/` si login exitoso
-- → `forgot-password.js` si olvidó contraseña
-- → `register.js` si no tiene cuenta
-- ← Volver a `welcome.js`
+**NavegaciÃ³n:**
+- â†’ `(tabs)/` si login exitoso
+- â†’ `forgot-password.js` si olvidÃ³ contraseÃ±a
+- â†’ `register.js` si no tiene cuenta
+- â† Volver a `welcome.js`
 
 ---
 
 ### `register.js`
-**¿Qué hace?**
-Formulario de registro para nuevos acudientes/padres. Crea una cuenta en el sistema con nombre, correo, teléfono y contraseña. Valida todos los campos antes de enviar.
+**Â¿QuÃ© hace?**
+Formulario de registro para nuevos acudientes/padres. Crea una cuenta en el sistema con nombre, correo, telÃ©fono y contraseÃ±a. Valida todos los campos antes de enviar.
 
 **Campos del formulario:**
-- 👤 Nombre del acudiente
-- 🏫 Colegio
-- 📧 Correo electrónico
-- 📱 Teléfono
-- 🔒 Contraseña
-- 🔒 Confirmar contraseña
+- ðŸ‘¤ Nombre del acudiente
+- ðŸ« Colegio
+- ðŸ“§ Correo electrÃ³nico
+- ðŸ“± TelÃ©fono
+- ðŸ”’ ContraseÃ±a
+- ðŸ”’ Confirmar contraseÃ±a
 
-**Navegación:**
-- → `login.js` si ya tiene cuenta
-- ← Volver a `welcome.js`
+**NavegaciÃ³n:**
+- â†’ `login.js` si ya tiene cuenta
+- â† Volver a `welcome.js`
 
 ---
 
 ### `forgot-password.js`
-**¿Qué hace?**
-Pantalla donde el usuario ingresa su correo para recibir un código de recuperación de contraseña. Envía una petición al backend para generar y enviar el código por email.
+**Â¿QuÃ© hace?**
+Pantalla donde el usuario ingresa su correo para recibir un cÃ³digo de recuperaciÃ³n de contraseÃ±a. EnvÃ­a una peticiÃ³n al backend para generar y enviar el cÃ³digo por email.
 
-**Navegación:**
-- → `verify-code.js` después de enviar el correo
-- ← Volver a `login.js`
+**NavegaciÃ³n:**
+- â†’ `verify-code.js` despuÃ©s de enviar el correo
+- â† Volver a `login.js`
 
 ---
 
 ### `verify-code.js`
-**¿Qué hace?**
-El usuario ingresa el código de 6 dígitos que recibió en su correo. Verifica el código contra el backend para permitir el restablecimiento de contraseña.
+**Â¿QuÃ© hace?**
+El usuario ingresa el cÃ³digo de 6 dÃ­gitos que recibiÃ³ en su correo. Verifica el cÃ³digo contra el backend para permitir el restablecimiento de contraseÃ±a.
 
-**Navegación:**
-- → `reset-password.js` si el código es correcto
-- ← Volver a `forgot-password.js`
+**NavegaciÃ³n:**
+- â†’ `reset-password.js` si el cÃ³digo es correcto
+- â† Volver a `forgot-password.js`
 
 ---
 
 ### `reset-password.js`
-**¿Qué hace?**
-Formulario para crear una nueva contraseña. Requiere ingresar la nueva contraseña dos veces para confirmar. Una vez exitoso, redirige al login.
+**Â¿QuÃ© hace?**
+Formulario para crear una nueva contraseÃ±a. Requiere ingresar la nueva contraseÃ±a dos veces para confirmar. Una vez exitoso, redirige al login.
 
 **Campos del formulario:**
-- 🔒 Nueva contraseña
-- 🔒 Confirmar nueva contraseña
+- ðŸ”’ Nueva contraseÃ±a
+- ðŸ”’ Confirmar nueva contraseÃ±a
 
-**Navegación:**
-- → `login.js` si el cambio fue exitoso
-- ← Volver a `verify-code.js`
+**NavegaciÃ³n:**
+- â†’ `login.js` si el cambio fue exitoso
+- â† Volver a `verify-code.js`
 
 ---
 
-## 📁 Subcarpeta `(tabs)/` — Pantallas Principales
+## ðŸ“ Subcarpeta `(tabs)/` â€” Pantallas Principales
 
-> Las pantallas dentro de este grupo son las que forman el **menú de navegación inferior** (tab bar) de la aplicación. Solo son accesibles si el usuario está autenticado.
+> Las pantallas dentro de este grupo son las que forman el **menÃº de navegaciÃ³n inferior** (tab bar) de la aplicaciÃ³n. Solo son accesibles si el usuario estÃ¡ autenticado.
 
 ```
 (tabs)/
-├── _layout.js          → Header global, barra de navegación inferior y menú web
-├── index.js            → Dashboard principal (pantalla de inicio)
-├── student.js          → Gestión de hijos/estudiantes
-├── notifications.js    → Centro de notificaciones y alertas
-├── tracking.js         → Seguimiento GPS en tiempo real
-├── history.js          → Historial de trayectos
-├── zones.js            → Configuración de zonas seguras y rutas
-└── profile.js          → Perfil del usuario y configuraciones
+â”œâ”€â”€ _layout.js          â†’ Header global, barra de navegaciÃ³n inferior y menÃº web
+â”œâ”€â”€ index.js            â†’ Dashboard principal (pantalla de inicio)
+â”œâ”€â”€ student.js          â†’ GestiÃ³n de hijos/estudiantes
+â”œâ”€â”€ notifications.js    â†’ Centro de notificaciones y alertas
+â”œâ”€â”€ tracking.js         â†’ Seguimiento GPS en tiempo real
+â”œâ”€â”€ history.js          â†’ Historial de trayectos
+â”œâ”€â”€ zones.js            â†’ ConfiguraciÃ³n de zonas seguras y rutas
+â””â”€â”€ profile.js          â†’ Perfil del usuario y configuraciones
 ```
 
 ---
 
 ### `_layout.js` (tabs)
-**¿Qué hace?**
-Es el cerebro del menú principal. Contiene:
-1. **CustomHeader**: Barra superior con el nombre de la app, indicador LIVE/Offline parpadeante, menú de navegación web y selector de idioma.
-2. **TabLayoutInner**: Configuración de las 7 pestañas del menú inferior con sus íconos.
-3. **Modal de Idioma**: Ventana flotante para cambiar entre Español e Inglés.
+**Â¿QuÃ© hace?**
+Es el cerebro del menÃº principal. Contiene:
+1. **CustomHeader**: Barra superior con el nombre de la app, indicador LIVE/Offline parpadeante, menÃº de navegaciÃ³n web y selector de idioma.
+2. **TabLayoutInner**: ConfiguraciÃ³n de las 7 pestaÃ±as del menÃº inferior con sus Ã­conos.
+3. **Modal de Idioma**: Ventana flotante para cambiar entre EspaÃ±ol e InglÃ©s.
 
 ---
 
-### `index.js` — Dashboard
-**¿Qué hace?**
+### `index.js` â€” Dashboard
+**Â¿QuÃ© hace?**
 Pantalla de inicio que muestra un resumen general del estado de todos los hijos. Incluye:
-- Tarjetas con el conteo de hijos activos, alertas y trayectos del día.
+- Tarjetas con el conteo de hijos activos, alertas y trayectos del dÃ­a.
 - Lista de hijos registrados con su estado actual (En Zona Segura / En Trayecto / Alerta).
-- Sección de notificaciones recientes.
-- Acceso rápido al mapa de seguimiento.
+- SecciÃ³n de notificaciones recientes.
+- Acceso rÃ¡pido al mapa de seguimiento.
 
 ---
 
-### `student.js` — Gestión de Hijos
-**¿Qué hace?**
+### `student.js` â€” GestiÃ³n de Hijos
+**Â¿QuÃ© hace?**
 Pantalla central para administrar todos los hijos/estudiantes vinculados a la cuenta. Permite:
 - **Ver** todos los hijos en tarjetas visuales con foto, estado y contacto de emergencia.
 - **Agregar** un nuevo hijo con formulario completo.
 - **Editar** los datos de un hijo existente.
 - **Eliminar** un hijo y todos sus datos asociados (historial y notificaciones).
 - **Cambiar estado** del hijo manualmente (Zona Segura / En Trayecto / Alerta).
-- **Tomar foto** del hijo usando la cámara del dispositivo.
+- **Tomar foto** del hijo usando la cÃ¡mara del dispositivo.
 
 ---
 
-### `notifications.js` — Notificaciones
-**¿Qué hace?**
+### `notifications.js` â€” Notificaciones
+**Â¿QuÃ© hace?**
 Centro de alertas y notificaciones del sistema. Muestra todos los eventos generados, clasificados por tipo:
-- ✅ **Exitosas**: El hijo llegó a zona segura.
-- ⚠️ **Advertencias**: El hijo salió de la zona segura.
-- ℹ️ **Informativas**: El hijo está en camino.
+- âœ… **Exitosas**: El hijo llegÃ³ a zona segura.
+- âš ï¸ **Advertencias**: El hijo saliÃ³ de la zona segura.
+- â„¹ï¸ **Informativas**: El hijo estÃ¡ en camino.
 
 Permite filtrar por tipo y eliminar notificaciones individualmente.
 
 ---
 
-### `tracking.js` — Seguimiento GPS
-**¿Qué hace?**
-Pantalla de rastreo en tiempo real. Muestra el mapa con la ubicación actual del hijo seleccionado. Incluye:
+### `tracking.js` â€” Seguimiento GPS
+**Â¿QuÃ© hace?**
+Pantalla de rastreo en tiempo real. Muestra el mapa con la ubicaciÃ³n actual del hijo seleccionado. Incluye:
 - Mapa interactivo con marcador del estudiante.
-- Panel de información: estado, velocidad, última actualización.
+- Panel de informaciÃ³n: estado, velocidad, Ãºltima actualizaciÃ³n.
 - Alerta de incidentes recientes.
 - Selector de hijo cuando hay varios registrados.
 
 ---
 
-### `history.js` — Historial de Trayectos
-**¿Qué hace?**
-Registro histórico de todos los eventos y trayectos realizados por los hijos. Permite:
+### `history.js` â€” Historial de Trayectos
+**Â¿QuÃ© hace?**
+Registro histÃ³rico de todos los eventos y trayectos realizados por los hijos. Permite:
 - **Filtrar** por nombre de hijo y fecha.
-- **Ver tarjetas** con detalles de cada trayecto (hora inicio/fin, estado, observación, ruta).
-- **Estadísticas rápidas**: Total, Completados, En Proceso, Con Incidentes.
+- **Ver tarjetas** con detalles de cada trayecto (hora inicio/fin, estado, observaciÃ³n, ruta).
+- **EstadÃ­sticas rÃ¡pidas**: Total, Completados, En Proceso, Con Incidentes.
 - **Eliminar** registros individuales del historial.
-- Soporte bilingüe completo (ES/EN) incluyendo fechas y horas.
+- Soporte bilingÃ¼e completo (ES/EN) incluyendo fechas y horas.
 
 ---
 
-### `zones.js` — Zonas Seguras y Rutas
-**¿Qué hace?**
-Configuración de las zonas geográficas seguras y rutas asignadas para cada hijo. Permite:
-- **Crear y editar zonas seguras** (ej: Casa, Colegio) con nombre, dirección y radio de cobertura.
+### `zones.js` â€” Zonas Seguras y Rutas
+**Â¿QuÃ© hace?**
+ConfiguraciÃ³n de las zonas geogrÃ¡ficas seguras y rutas asignadas para cada hijo. Permite:
+- **Crear y editar zonas seguras** (ej: Casa, Colegio) con nombre, direcciÃ³n y radio de cobertura.
 - **Crear y editar rutas** con punto de inicio y llegada.
-- Selección del hijo al que pertenece cada configuración.
+- SelecciÃ³n del hijo al que pertenece cada configuraciÃ³n.
 
 ---
 
-### `profile.js` — Perfil y Configuración
-**¿Qué hace?**
+### `profile.js` â€” Perfil y ConfiguraciÃ³n
+**Â¿QuÃ© hace?**
 Pantalla de perfil del acudiente con todas las configuraciones de la app. Incluye:
-- **Edición del perfil**: nombre, email, teléfono, foto.
-- **Preferencias de notificaciones**: llegada, salida, desvío, batería baja, email, SMS.
-- **Seguridad**: cambio de contraseña, autenticación de dos factores.
+- **EdiciÃ³n del perfil**: nombre, email, telÃ©fono, foto.
+- **Preferencias de notificaciones**: llegada, salida, desvÃ­o, baterÃ­a baja, email, SMS.
+- **Seguridad**: cambio de contraseÃ±a, autenticaciÃ³n de dos factores.
 - **Selector de idioma**: acceso directo al cambio de idioma.
-- **Cerrar sesión**.
+- **Cerrar sesiÃ³n**.

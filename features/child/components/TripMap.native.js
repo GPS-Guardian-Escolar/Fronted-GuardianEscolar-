@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Platform, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { Text } from 'react-native-paper';
 import { useTheme } from '../../../contexts/ThemeContext';
@@ -10,7 +10,7 @@ export default function TripMap({ coordinates = [] }) {
   const colors = theme.colors;
   const last = coordinates[coordinates.length - 1];
 
-  if (Platform.OS === 'web' || !last) {
+  if (!last) {
     return (
       <View style={[styles.placeholder, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
         <MaterialCommunityIcons name="map-marker-path" size={28} color={colors.primary} />

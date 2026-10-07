@@ -9,7 +9,7 @@ import AppButton from '../../components/ui/AppButton';
 import AppCard from '../../components/ui/AppCard';
 import AppLoading from '../../components/ui/AppLoading';
 import { studentService } from '../../services/student.service';
-import { saveChildSession } from '../../services/background/locationTracking';
+import { saveChildSession as persistChildSession } from '../../services/background/locationTracking';
 import { useTheme } from '../../theme/useTheme';
 import { AppRadius, AppSpacing, AppTouch, AppTypography } from '../../theme/tokens';
 import { getDeviceId, getDeviceName, getPlatform } from './deviceHelpers';
@@ -27,11 +27,11 @@ function errorMessage(reason) {
   return messages[reason] || 'No pudimos leer este QR.';
 }
 
-async function saveChildSession(response, payload) {
+async function persistLinkedChildSession(response, payload) {
   const childToken = response?.childToken || response?.token || response?.studentToken || '';
   const studentId = String(response?.studentId || payload?.studentId || '');
 
-  await saveChildSession({ childToken, studentId });
+  await persistChildSession({ childToken, studentId });
 }
 
 export default function ScanQrScreen() {
@@ -59,7 +59,7 @@ export default function ScanQrScreen() {
         deviceName: getDeviceName(),
       });
 
-      await saveChildSession(response, payload);
+      await persistLinkedChildSession(response, payload);
       setSuccess(true);
       setNotice('Dispositivo vinculado correctamente.');
       router.replace('/student-dashboard');

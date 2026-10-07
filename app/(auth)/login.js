@@ -10,6 +10,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { storage } from '../../utils/storage';
 import { isValidEmail } from '../../utils/validators';
+import { AppTouch } from '../../theme/tokens';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -208,6 +209,23 @@ export default function LoginScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <TouchableOpacity
+        style={[
+          styles.studentQrFab,
+          {
+            backgroundColor: colors.primary,
+            bottom: Math.max(insets.bottom + 18, 24),
+          },
+        ]}
+        onPress={() => router.push('/scan-qr')}
+        accessibilityRole="button"
+        accessibilityLabel="Escanear código QR del acudiente"
+        accessibilityHint="Abre la pantalla para escanear el QR o ingresar el código manualmente"
+      >
+        <MaterialCommunityIcons name="qrcode-scan" size={24} color={colors.textOnPrimary} />
+        <Text style={[styles.studentQrFabText, { color: colors.textOnPrimary }]}>Soy estudiante</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -260,6 +278,25 @@ const styles = StyleSheet.create({
   registerLink: { fontSize: 13, fontWeight: '700' },
   errorBox: { borderRadius: 8, padding: 10, marginBottom: 12, borderWidth: 1 },
   errorBoxText: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  studentQrFab: {
+    alignItems: 'center',
+    borderRadius: 999,
+    flexDirection: 'row',
+    gap: 8,
+    minHeight: AppTouch.min,
+    paddingHorizontal: 18,
+    position: 'absolute',
+    right: 18,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  studentQrFabText: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
   backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
   backBtnText: { marginLeft: 5, fontWeight: '600' },
   otpInfoBox: { alignItems: 'center', marginBottom: 20 },

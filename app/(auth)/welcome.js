@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, FlatList, Modal, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -39,6 +39,7 @@ const slides = [
     text: 'Elige cómo quieres entrar a GPS Guardian Escolar.',
   },
 ];
+const AUTO_ADVANCE_MS = 6000;
 
 export default function WelcomeScreen() {
   const router = useRouter();
@@ -81,6 +82,16 @@ export default function WelcomeScreen() {
   const skip = useCallback(() => {
     finish('/(auth)/login');
   }, [finish]);
+
+  useEffect(() => {
+    if (activeIndex >= slides.length - 1 || langModalVisible) return undefined;
+
+    const timer = setTimeout(() => {
+      goToIndex(activeIndex + 1);
+    }, AUTO_ADVANCE_MS);
+
+    return () => clearTimeout(timer);
+  }, [activeIndex, goToIndex, langModalVisible]);
 
   const renderSlide = ({ item, index }) => (
     <Animated.View style={[styles.slide, { width, opacity: fade }]} accessibilityRole="header">
@@ -144,9 +155,9 @@ export default function WelcomeScreen() {
           style={[styles.skipButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
           onPress={skip}
           accessibilityRole="button"
-          accessibilityLabel="Saltar onboarding"
+          accessibilityLabel="Omitir onboarding"
         >
-          <Text style={[styles.skipText, { color: colors.primary }]}>Saltar</Text>
+          <Text style={[styles.skipText, { color: colors.primary }]}>Omitir</Text>
         </TouchableOpacity>
       </View>
 
@@ -168,6 +179,15 @@ export default function WelcomeScreen() {
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         renderItem={renderSlide}
+        getItemLayout={(_, index) => ({
+          length: width,
+          offset: width * index,
+          index,
+        })}
+        onScrollToIndexFailed={({ index }) => {
+          listRef.current?.scrollToOffset({ offset: width * index, animated: true });
+          setActiveIndex(index);
+        }}
         onMomentumScrollEnd={(event) => {
           const nextIndex = Math.round(event.nativeEvent.contentOffset.x / width);
           setActiveIndex(nextIndex);
