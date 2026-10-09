@@ -1,6 +1,10 @@
 const baseConfig = require('./app.json');
 
-const googleMapsApiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+// EAS puede exponer la clave como GOOGLE_MAPS_API_KEY sin publicar el nombre
+// de la variable usada por el bundle web.
+const googleMapsApiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
+  || process.env.GOOGLE_MAPS_API_KEY
+  || '';
 
 module.exports = {
   ...baseConfig.expo,

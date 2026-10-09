@@ -31,18 +31,23 @@ const styles = StyleSheet.create({
   },
   textCol: {
     flex: 1,
+    minWidth: 0,
   },
   title: {
     ...AppTypography.sm,
     fontWeight: '700',
+    flexShrink: 1,
+    lineHeight: 20,
   },
   code: {
     ...AppTypography.sm,
     fontWeight: '800',
+    flexShrink: 1,
     marginTop: 3,
   },
   hint: {
     ...AppTypography.xs,
+    flexShrink: 1,
     marginTop: 4,
   },
 });

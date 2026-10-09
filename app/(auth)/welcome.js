@@ -206,20 +206,22 @@ export default function WelcomeScreen() {
             />
           ))}
         </View>
-        <View style={styles.navRow}>
-          <AppButton
-            title="Atrás"
-            variant="secondary"
-            disabled={activeIndex === 0}
-            onPress={previous}
-            accessibilityLabel="Ver slide anterior"
-          />
-          <AppButton
-            title={activeIndex === slides.length - 1 ? 'Comenzar' : 'Siguiente'}
-            onPress={next}
-            accessibilityLabel={activeIndex === slides.length - 1 ? 'Comenzar registro' : 'Ver siguiente slide'}
-          />
-        </View>
+        {activeIndex < slides.length - 1 && (
+          <View style={styles.navRow}>
+            <AppButton
+              title="Atrás"
+              variant="secondary"
+              disabled={activeIndex === 0}
+              onPress={previous}
+              accessibilityLabel="Ver slide anterior"
+            />
+            <AppButton
+              title="Siguiente"
+              onPress={next}
+              accessibilityLabel="Ver siguiente slide"
+            />
+          </View>
+        )}
       </View>
 
       <Modal visible={langModalVisible} transparent animationType="fade" onRequestClose={() => setLangModalVisible(false)}>

@@ -40,6 +40,17 @@ function normalizeRouteForm(route) {
   };
 }
 
+function requestErrorMessage(error, fallback) {
+  const data = error?.response?.data;
+  if (typeof data === 'string' && data.trim()) return data;
+  if (data?.message) return data.message;
+  if (data?.errors && typeof data.errors === 'object') {
+    return Object.values(data.errors).flat().join(' ');
+  }
+  if (error?.message?.includes('geocod')) return error.message;
+  return fallback;
+}
+
 export default function ZonesScreen() {
   const router = useRouter();
   const { t } = useLanguage();
@@ -129,6 +140,9 @@ export default function ZonesScreen() {
       }
       await loadData();
       setModalVisible(false);
+      Alert.alert('Zona guardada', 'La zona fue geocodificada y guardada correctamente.');
+    } catch (error) {
+      Alert.alert('No se pudo guardar la zona', requestErrorMessage(error, 'Verifica la dirección y el radio e inténtalo de nuevo.'));
     } finally {
       setLoading(false);
     }
@@ -202,6 +216,9 @@ export default function ZonesScreen() {
       }
       await loadData();
       setModalRouteVisible(false);
+      Alert.alert('Ruta guardada', 'La ruta fue geocodificada y guardada correctamente.');
+    } catch (error) {
+      Alert.alert('No se pudo guardar la ruta', requestErrorMessage(error, 'Verifica los puntos inicial y final e inténtalo de nuevo.'));
     } finally {
       setLoading(false);
     }
@@ -373,15 +390,21 @@ export default function ZonesScreen() {
                       latitudeDelta: 0.05,
                       longitudeDelta: 0.05,
                     }}
-                    markers={currentZones.map((z, i) => {
+                    markers={currentZones.map(z => {
                       const markerColor = z.type === 'Escuela' ? colors.primary : (z.type === 'Casa' ? colors.accent : colors.error);
+                      const center = z.center || { latitude: Number(z.latitude), longitude: Number(z.longitude) };
                       return {
-                        lat: 4.5709 + (i * 0.005),
-                        lng: -74.2973 + (i * 0.005),
+                        latitude: center.latitude,
+                        longitude: center.longitude,
                         color: markerColor,
                         title: z.name
                       };
                     })}
+                    safeZones={currentZones.map(z => ({
+                      ...z,
+                      center: z.center || { latitude: Number(z.latitude), longitude: Number(z.longitude) },
+                      radiusMeters: Number(z.radiusMeters || parseRadiusMeters(z.radius)),
+                    }))}
                  />
               </View>
             </Surface>
@@ -685,7 +708,7 @@ const styles = StyleSheet.create({
   mapContainer: { flex: 1 },
   map: { flex: 1 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: isWeb ? 24 : 10, paddingVertical: 18 },
-  modalKAV: { width: '100%', alignItems: 'center', justifyContent: 'center' },
+  modalKAV: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' },
   modalContent: { backgroundColor: COLORS.BLANCO, borderRadius: 12, padding: 20, maxHeight: '90%' },
   modalSheet: { backgroundColor: COLORS.BLANCO, borderRadius: 12, width: isWeb ? '90%' : '96%', maxWidth: 1020, maxHeight: '92%', overflow: 'hidden' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1 },

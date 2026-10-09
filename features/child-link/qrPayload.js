@@ -1,5 +1,18 @@
+import { STUDENT_LINK_BASE_URL } from '../../config/endpoints';
+
 function isPresent(value) {
   return value !== undefined && value !== null && String(value).trim().length > 0;
+}
+
+function buildStudentLink(payload) {
+  const base = String(payload.baseUrl || '').replace(/\/$/, '');
+  const path = `${base}/scan-qr` || '/scan-qr';
+  const params = new URLSearchParams({
+    studentId: String(payload.studentId || ''),
+    code: String(payload.code || ''),
+  });
+
+  return `${path}?${params.toString()}`;
 }
 
 function normalizePayload(payload) {
@@ -45,7 +58,9 @@ export function buildQrPayload({ studentId, code, name, contactPhone, exp }) {
 }
 
 export function encodeQrValue(payload) {
-  return JSON.stringify(payload);
+  // The QR must be a frontend URL. Raw JSON is interpreted by phone cameras
+  // as a contact card when it contains a telephone number.
+  return buildStudentLink({ ...payload, baseUrl: STUDENT_LINK_BASE_URL });
 }
 
 export function parseQrValue(value) {

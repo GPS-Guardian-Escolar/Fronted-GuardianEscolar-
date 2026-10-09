@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   backButton: { padding: 8 },
-  scrollContent: { flexGrow: 1, justifyContent: 'center' },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', paddingBottom: 96 },
   cardWrapper: { width: '100%', alignItems: 'center', padding: 20, alignSelf: 'center' },
   headerLogo: { width: 120, height: 120, marginBottom: 6 },
   headerTitle: { fontSize: 28, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
