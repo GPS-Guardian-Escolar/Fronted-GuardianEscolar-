@@ -49,6 +49,7 @@ export default function SafeMap({
   showRoute = false,
   safeZones,
   circles,
+  onMapPress,
 }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
@@ -72,6 +73,7 @@ export default function SafeMap({
           streetViewControl: false,
           fullscreenControl: false,
         });
+        if (onMapPress) mapRef.current.addListener('click', event => onMapPress({ latitude: event.latLng.lat(), longitude: event.latLng.lng() }));
       })
       .catch((loadError) => {
         if (!cancelled) setError(loadError.message || 'No se pudo cargar Google Maps.');
@@ -80,8 +82,19 @@ export default function SafeMap({
     return () => {
       cancelled = true;
     };
-  }, [region.latitude, region.longitude]);
+  }, [region.latitude, region.longitude, onMapPress]);
 
+  useEffect(() => {
+    if (!mapRef.current || !window.google?.maps) return undefined;
+    const map = mapRef.current;
+    const resizeMap = () => window.google.maps.event.trigger(map, 'resize');
+    const timer = window.setTimeout(resizeMap, 50);
+    window.addEventListener('resize', resizeMap);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('resize', resizeMap);
+    };
+  }, [region.latitude, region.longitude]);
   useEffect(() => {
     if (!mapRef.current || !window.google?.maps) return;
 
@@ -149,6 +162,17 @@ export default function SafeMap({
       });
       overlaysRef.current.push(circle);
     });
+
+    const bounds = new maps.LatLngBounds();
+    const fitPoints = [
+      ...normalizedMarkers.map(marker => marker.coordinate),
+      ...route,
+      ...zones.map(zone => zone.center),
+    ];
+    fitPoints.forEach(point => bounds.extend({ lat: point.latitude, lng: point.longitude }));
+    if (fitPoints.length && !currentCoordinate) {
+      mapRef.current.fitBounds(bounds, 48);
+    }
   }, [currentCoordinate, normalizedMarkers, route, showRoute, zones]);
 
   if (!GOOGLE_MAPS_API_KEY) {

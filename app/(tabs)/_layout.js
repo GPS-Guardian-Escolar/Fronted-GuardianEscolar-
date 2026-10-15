@@ -130,9 +130,16 @@ function CustomHeader() {
         {isWeb && (
           <View style={styles.navLinks}>
             {navItems.map((item) => {
-              const isActive = pathname === item.route || (item.route === '/(tabs)' && pathname === '/');
+              const normalizePath = value => value?.replace('/(tabs)', '').replace(/\/+$/, '') || '/';
+              const currentPath = normalizePath(pathname);
+              const itemPath = normalizePath(item.route);
+              const isActive = currentPath === itemPath || (itemPath === '/' && currentPath === '/');
               return (
-                <TouchableOpacity key={item.route} onPress={() => router.push(item.route)}>
+                <TouchableOpacity
+                  key={item.route}
+                  onPress={() => router.push(item.route)}
+                  style={[styles.navItem, isActive && { backgroundColor: 'rgba(255,255,255,0.16)', borderBottomColor: headerTextColor }]}
+                >
                   <Text style={[styles.navLink, isActive && styles.navLinkActive, { color: headerTextColor }]}>
                     {item.label || t(item.labelKey)}
                   </Text>
@@ -368,9 +375,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 28,
   },
+  navItem: {
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+  },
   navLink: {
     fontSize: 13,
-    opacity: 0.7,
+    opacity: 0.68,
     fontWeight: '500',
   },
   navLinkActive: {

@@ -50,6 +50,7 @@ export default function SafeMap({
   showRoute = false,
   safeZones,
   circles,
+  onMapPress,
 }) {
   const mapRef = useRef(null);
   const region = useMemo(() => normalizeRegion(initialRegion, currentLocation, markers), [initialRegion, currentLocation, markers]);
@@ -80,6 +81,7 @@ export default function SafeMap({
         initialRegion={region}
         showsUserLocation
         showsMyLocationButton
+        onPress={onMapPress ? event => onMapPress(event.nativeEvent.coordinate) : undefined}
       >
         {normalizedMarkers.map(marker => <StudentMarker key={marker.id} marker={marker} />)}
         {currentCoordinate && (

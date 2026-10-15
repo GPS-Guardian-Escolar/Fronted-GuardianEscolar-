@@ -158,7 +158,8 @@ async function getStudentExtras(studentId) {
       ...zone,
       id: zone.id,
       name: zone.zoneName,
-      radius: `${zone.radiusMeters} Metros`,
+      type: zone.zoneType || 'Personalizado',
+radius: `${zone.radiusMeters} Metros`,
       radiusMeters: zone.radiusMeters,
       center: { latitude: Number(zone.latitude), longitude: Number(zone.longitude) },
     }));
@@ -312,12 +313,14 @@ export async function addZone(studentId, zoneData) {
   const saved = await safeZoneService.create({
     studentId,
     zoneName: zoneData.name,
+    zoneType: zoneData.type || 'Personalizado',
+address: zoneData.address,
     latitude: coordinates.latitude,
     longitude: coordinates.longitude,
     radiusMeters: parseInt(String(zoneData.radius).replace(/\D/g, ''), 10),
     inactivityAlertSeconds: 300,
   });
-  return [{ ...saved, name: saved.zoneName, radius: `${saved.radiusMeters} Metros` }];
+  return [{ ...saved, name: saved.zoneName, type: saved.zoneType || zoneData.type || 'Personalizado', radius: `${saved.radiusMeters} Metros` }];
 }
 
 function formatCoordinates(latitude, longitude) {
@@ -330,12 +333,14 @@ export async function updateZone(studentId, zoneId, zoneData) {
   const saved = await safeZoneService.update(zoneId, {
     studentId,
     zoneName: zoneData.name,
+    zoneType: zoneData.type || 'Personalizado',
+address: zoneData.address,
     latitude: coordinates.latitude,
     longitude: coordinates.longitude,
     radiusMeters: parseInt(String(zoneData.radius).replace(/\D/g, ''), 10),
     inactivityAlertSeconds: 300,
   });
-  return [{ ...saved, name: saved.zoneName, radius: `${saved.radiusMeters} Metros` }];
+  return [{ ...saved, name: saved.zoneName, type: saved.zoneType || zoneData.type || 'Personalizado', radius: `${saved.radiusMeters} Metros` }];
 }
 
 export async function deleteZone(studentId, zoneId) {
@@ -345,8 +350,8 @@ export async function deleteZone(studentId, zoneId) {
 
 export async function addRoute(studentId, routeData) {
   const [origin, destination] = await Promise.all([
-    mapsService.geocode(routeData.start),
-    mapsService.geocode(routeData.end),
+    routeData.startCoordinates || mapsService.geocode(routeData.start),
+    routeData.endCoordinates || mapsService.geocode(routeData.end),
   ]);
   const route = await routeService.create({
     routeName: routeData.name,
@@ -355,7 +360,12 @@ export async function addRoute(studentId, routeData) {
     originLongitude: origin.longitude,
     destinationLatitude: destination.latitude,
     destinationLongitude: destination.longitude,
-    stops: [],
+     stops: (routeData.routePoints || []).slice(1, -1).map((point, index) => ({
+       stopOrder: index + 1,
+       stopName: 'Punto intermedio ' + (index + 1),
+       latitude: point.latitude,
+       longitude: point.longitude,
+     })),
   });
   await studentService.assignRoute(studentId, route.id);
   return [route];
@@ -363,8 +373,8 @@ export async function addRoute(studentId, routeData) {
 
 export async function updateRoute(studentId, routeId, routeData) {
   const [origin, destination] = await Promise.all([
-    mapsService.geocode(routeData.start),
-    mapsService.geocode(routeData.end),
+    routeData.startCoordinates || mapsService.geocode(routeData.start),
+    routeData.endCoordinates || mapsService.geocode(routeData.end),
   ]);
   const route = await routeService.update(routeId, {
     routeName: routeData.name,
@@ -373,7 +383,12 @@ export async function updateRoute(studentId, routeId, routeData) {
     originLongitude: origin.longitude,
     destinationLatitude: destination.latitude,
     destinationLongitude: destination.longitude,
-    stops: [],
+     stops: (routeData.routePoints || []).slice(1, -1).map((point, index) => ({
+       stopOrder: index + 1,
+       stopName: 'Punto intermedio ' + (index + 1),
+       latitude: point.latitude,
+       longitude: point.longitude,
+     })),
   });
   return [route];
 }

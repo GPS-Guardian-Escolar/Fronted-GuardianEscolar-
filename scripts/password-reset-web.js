@@ -1,5 +1,6 @@
 const http = require('http');
 const querystring = require('querystring');
+const { Buffer } = require('node:buffer');
 
 const HOST = '0.0.0.0';
 const PORT = Number(process.env.RESET_WEB_PORT || 8081);

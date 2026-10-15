@@ -220,7 +220,7 @@ export default function LoginScreen() {
             bottom: Math.max(insets.bottom + 18, 24),
           },
         ]}
-        onPress={() => router.push('/scan-qr')}
+        onPress={() => router.push({ pathname: '/scan-qr', params: { relink: '1' } })}
         accessibilityRole="button"
         accessibilityLabel="Escanear código QR del acudiente"
         accessibilityHint="Abre la pantalla para escanear el QR o ingresar el código manualmente"

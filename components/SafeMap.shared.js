@@ -25,8 +25,8 @@ export function normalizeCoordinate(value) {
 export function normalizeRegion(initialRegion, currentLocation, markers = []) {
   const markerCoordinate = markers.map(normalizeCoordinate).find(Boolean);
   const center = normalizeCoordinate(currentLocation)
-    || normalizeCoordinate(initialRegion)
     || markerCoordinate
+    || normalizeCoordinate(initialRegion)
     || DEFAULT_REGION;
 
   return {

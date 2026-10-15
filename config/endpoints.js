@@ -4,6 +4,10 @@ import { Platform } from 'react-native';
 const apiPort = process.env.EXPO_PUBLIC_API_PORT || '8080';
 const frontendPort = process.env.EXPO_PUBLIC_FRONTEND_PORT || '8081';
 
+const DEFAULT_API_URL = 'https://s3tn0qz4-8080.use.devtunnels.ms/api';
+const DEFAULT_WS_URL = 'wss://s3tn0qz4-8080.use.devtunnels.ms/ws';
+const DEFAULT_STUDENT_LINK_BASE_URL = 'https://s3tn0qz4-8081.use.devtunnels.ms';
+
 function isLocalHost(host) {
   return !host || host === 'localhost' || host === '127.0.0.1' || host === '::1';
 }
@@ -61,11 +65,13 @@ function normalizeApiUrl(value) {
   return normalized.endsWith('/api') ? normalized : `${normalized}/api`
 }
 function isTunnelHost(host) {
-  return /\.devtunnels\.ms$/i.test(host) || /\.trycloudflare\.com$/i.test(host);
+  return /\.devtunnels\.ms$/i.test(host)
+    || /\.trycloudflare\.com$/i.test(host)
+    || /\.loca\.lt$/i.test(host);
 }
 
 function resolveApiUrl() {
-  const configuredUrl = process.env.EXPO_PUBLIC_API_URL;
+  const configuredUrl = process.env.EXPO_PUBLIC_API_URL || DEFAULT_API_URL;
   const currentBrowserHost = browserHost();
   if (configuredUrl?.startsWith('/')) {
     // A public Docker frontend tunnel keeps the same-origin API proxy.
@@ -100,7 +106,7 @@ function resolveApiUrl() {
 }
 
 function resolveWsUrl(apiUrl) {
-  const configuredUrl = process.env.EXPO_PUBLIC_WS_URL;
+  const configuredUrl = process.env.EXPO_PUBLIC_WS_URL || DEFAULT_WS_URL;
   const origin = browserOrigin();
   const currentBrowserHost = browserHost();
   if (configuredUrl?.startsWith('/')) {
@@ -133,7 +139,7 @@ function resolveWsUrl(apiUrl) {
 }
 
 function resolveStudentLinkBaseUrl(apiUrl) {
-  const configuredUrl = process.env.EXPO_PUBLIC_STUDENT_LINK_BASE_URL;
+  const configuredUrl = process.env.EXPO_PUBLIC_STUDENT_LINK_BASE_URL || DEFAULT_STUDENT_LINK_BASE_URL;
   const origin = browserOrigin();
   const currentBrowserHost = browserHost();
   // QR links must point to the public frontend origin, never to the API

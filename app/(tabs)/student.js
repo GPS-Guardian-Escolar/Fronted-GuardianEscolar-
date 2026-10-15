@@ -13,7 +13,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { Avatar, Button, FAB, Surface, Text } from 'react-native-paper';
+import { Avatar, Button, FAB, Snackbar, Surface, Text } from 'react-native-paper';
 import CalendarDatePicker from '../../components/common/CalendarDatePicker';
 import { COLORS } from '../../constants/colors';
 import { useAuth } from '../../contexts/AuthContext';
@@ -32,6 +32,22 @@ const isWeb = width > 768;
 const isTablet = width > 600 && width <= 1024;
 const MIN_STUDENT_AGE = 3;
 const MAX_STUDENT_AGE = 21;
+const GRADE_AGE_RANGES = {
+  PRE_KINDER: [3, 5],
+  KINDER: [4, 6],
+  TRANSITION: [5, 7],
+  FIRST: [6, 8],
+  SECOND: [7, 9],
+  THIRD: [8, 10],
+  FOURTH: [9, 11],
+  FIFTH: [10, 12],
+  SIXTH: [11, 13],
+  SEVENTH: [12, 14],
+  EIGHTH: [13, 15],
+  NINTH: [14, 16],
+  TENTH: [15, 17],
+  ELEVENTH: [16, 21],
+};
 const EMPTY_FORM = {
   nombre: '',
   grado: '',
@@ -89,6 +105,11 @@ export default function StudentScreen() {
   const [shareEmail, setShareEmail] = useState('');
   const [guardians, setGuardians] = useState([]);
   const [shareLoading, setShareLoading] = useState(false);
+  const [deleteCandidate, setDeleteCandidate] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [unlinkCandidate, setUnlinkCandidate] = useState(null);
+  const [unlinkLoading, setUnlinkLoading] = useState(false);
+  const [notice, setNotice] = useState('');
   const router = useRouter();
   const { user } = useAuth();
   const { t } = useLanguage();
@@ -193,13 +214,7 @@ export default function StudentScreen() {
 
   function confirmDelete(student) {
     if (Platform.OS === 'web') {
-      const confirmed = window.confirm(`${t('studDeleteConfirm')} ${student.nombre}? ${t('studDeleteWarning')}`);
-      if (confirmed) {
-        (async () => {
-          const updated = await deleteStudent(student.id);
-          setStudents(updated);
-        })();
-      }
+      setDeleteCandidate(student);
       return;
     }
 
@@ -211,13 +226,26 @@ export default function StudentScreen() {
         {
           text: t('delete'),
           style: 'destructive',
-          onPress: async () => {
-            const updated = await deleteStudent(student.id);
-            setStudents(updated);
-          },
+          onPress: () => executeDelete(student),
         },
       ]
     );
+  }
+
+  async function executeDelete(student) {
+    setDeleteLoading(true);
+    try {
+      const updated = await deleteStudent(student.id);
+      setStudents(updated);
+      setDeleteCandidate(null);
+      setNotice('Estudiante eliminado correctamente.');
+    } catch (error) {
+      setNotice(error?.response?.status === 401
+        ? 'La sesión expiró. Inicia sesión nuevamente.'
+        : 'No se pudo eliminar el estudiante. Intenta nuevamente.');
+    } finally {
+      setDeleteLoading(false);
+    }
   }
 
   const pickImage = async () => {
@@ -266,6 +294,12 @@ export default function StudentScreen() {
       const age = calculateAgeFromDate(birthDate);
       if (age < MIN_STUDENT_AGE || age > MAX_STUDENT_AGE) {
         errors.fechaNacimiento = `La edad debe estar entre ${MIN_STUDENT_AGE} y ${MAX_STUDENT_AGE} años.`;
+      } else {
+        const normalizedGrade = normalizeGrade(form.grado);
+        const range = GRADE_AGE_RANGES[normalizedGrade];
+        if (range && (age < range[0] || age > range[1])) {
+          errors.grado = `El grado seleccionado no corresponde a una edad de ${age} años.`;
+        }
       }
     }
     const contactName = form.contacto_nombre.trim();
@@ -325,7 +359,28 @@ export default function StudentScreen() {
     }
   }
 
+  async function executeUnlink(student) {
+    setUnlinkLoading(true);
+    try {
+      await studentService.unlinkDevice(student.id);
+      await loadStudents();
+      setUnlinkCandidate(null);
+      setNotice('Dispositivo desvinculado correctamente.');
+    } catch (error) {
+      setNotice(error?.response?.status === 401
+        ? 'La sesión expiró. Inicia sesión nuevamente.'
+        : 'No se pudo desvincular el dispositivo. Intenta nuevamente.');
+    } finally {
+      setUnlinkLoading(false);
+    }
+  }
+
   function handleUnlinkDevice(student) {
+    if (Platform.OS === 'web') {
+      setUnlinkCandidate(student);
+      return;
+    }
+
     Alert.alert(
       'Desvincular dispositivo',
       `Se detendrá el envío de ubicación de ${student.nombre}. Podrás vincular otro celular después.`,
@@ -334,14 +389,7 @@ export default function StudentScreen() {
         {
           text: 'Desvincular',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await studentService.unlinkDevice(student.id);
-              await loadStudents();
-            } catch (error) {
-              Alert.alert(t('error'), error.message || 'No se pudo desvincular el dispositivo.');
-            }
-          },
+          onPress: () => executeUnlink(student),
         },
       ],
     );
@@ -736,6 +784,74 @@ export default function StudentScreen() {
           </Surface>
         </View>
       </Modal>
+
+      <Modal
+        visible={!!deleteCandidate}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setDeleteCandidate(null)}
+      >
+        <View style={[styles.modalOverlay, themed.overlay]}>
+          <Surface style={[styles.deleteModal, themed.surface]} elevation={5}>
+            <Text style={[styles.deleteTitle, themed.text]}>Eliminar estudiante</Text>
+            <Text style={[styles.deleteMessage, themed.textSecondary]}>
+              ¿Estás seguro de eliminar a {deleteCandidate?.nombre}? Esta acción no se puede deshacer.
+            </Text>
+            <View style={styles.deleteActions}>
+              <TouchableOpacity
+                style={[styles.mockupCancelBtn, { borderColor: colors.border }]}
+                onPress={() => setDeleteCandidate(null)}
+                disabled={deleteLoading}
+              >
+                <Text style={[styles.mockupCancelText, themed.text]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.deleteConfirmBtn, { backgroundColor: colors.error }]}
+                onPress={() => executeDelete(deleteCandidate)}
+                disabled={deleteLoading}
+              >
+                <Text style={styles.deleteConfirmText}>{deleteLoading ? 'Eliminando...' : 'Eliminar'}</Text>
+              </TouchableOpacity>
+            </View>
+          </Surface>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={!!unlinkCandidate}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setUnlinkCandidate(null)}
+      >
+        <View style={[styles.modalOverlay, themed.overlay]}>
+          <Surface style={[styles.deleteModal, themed.surface]} elevation={5}>
+            <Text style={[styles.deleteTitle, themed.text]}>Desvincular dispositivo</Text>
+            <Text style={[styles.deleteMessage, themed.textSecondary]}>
+              Se detendrá el envío de ubicación de {unlinkCandidate?.nombre}. Podrás vincular otro celular después.
+            </Text>
+            <View style={styles.deleteActions}>
+              <TouchableOpacity
+                style={[styles.mockupCancelBtn, { borderColor: colors.border }]}
+                onPress={() => setUnlinkCandidate(null)}
+                disabled={unlinkLoading}
+              >
+                <Text style={[styles.mockupCancelText, themed.text]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.deleteConfirmBtn, { backgroundColor: colors.error }]}
+                onPress={() => executeUnlink(unlinkCandidate)}
+                disabled={unlinkLoading}
+              >
+                <Text style={styles.deleteConfirmText}>{unlinkLoading ? 'Desvinculando...' : 'Desvincular'}</Text>
+              </TouchableOpacity>
+            </View>
+          </Surface>
+        </View>
+      </Modal>
+
+      <Snackbar visible={!!notice} onDismiss={() => setNotice('')}>
+        {notice}
+      </Snackbar>
     </View>
   );
 }
@@ -810,6 +926,7 @@ const styles = StyleSheet.create({
   childAvatarWrap: {
     alignItems: 'center',
     marginBottom: 12,
+    paddingTop: 42,
   },
   childName: {
     fontSize: 16,
@@ -930,14 +1047,15 @@ const styles = StyleSheet.create({
   cardActionsFloating: {
     position: 'absolute',
     top: 14,
-    right: 14,
+    right: 12,
     flexDirection: 'row',
-    gap: 6,
+    gap: 8,
     alignItems: 'center',
+    zIndex: 2,
   },
   actionBtnIcon: {
-    width: AppTouch.icon,
-    height: AppTouch.icon,
+    width: 44,
+    height: 44,
     backgroundColor: '#F3F4F6',
     borderRadius: 24,
     borderWidth: 1,
@@ -1094,6 +1212,39 @@ const styles = StyleSheet.create({
     maxHeight: '86%',
     borderWidth: 1,
   },
+  deleteModal: {
+    borderRadius: 10,
+    padding: 22,
+    width: isWeb ? 430 : '90%',
+  },
+  deleteTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  deleteMessage: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  deleteActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  deleteConfirmBtn: {
+    alignItems: 'center',
+    borderRadius: 6,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: AppTouch.min,
+  },
+  deleteConfirmText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   shareSubtitle: {
     textAlign: 'center',
     fontSize: 13,
@@ -1178,8 +1329,8 @@ const styles = StyleSheet.create({
     color: COLORS.ALERTA,
     fontSize: AppTypography.xs.fontSize,
     lineHeight: AppTypography.xs.lineHeight,
-    marginTop: -7,
-    marginBottom: 8,
+    marginTop: 2,
+     marginBottom: 12,
   },
   mockupRow: {
     flexDirection: isWeb ? 'row' : 'column',

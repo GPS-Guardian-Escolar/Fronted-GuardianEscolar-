@@ -1,18 +1,14 @@
-import { STUDENT_LINK_BASE_URL } from '../../config/endpoints';
-
 function isPresent(value) {
   return value !== undefined && value !== null && String(value).trim().length > 0;
 }
 
 function buildStudentLink(payload) {
-  const base = String(payload.baseUrl || '').replace(/\/$/, '');
-  const path = `${base}/scan-qr` || '/scan-qr';
-  const params = new URLSearchParams({
-    studentId: String(payload.studentId || ''),
-    code: String(payload.code || ''),
+  // Keep the value compact so phone and browser cameras can decode it reliably.
+  return JSON.stringify({
+    v: 1,
+    s: String(payload.studentId || ''),
+    c: String(payload.code || ''),
   });
-
-  return `${path}?${params.toString()}`;
 }
 
 function normalizePayload(payload) {
@@ -37,8 +33,8 @@ function parseLegacyUrl(value) {
     const url = new URL(value);
     const params = url.searchParams;
     const payload = normalizePayload({
-      studentId: params.get('id') || params.get('studentId'),
-      code: params.get('codigo') || params.get('code'),
+      studentId: params.get('s') || params.get('id') || params.get('studentId'),
+      code: params.get('c') || params.get('codigo') || params.get('code'),
       name: params.get('nombre') || params.get('name'),
       contactPhone: params.get('telefono') || params.get('contactPhone'),
     });
@@ -58,9 +54,7 @@ export function buildQrPayload({ studentId, code, name, contactPhone, exp }) {
 }
 
 export function encodeQrValue(payload) {
-  // The QR must be a frontend URL. Raw JSON is interpreted by phone cameras
-  // as a contact card when it contains a telephone number.
-  return buildStudentLink({ ...payload, baseUrl: STUDENT_LINK_BASE_URL });
+  return buildStudentLink(payload);
 }
 
 export function parseQrValue(value) {
@@ -76,7 +70,11 @@ export function parseQrValue(value) {
       return { ok: false, reason: 'unsupported_version' };
     }
 
-    const payload = normalizePayload(parsed);
+    const payload = normalizePayload({
+      ...parsed,
+      studentId: parsed.studentId || parsed.s,
+      code: parsed.code || parsed.c,
+    });
     if (!isPresent(payload.studentId) || !isPresent(payload.code)) {
       return { ok: false, reason: 'missing_required_fields' };
     }
