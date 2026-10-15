@@ -38,25 +38,26 @@ export const AppElevation = {
 export const lightColors = {
   primary: '#1A4F8A',
   onPrimary: '#FFFFFF',
-  surface: '#FFFFFF',
+  surface: '#F7F9FC',
   onSurface: '#1A1A1A',
-  background: '#F4F5F7',
+  background: '#E7EDF3',
   onBackground: '#1A1A1A',
   error: '#B42318',
   onError: '#FFFFFF',
-  border: '#D6DCE5',
-  muted: '#5F6B7A',
+  border: '#B8C5D3',
+  muted: '#4B5D70',
 };
 
 export const darkColors = {
   primary: '#9CCBFF',
   onPrimary: '#0F1419',
-  surface: '#1A1F26',
+  surface: '#171D24',
   onSurface: '#F0F4FA',
-  background: '#0F1419',
+  background: '#0B1015',
   onBackground: '#F0F4FA',
   error: '#FFB4AB',
   onError: '#3B0906',
   border: '#4A5568',
   muted: '#C2CAD8',
 };
+

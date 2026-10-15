@@ -1,10 +1,10 @@
-import axios from 'axios'
+import { create } from 'axios'
 
 import { BASE_URL } from '../config/endpoints'
 import { emitAuthExpired } from '../utils/authEvents'
 import { storage } from '../utils/storage'
 
-const api = axios.create({
+const api = create({
   baseURL: BASE_URL,
   timeout: 20000,
   headers: {

@@ -10,12 +10,18 @@ import { lightColors } from '../../theme/tokens';
 export const LOCATION_TASK_NAME = 'gps-guardian-background-location';
 export const CHILD_TOKEN_KEY = 'guardian_child_token';
 export const CHILD_STUDENT_ID_KEY = 'guardian_child_student_id';
+export const CHILD_CODE_KEY = 'guardian_child_code';
 export const ACTIVE_TRIP_ID_KEY = 'guardian_active_trip_id';
 
 const QUEUE_KEY = '@guardian_location_queue';
 const LAST_COORD_KEY = '@guardian_last_location_coord';
 const MAX_FLUSH_ATTEMPTS = 3;
 const MIN_DISTANCE_METERS = 25;
+const MAX_ACCURACY_METERS = 80;
+const MAX_SINGLE_JUMP_METERS = 1000;
+
+let webWatchId = null;
+let webTracking = false;
 
 function canUseSecureStore() {
   return Platform.OS !== 'web';
@@ -62,6 +68,18 @@ function isValidCoordinate(coord) {
   return Number.isFinite(coord.latitude) && Number.isFinite(coord.longitude);
 }
 
+function isReliableCoordinate(coord, previous) {
+  if (Number.isFinite(coord.accuracy) && coord.accuracy > MAX_ACCURACY_METERS) return false;
+  if (!previous) return true;
+
+  const jump = distanceMeters(previous, coord);
+  const elapsedSeconds = Math.max(
+    1,
+    (Date.parse(coord.recordedAt) - Date.parse(previous.recordedAt)) / 1000,
+  );
+  return jump <= MAX_SINGLE_JUMP_METERS || jump / elapsedSeconds <= 30;
+}
+
 function distanceMeters(from, to) {
   if (!from || !to) return Number.POSITIVE_INFINITY;
   const earthRadius = 6371000;
@@ -100,22 +118,34 @@ async function writeQueue(queue) {
   await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
 }
 
-export async function saveChildSession({ childToken, studentId }) {
+export async function saveChildSession({ childToken, studentId, code }) {
   const entries = [];
   if (childToken) entries.push(setStoredValue(CHILD_TOKEN_KEY, childToken));
   if (studentId) entries.push(setStoredValue(CHILD_STUDENT_ID_KEY, studentId));
+  if (code) entries.push(setStoredValue(CHILD_CODE_KEY, code));
   await Promise.all(entries);
 }
 
 export async function getChildSession() {
-  const [childToken, studentId, activeTripId] = await Promise.all([
+  const [childToken, studentId, studentCode, activeTripId] = await Promise.all([
     getStoredValue(CHILD_TOKEN_KEY),
     getStoredValue(CHILD_STUDENT_ID_KEY),
+    getStoredValue(CHILD_CODE_KEY),
     getStoredValue(ACTIVE_TRIP_ID_KEY),
   ]);
-  return { childToken, studentId, activeTripId };
+  return { childToken, studentId, studentCode, activeTripId };
 }
 
+export async function clearChildSession() {
+  await stopBackgroundUpdates();
+  await Promise.all([
+    removeStoredValue(CHILD_TOKEN_KEY),
+    removeStoredValue(CHILD_STUDENT_ID_KEY),
+    removeStoredValue(CHILD_CODE_KEY),
+    AsyncStorage.removeItem(QUEUE_KEY),
+    AsyncStorage.removeItem(LAST_COORD_KEY),
+  ]);
+}
 export async function handleLocationTask({ data, error }) {
   if (error) {
     console.warn('Error en rastreo en segundo plano:', error);
@@ -135,38 +165,95 @@ export async function handleLocationTask({ data, error }) {
 
 export async function requestPermissions() {
   if (Platform.OS === 'web') {
-    return { granted: false, reason: 'El rastreo en segundo plano solo está disponible en Android o iOS.' };
-  }
-
-  const foreground = await Location.requestForegroundPermissionsAsync();
-  if (!foreground.granted) {
-    return { granted: false, reason: 'Permite la ubicación mientras usas la app para iniciar el trayecto escolar.' };
-  }
-
-  const background = await Location.requestBackgroundPermissionsAsync();
-  if (!background.granted) {
-    return { granted: false, reason: 'Activa "Permitir siempre" para compartir ubicación durante el trayecto con la app minimizada.' };
-  }
-
-  if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
-    const notification = await Notifications.requestPermissionsAsync();
-    if (notification.status !== 'granted') {
-      return { granted: false, reason: 'Permite las notificaciones para mostrar el servicio activo de ubicación.' };
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      return { granted: false, reason: 'Este navegador no permite acceder a la ubicación.' };
     }
+
+    return new Promise(resolve => {
+      navigator.geolocation.getCurrentPosition(
+        () => resolve({ granted: true, reason: '' }),
+        error => resolve({
+          granted: false,
+          reason: error?.code === 1
+            ? 'Permite la ubicación para este sitio desde los ajustes de Chrome.'
+            : 'No se pudo obtener la ubicación. Activa el GPS y vuelve a intentarlo.',
+        }),
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+      );
+    });
   }
 
-  return { granted: true, reason: '' };
-}
+  try {
+    if (!(await Location.hasServicesEnabledAsync())) {
+      return { granted: false, reason: 'Activa la ubicación/GPS del teléfono y vuelve a pulsar Reintentar.' };
+    }
 
+    let foreground = await Location.getForegroundPermissionsAsync();
+    if (!foreground.granted) foreground = await Location.requestForegroundPermissionsAsync();
+    if (!foreground.granted) {
+      return { granted: false, reason: 'Permite la ubicación mientras usas la app. En Ajustes > Permisos > Ubicación selecciona "Permitir siempre".' };
+    }
+
+    let background = await Location.getBackgroundPermissionsAsync();
+    if (!background.granted) background = await Location.requestBackgroundPermissionsAsync();
+    if (!background.granted) {
+      return { granted: false, reason: 'La ubicación en segundo plano no está habilitada. En Ajustes > Aplicaciones > GPS Guardian Escolar > Permisos > Ubicación, selecciona "Permitir siempre".' };
+    }
+
+    if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
+      let notification = await Notifications.getPermissionsAsync();
+      if (notification.status !== 'granted') notification = await Notifications.requestPermissionsAsync();
+      if (notification.status !== 'granted') {
+        return { granted: false, reason: 'Permite las notificaciones para mantener activo el servicio de ubicación en segundo plano.' };
+      }
+    }
+
+    return { granted: true, reason: '' };
+  } catch (error) {
+    return { granted: false, reason: `No se pudieron comprobar los permisos de ubicación: ${error?.message || 'abre Ajustes del sistema y vuelve a intentarlo.'}` };
+  }
+}
 export async function isTrackingActive() {
-  if (Platform.OS === 'web') return false;
+  if (Platform.OS === 'web') return webTracking;
   return Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
 }
 
 export async function startBackgroundUpdates(tripId) {
-  if (Platform.OS === 'web') {
-    throw new Error('El rastreo en segundo plano no está disponible en web.');
+  const previousTripId = await getStoredValue(ACTIVE_TRIP_ID_KEY);
+  if (previousTripId && previousTripId !== String(tripId)) {
+    await writeQueue([]);
+    await AsyncStorage.removeItem(LAST_COORD_KEY);
   }
+
+  if (Platform.OS === 'web') {
+    const permission = await requestPermissions();
+    if (!permission.granted) throw new Error(permission.reason);
+
+    await setStoredValue(ACTIVE_TRIP_ID_KEY, tripId);
+    if (webWatchId !== null) return;
+
+    webTracking = true;
+    webWatchId = navigator.geolocation.watchPosition(
+      async position => {
+        const coord = normalizeCoordinate(position);
+        if (!isValidCoordinate(coord)) return;
+        await enqueueCoordinate(coord);
+        await flushQueue();
+      },
+      error => {
+        console.warn('Error en rastreo web:', error);
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
+    );
+    return;
+  }
+
+  if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
+    throw new Error('La tarea de ubicación no está registrada. Cierra y vuelve a abrir el APK actualizado.');
+  }
+
+  const permission = await requestPermissions();
+  if (!permission.granted) throw new Error(permission.reason);
 
   await setStoredValue(ACTIVE_TRIP_ID_KEY, tripId);
   const active = await isTrackingActive();
@@ -189,7 +276,13 @@ export async function startBackgroundUpdates(tripId) {
 }
 
 export async function stopBackgroundUpdates() {
-  if (Platform.OS !== 'web') {
+  if (Platform.OS === 'web') {
+    if (webWatchId !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.clearWatch(webWatchId);
+    }
+    webWatchId = null;
+    webTracking = false;
+  } else {
     const active = await isTrackingActive();
     if (active) {
       await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
@@ -201,6 +294,7 @@ export async function stopBackgroundUpdates() {
 export async function enqueueCoordinate(coord) {
   if (!isValidCoordinate(coord)) return;
   const last = await getLastCoordinate();
+  if (!isReliableCoordinate(coord, last)) return;
   if (distanceMeters(last, coord) < MIN_DISTANCE_METERS) return;
 
   const queue = await readQueue();
@@ -251,3 +345,6 @@ export async function getActiveTripId() {
 export function isLocationTaskDefined() {
   return TaskManager.isTaskDefined(LOCATION_TASK_NAME);
 }
+
+
+

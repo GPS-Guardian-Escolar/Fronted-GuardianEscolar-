@@ -9,6 +9,7 @@ import {
   normalizeMarkers,
   normalizeRegion,
   normalizeRoute,
+  normalizeRoutes,
   normalizeZones,
   sharedStyles,
 } from './SafeMap.shared';
@@ -35,9 +36,9 @@ function SafeZoneCircle({ zone }) {
   );
 }
 
-function RoutePolyline({ coordinates }) {
+function RoutePolyline({ coordinates, color = COLORS.PRIMARIO }) {
   if (coordinates.length < 2) return null;
-  return <Polyline coordinates={coordinates} strokeColor={COLORS.PRIMARIO} strokeWidth={4} />;
+  return <Polyline coordinates={coordinates} strokeColor={color} strokeWidth={4} />;
 }
 
 export default function SafeMap({
@@ -48,13 +49,18 @@ export default function SafeMap({
   markers = [],
   coordinates = [],
   showRoute = false,
+  routePaths = [],
+  journeyCoordinates = [],
   safeZones,
   circles,
+  onMapPress,
 }) {
   const mapRef = useRef(null);
   const region = useMemo(() => normalizeRegion(initialRegion, currentLocation, markers), [initialRegion, currentLocation, markers]);
   const normalizedMarkers = useMemo(() => normalizeMarkers(markers), [markers]);
   const route = useMemo(() => normalizeRoute(coordinates), [coordinates]);
+  const routes = useMemo(() => normalizeRoutes(routePaths), [routePaths]);
+  const journey = useMemo(() => normalizeRoute(journeyCoordinates), [journeyCoordinates]);
   const zones = useMemo(() => normalizeZones(safeZones || circles || []), [safeZones, circles]);
   const currentCoordinate = normalizeCoordinate(currentLocation);
 
@@ -80,12 +86,16 @@ export default function SafeMap({
         initialRegion={region}
         showsUserLocation
         showsMyLocationButton
+        onPress={onMapPress ? event => onMapPress(event.nativeEvent.coordinate) : undefined}
       >
         {normalizedMarkers.map(marker => <StudentMarker key={marker.id} marker={marker} />)}
         {currentCoordinate && (
           <Marker coordinate={currentCoordinate} title="Ubicación actual" pinColor={COLORS.PRIMARIO} />
         )}
-        {showRoute && <RoutePolyline coordinates={route} />}
+        {routes.length ? routes.map((routeLine, index) => (
+          <RoutePolyline key={routeLine.id} coordinates={routeLine.coordinates} color={routeLine.color || [COLORS.PRIMARIO, COLORS.ACENTO, COLORS.ALERTA, '#7C3AED'][index % 4]} />
+        )) : (showRoute && <RoutePolyline coordinates={route} />)}
+        <RoutePolyline coordinates={journey} color={COLORS.PRIMARIO} />
         {zones.map(zone => <SafeZoneCircle key={zone.id} zone={zone} />)}
         {children}
       </MapView>

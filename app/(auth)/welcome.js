@@ -106,7 +106,7 @@ export default function WelcomeScreen() {
           <AppButton
             title="Soy estudiante (escanear QR)"
             variant="ghost"
-            onPress={() => finish('/scan-qr')}
+            onPress={() => finish({ pathname: '/scan-qr', params: { relink: '1' } })}
             accessibilityLabel="Escanear código QR del acudiente"
             accessibilityHint="Abre la cámara para vincular este celular al estudiante"
           />
