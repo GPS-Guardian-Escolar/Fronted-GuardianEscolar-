@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
+import jsQR from 'jsqr';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { Snackbar, Text } from 'react-native-paper';
@@ -57,6 +58,7 @@ async function persistLinkedChildSession(response, payload) {
 
 export default function ScanQrScreen() {
   const router = useRouter();
+  const isFocused = useIsFocused();
   const params = useLocalSearchParams();
   const { theme } = useTheme();
   const colors = theme.colors;
@@ -67,10 +69,13 @@ export default function ScanQrScreen() {
   const [manualOpen, setManualOpen] = useState(false);
   const [notice, setNotice] = useState('');
   const [success, setSuccess] = useState(false);
-  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraReady, setCameraReady] = useState(Platform.OS !== 'web');
   const [cameraError, setCameraError] = useState('');
   const [cameraKey, setCameraKey] = useState(0);
   const scanLock = useRef(false);
+  const cameraRef = useRef(null);
+  const cameraContainerRef = useRef(null);
+  const webScanTimer = useRef(null);
 
   const styles = useMemo(() => createStyles(colors), [colors]);
   const isMobile = Platform.OS !== 'web';
@@ -94,17 +99,6 @@ export default function ScanQrScreen() {
     return () => clearTimeout(timeout);
   }, [cameraError, cameraReady, permission?.granted]);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!permission?.granted) return undefined;
-
-      setCameraReady(false);
-      setCameraError('');
-      setCameraKey((value) => value + 1);
-
-      return undefined;
-    }, [permission?.granted])
-  );
   const linkedPayload = useMemo(() => {
     if (Platform.OS !== 'web' || !params?.studentId || !params?.code) return null;
     return {
@@ -158,6 +152,45 @@ export default function ScanQrScreen() {
 
     linkDevice(result.payload);
   }, [isProcessing, linkDevice, success]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !cameraReady || !permission?.granted || !isFocused || cameraError) return undefined;
+
+    // Safari can render the camera but does not always expose BarcodeDetector,
+    // so decode frames directly from the video as a web fallback.
+    const canvas = document.createElement('canvas');
+    const detector = typeof window !== 'undefined' && 'BarcodeDetector' in window
+      ? new window.BarcodeDetector({ formats: ['qr_code'] })
+      : null;
+    const scanFrame = () => {
+      const video = cameraContainerRef.current?.querySelector?.('video');
+      if (!video || video.readyState < 2 || video.videoWidth < 1 || video.videoHeight < 1) return;
+      const sourceSize = Math.min(video.videoWidth, video.videoHeight);
+      const sourceX = Math.max(0, (video.videoWidth - sourceSize) / 2);
+      const sourceY = Math.max(0, (video.videoHeight - sourceSize) / 2);
+      canvas.width = sourceSize;
+      canvas.height = sourceSize;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      context.drawImage(video, sourceX, sourceY, sourceSize, sourceSize, 0, 0, sourceSize, sourceSize);
+      const image = context.getImageData(0, 0, canvas.width, canvas.height);
+      const result = jsQR(image.data, canvas.width, canvas.height, {
+        inversionAttempts: 'attemptBoth',
+      });
+      if (result?.data) handleQrValue(result.data);
+
+      if (!result && detector) {
+        detector.detect(canvas)
+          .then(codes => codes?.[0]?.rawValue && handleQrValue(codes[0].rawValue))
+          .catch(() => null);
+      }
+    };
+
+    webScanTimer.current = setInterval(scanFrame, 350);
+    return () => {
+      clearInterval(webScanTimer.current);
+      webScanTimer.current = null;
+    };
+  }, [cameraError, cameraReady, handleQrValue, isFocused, permission?.granted]);
 
   const submitManualCode = useCallback(() => {
     const code = manualCode.trim();
@@ -225,7 +258,7 @@ export default function ScanQrScreen() {
     <SafeAreaView style={styles.screen}>
       <BackButton router={router} styles={styles} colors={colors} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.content, isMobile && styles.mobileContent]}>
-        <View style={[styles.cameraWrap, isMobile ? styles.mobileCameraWrap : null]}>
+        <View ref={cameraContainerRef} style={[styles.cameraWrap, isMobile ? styles.mobileCameraWrap : null]}>
           {!cameraReady && !cameraError && (
             <View pointerEvents="none" style={styles.cameraLoading}>
               <MaterialCommunityIcons name="camera-outline" size={42} color={colors.textOnPrimary} />
@@ -233,10 +266,11 @@ export default function ScanQrScreen() {
             </View>
           )}
           <CameraView
+            ref={cameraRef}
             key={`${permission.granted ? 'camera-enabled' : 'camera-disabled'}-${cameraKey}`}
             style={styles.camera}
-            facing={Platform.OS === 'web' ? 'front' : 'back'}
-            active={true}
+            facing="back"
+            active={isFocused && !cameraError}
             barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
             onBarcodeScanned={isProcessing || success ? undefined : ({ data }) => handleQrValue(data)}
             onCameraReady={() => {
@@ -258,7 +292,7 @@ export default function ScanQrScreen() {
                 variant="secondary"
                 onPress={() => {
                   setCameraError('');
-                  setCameraReady(false);
+                  setCameraReady(Platform.OS !== 'web');
                   setCameraKey((value) => value + 1);
                   requestPermission().catch(() => setCameraError('No se pudo solicitar el permiso de cámara.'));
                 }}

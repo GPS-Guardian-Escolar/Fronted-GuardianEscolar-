@@ -17,6 +17,11 @@ const QUEUE_KEY = '@guardian_location_queue';
 const LAST_COORD_KEY = '@guardian_last_location_coord';
 const MAX_FLUSH_ATTEMPTS = 3;
 const MIN_DISTANCE_METERS = 25;
+const MAX_ACCURACY_METERS = 80;
+const MAX_SINGLE_JUMP_METERS = 1000;
+
+let webWatchId = null;
+let webTracking = false;
 
 function canUseSecureStore() {
   return Platform.OS !== 'web';
@@ -61,6 +66,18 @@ function normalizeCoordinate(location) {
 
 function isValidCoordinate(coord) {
   return Number.isFinite(coord.latitude) && Number.isFinite(coord.longitude);
+}
+
+function isReliableCoordinate(coord, previous) {
+  if (Number.isFinite(coord.accuracy) && coord.accuracy > MAX_ACCURACY_METERS) return false;
+  if (!previous) return true;
+
+  const jump = distanceMeters(previous, coord);
+  const elapsedSeconds = Math.max(
+    1,
+    (Date.parse(coord.recordedAt) - Date.parse(previous.recordedAt)) / 1000,
+  );
+  return jump <= MAX_SINGLE_JUMP_METERS || jump / elapsedSeconds <= 30;
 }
 
 function distanceMeters(from, to) {
@@ -148,7 +165,22 @@ export async function handleLocationTask({ data, error }) {
 
 export async function requestPermissions() {
   if (Platform.OS === 'web') {
-    return { granted: false, reason: 'El rastreo en segundo plano solo está disponible en Android o iOS.' };
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      return { granted: false, reason: 'Este navegador no permite acceder a la ubicación.' };
+    }
+
+    return new Promise(resolve => {
+      navigator.geolocation.getCurrentPosition(
+        () => resolve({ granted: true, reason: '' }),
+        error => resolve({
+          granted: false,
+          reason: error?.code === 1
+            ? 'Permite la ubicación para este sitio desde los ajustes de Chrome.'
+            : 'No se pudo obtener la ubicación. Activa el GPS y vuelve a intentarlo.',
+        }),
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+      );
+    });
   }
 
   try {
@@ -182,13 +214,38 @@ export async function requestPermissions() {
   }
 }
 export async function isTrackingActive() {
-  if (Platform.OS === 'web') return false;
+  if (Platform.OS === 'web') return webTracking;
   return Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
 }
 
 export async function startBackgroundUpdates(tripId) {
+  const previousTripId = await getStoredValue(ACTIVE_TRIP_ID_KEY);
+  if (previousTripId && previousTripId !== String(tripId)) {
+    await writeQueue([]);
+    await AsyncStorage.removeItem(LAST_COORD_KEY);
+  }
+
   if (Platform.OS === 'web') {
-    throw new Error('El rastreo en segundo plano no está disponible en web.');
+    const permission = await requestPermissions();
+    if (!permission.granted) throw new Error(permission.reason);
+
+    await setStoredValue(ACTIVE_TRIP_ID_KEY, tripId);
+    if (webWatchId !== null) return;
+
+    webTracking = true;
+    webWatchId = navigator.geolocation.watchPosition(
+      async position => {
+        const coord = normalizeCoordinate(position);
+        if (!isValidCoordinate(coord)) return;
+        await enqueueCoordinate(coord);
+        await flushQueue();
+      },
+      error => {
+        console.warn('Error en rastreo web:', error);
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
+    );
+    return;
   }
 
   if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
@@ -219,7 +276,13 @@ export async function startBackgroundUpdates(tripId) {
 }
 
 export async function stopBackgroundUpdates() {
-  if (Platform.OS !== 'web') {
+  if (Platform.OS === 'web') {
+    if (webWatchId !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.clearWatch(webWatchId);
+    }
+    webWatchId = null;
+    webTracking = false;
+  } else {
     const active = await isTrackingActive();
     if (active) {
       await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
@@ -231,6 +294,7 @@ export async function stopBackgroundUpdates() {
 export async function enqueueCoordinate(coord) {
   if (!isValidCoordinate(coord)) return;
   const last = await getLastCoordinate();
+  if (!isReliableCoordinate(coord, last)) return;
   if (distanceMeters(last, coord) < MIN_DISTANCE_METERS) return;
 
   const queue = await readQueue();

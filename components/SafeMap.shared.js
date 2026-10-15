@@ -73,6 +73,15 @@ export function normalizeRoute(coordinates = []) {
   return coordinates.map(normalizeCoordinate).filter(Boolean);
 }
 
+export function normalizeRoutes(routes = []) {
+  return routes
+    .map((route, index) => {
+      const coordinates = normalizeRoute(route.coordinates || route.points || []);
+      return coordinates.length >= 2 ? { ...route, id: route.id ?? `route-${index}`, coordinates } : null;
+    })
+    .filter(Boolean);
+}
+
 export function ErrorState({ message }) {
   return (
     <View style={sharedStyles.errorContainer}>

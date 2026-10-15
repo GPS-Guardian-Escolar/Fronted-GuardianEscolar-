@@ -47,6 +47,7 @@
     "expo-system-ui": "~57.0.4",
     "expo-task-manager": "~57.0.21",
     "expo-web-browser": "~57.0.3",
+    "jsqr": "^1.4.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
@@ -73,11 +74,11 @@
   "expo": {
     "autolinking": {
       "android": {
-        "buildFromSource": ["expo-camera"]
+        "buildFromSource": [
+          "expo-camera"
+        ]
       }
     }
   },
   "private": true
 }
-
-

@@ -161,6 +161,7 @@ async function getStudentExtras(studentId) {
       type: zone.zoneType || 'Personalizado',
 radius: `${zone.radiusMeters} Metros`,
       radiusMeters: zone.radiusMeters,
+      color: zone.color,
       center: { latitude: Number(zone.latitude), longitude: Number(zone.longitude) },
     }));
   return { zones: zones.length ? zones : localZones, routes: localRoutes };
@@ -314,13 +315,14 @@ export async function addZone(studentId, zoneData) {
     studentId,
     zoneName: zoneData.name,
     zoneType: zoneData.type || 'Personalizado',
-address: zoneData.address,
+    address: coordinates.formattedAddress || zoneData.address,
     latitude: coordinates.latitude,
     longitude: coordinates.longitude,
     radiusMeters: parseInt(String(zoneData.radius).replace(/\D/g, ''), 10),
+    color: zoneData.color || COLORS.PRIMARIO,
     inactivityAlertSeconds: 300,
   });
-  return [{ ...saved, name: saved.zoneName, type: saved.zoneType || zoneData.type || 'Personalizado', radius: `${saved.radiusMeters} Metros` }];
+  return [{ ...saved, name: saved.zoneName, type: saved.zoneType || zoneData.type || 'Personalizado', color: saved.color || zoneData.color, radius: `${saved.radiusMeters} Metros` }];
 }
 
 function formatCoordinates(latitude, longitude) {
@@ -334,13 +336,14 @@ export async function updateZone(studentId, zoneId, zoneData) {
     studentId,
     zoneName: zoneData.name,
     zoneType: zoneData.type || 'Personalizado',
-address: zoneData.address,
+    address: coordinates.formattedAddress || zoneData.address,
     latitude: coordinates.latitude,
     longitude: coordinates.longitude,
     radiusMeters: parseInt(String(zoneData.radius).replace(/\D/g, ''), 10),
+    color: zoneData.color || COLORS.PRIMARIO,
     inactivityAlertSeconds: 300,
   });
-  return [{ ...saved, name: saved.zoneName, type: saved.zoneType || zoneData.type || 'Personalizado', radius: `${saved.radiusMeters} Metros` }];
+  return [{ ...saved, name: saved.zoneName, type: saved.zoneType || zoneData.type || 'Personalizado', color: saved.color || zoneData.color, radius: `${saved.radiusMeters} Metros` }];
 }
 
 export async function deleteZone(studentId, zoneId) {
