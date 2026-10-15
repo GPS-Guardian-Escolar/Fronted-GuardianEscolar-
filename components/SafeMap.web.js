@@ -8,6 +8,7 @@ import {
   normalizeMarkers,
   normalizeRegion,
   normalizeRoute,
+  normalizeRoutes,
   normalizeZones,
   sharedStyles,
 } from './SafeMap.shared';
@@ -47,6 +48,8 @@ export default function SafeMap({
   markers = [],
   coordinates = [],
   showRoute = false,
+  routePaths = [],
+  journeyCoordinates = [],
   safeZones,
   circles,
   onMapPress,
@@ -58,6 +61,8 @@ export default function SafeMap({
   const region = useMemo(() => normalizeRegion(initialRegion, currentLocation, markers), [initialRegion, currentLocation, markers]);
   const normalizedMarkers = useMemo(() => normalizeMarkers(markers), [markers]);
   const route = useMemo(() => normalizeRoute(coordinates), [coordinates]);
+  const routes = useMemo(() => normalizeRoutes(routePaths), [routePaths]);
+  const journey = useMemo(() => normalizeRoute(journeyCoordinates), [journeyCoordinates]);
   const zones = useMemo(() => normalizeZones(safeZones || circles || []), [safeZones, circles]);
   const currentCoordinate = normalizeCoordinate(currentLocation);
 
@@ -138,15 +143,26 @@ export default function SafeMap({
       mapRef.current.panTo({ lat: currentCoordinate.latitude, lng: currentCoordinate.longitude });
     }
 
-    if (showRoute && route.length >= 2) {
+    const routeLines = routes.length ? routes : (showRoute && route.length >= 2 ? [{ id: 'route', coordinates: route, color: COLORS.PRIMARIO }] : []);
+    routeLines.forEach((routeLine, index) => {
       const polyline = new maps.Polyline({
         map: mapRef.current,
-        path: route.map(point => ({ lat: point.latitude, lng: point.longitude })),
-        strokeColor: COLORS.PRIMARIO,
+        path: routeLine.coordinates.map(point => ({ lat: point.latitude, lng: point.longitude })),
+        strokeColor: routeLine.color || [COLORS.PRIMARIO, COLORS.ACENTO, COLORS.ALERTA, '#7C3AED'][index % 4],
         strokeOpacity: 0.9,
         strokeWeight: 4,
       });
       overlaysRef.current.push(polyline);
+    });
+    if (journey.length >= 2) {
+      const completed = new maps.Polyline({
+        map: mapRef.current,
+        path: journey.map(point => ({ lat: point.latitude, lng: point.longitude })),
+        strokeColor: COLORS.PRIMARIO,
+        strokeOpacity: 1,
+        strokeWeight: 5,
+      });
+      overlaysRef.current.push(completed);
     }
 
     zones.forEach((zone) => {
@@ -167,13 +183,15 @@ export default function SafeMap({
     const fitPoints = [
       ...normalizedMarkers.map(marker => marker.coordinate),
       ...route,
+      ...routes.flatMap(routeLine => routeLine.coordinates),
+      ...journey,
       ...zones.map(zone => zone.center),
     ];
     fitPoints.forEach(point => bounds.extend({ lat: point.latitude, lng: point.longitude }));
     if (fitPoints.length && !currentCoordinate) {
       mapRef.current.fitBounds(bounds, 48);
     }
-  }, [currentCoordinate, normalizedMarkers, route, showRoute, zones]);
+  }, [currentCoordinate, normalizedMarkers, route, routes, journey, showRoute, zones]);
 
   if (!GOOGLE_MAPS_API_KEY) {
     return <View style={[sharedStyles.container, style]}><ErrorState message="Configura EXPO_PUBLIC_GOOGLE_MAPS_API_KEY en .env para cargar Google Maps." /></View>;

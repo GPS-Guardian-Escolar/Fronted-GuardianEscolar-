@@ -23,16 +23,42 @@ const INITIAL_REGION = {
 };
 
 function getZoneColor(zone, colors) {
+  if (zone?.color) return zone.color;
   if (zone?.type === 'Escuela') return colors.primary;
   if (zone?.type === 'Casa') return colors.accent;
   return colors.error;
 }
 
-function getRouteCoordinates(route) {
-  return [
-    { latitude: Number(route?.originLatitude), longitude: Number(route?.originLongitude) },
-    { latitude: Number(route?.destinationLatitude), longitude: Number(route?.destinationLongitude) },
-  ].filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude));
+function distanceMeters(a, b) {
+  const earthRadius = 6371000;
+  const toRadians = value => (value * Math.PI) / 180;
+  const latitudeDelta = toRadians(b.latitude - a.latitude);
+  const longitudeDelta = toRadians(b.longitude - a.longitude);
+  const haversine = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(toRadians(a.latitude)) * Math.cos(toRadians(b.latitude)) * Math.sin(longitudeDelta / 2) ** 2;
+  return earthRadius * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+function filterJourneyCoordinates(points) {
+  const withoutIsolatedJumps = points.filter((point, index) => {
+    const previous = points[index - 1];
+    const next = points[index + 1];
+    return !previous || !next
+      || distanceMeters(previous, point) <= 300
+      || distanceMeters(previous, next) >= 300;
+  });
+  const accepted = [];
+  for (const point of withoutIsolatedJumps) {
+    if (!accepted.length) {
+      accepted.push(point);
+      continue;
+    }
+    const previous = accepted[accepted.length - 1];
+    const distance = distanceMeters(previous, point);
+    const elapsedSeconds = Math.max(1, (point.timestamp - previous.timestamp) / 1000);
+    if (distance <= 1000 && distance / elapsedSeconds <= 30) accepted.push(point);
+  }
+  return accepted;
 }
 
 export default function TrackingScreen() {
@@ -44,6 +70,8 @@ export default function TrackingScreen() {
   const [location, setLocation] = useState(null);
   const [studentZones, setStudentZones] = useState([]);
   const [routeGeometry, setRouteGeometry] = useState([]);
+  const [routeGeometries, setRouteGeometries] = useState([]);
+  const [journeyCoordinates, setJourneyCoordinates] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const { t } = useLanguage();
   const { theme } = useTheme();
@@ -63,13 +91,19 @@ export default function TrackingScreen() {
         setLocation(null);
         setStudentZones([]);
         setRouteGeometry([]);
+        setRouteGeometries([]);
+        setJourneyCoordinates([]);
         return;
       }
       const zones = await safeZoneService.list().catch(() => []);
       setStudentZones(zones.filter(zone => String(zone.studentId) === String(selectedStudent.id)));
-      const route = selectedStudent.routes?.[0];
-      const geometry = await calculateRouteGeometry(route).catch(() => []);
-      setRouteGeometry(geometry.length >= 2 ? geometry : getRouteCoordinates(route));
+      const routes = selectedStudent.routes || [];
+      const routePaths = await Promise.all(routes.map(async (route, index) => {
+        const geometry = await calculateRouteGeometry(route).catch(() => []);
+        return { id: route.id || `route-${index}`, coordinates: geometry, color: '#8B95A7' };
+      }));
+      setRouteGeometries(routePaths.filter(path => path.coordinates.length >= 2).map(path => ({ ...path, color: '#8B95A7' })));
+      setRouteGeometry(routePaths[0]?.coordinates || []);
       const trips = await trackingService.listTrips();
       const studentTrips = trips
         .filter(trip => String(trip.studentId) === String(selectedStudent.id))
@@ -83,14 +117,29 @@ export default function TrackingScreen() {
         return;
       }
       const coordinates = await trackingService.listCoordinates(selectedTrip.id);
-      const latest = coordinates?.[coordinates.length - 1];
-      if (!latest || !Number.isFinite(Number(latest.latitude)) || !Number.isFinite(Number(latest.longitude))) {
+      const orderedCoordinates = [...(coordinates || [])].sort((a, b) => {
+        const timeA = new Date(a.recordedAt || a.createdAt || a.timestamp || 0).getTime();
+        const timeB = new Date(b.recordedAt || b.createdAt || b.timestamp || 0).getTime();
+        return timeA - timeB;
+      });
+      const validCoordinates = filterJourneyCoordinates(orderedCoordinates
+        .map(point => ({
+          latitude: Number(point.latitude),
+          longitude: Number(point.longitude),
+          timestamp: new Date(point.recordedAt || point.createdAt || point.timestamp || 0).getTime(),
+          accuracy: point.accuracy,
+          recordedAt: point.recordedAt,
+        }))
+        .filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && Number.isFinite(point.timestamp)));
+      setJourneyCoordinates(validCoordinates.map(({ latitude, longitude }) => ({ latitude, longitude })));
+      const latest = validCoordinates[validCoordinates.length - 1];
+      if (!latest) {
         setLocation(null);
         return;
       }
       setLocation({
-        latitude: Number(latest.latitude),
-        longitude: Number(latest.longitude),
+        latitude: latest.latitude,
+        longitude: latest.longitude,
         accuracy: latest.accuracy,
         recordedAt: latest.recordedAt,
       });
@@ -123,8 +172,6 @@ export default function TrackingScreen() {
         });
     }, [params.id])
   );
-
-  const selectedRoute = selectedStudent?.routes?.[0];
 
   const handleSelectStudent = (student) => {
     setSelectedStudent(student);
@@ -201,11 +248,12 @@ export default function TrackingScreen() {
                 const zoneName = zone.name || zone.zoneName || zone.nombre || zone.type || zone.zoneType || 'Zona';
                 return { ...center, label: getInitials(zoneName), title: zoneName, color: getZoneColor({ ...zone, type: zone.type || zone.zoneType }, colors) };
               }),
-              ...routeGeometry,
             ]}
             safeZones={(studentZones || []).map(zone => ({ ...zone, color: getZoneColor(zone, colors), center: zone.center || { latitude: Number(zone.latitude), longitude: Number(zone.longitude) } }))}
             coordinates={routeGeometry}
             showRoute={routeGeometry.length >= 2}
+            routePaths={routeGeometries}
+            journeyCoordinates={journeyCoordinates}
           />
           {isLoading && (
             <View pointerEvents="none" style={styles.loadingOverlay}>
