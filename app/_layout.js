@@ -8,7 +8,7 @@ import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { LanguageProvider } from '../contexts/LanguageContext';
 import { createPaperTheme, ThemeProvider, useTheme } from '../contexts/ThemeContext';
 import { hasSeenOnboarding } from '../features/onboarding/onboardingStorage';
-import { handleLocationTask, LOCATION_TASK_NAME } from '../services/background/locationTracking';
+import { getChildSession, handleLocationTask, LOCATION_TASK_NAME } from '../services/background/locationTracking';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -22,6 +22,23 @@ function RootLayoutNav() {
   const router = useRouter();
   const { theme: themeData } = useTheme();
   const [onboardingSeen, setOnboardingSeen] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    if (loading || onboardingSeen === null || segments[0] !== 'scan-qr') return undefined;
+
+    getChildSession().then((session) => {
+      if (!mounted || !session.childToken || !session.studentId) return;
+      router.replace({
+        pathname: '/student-dashboard',
+        params: { id: String(session.studentId), codigo: String(session.studentCode || '') },
+      });
+    }).catch(() => null);
+
+    return () => {
+      mounted = false;
+    };
+  }, [loading, onboardingSeen, router, segments]);
 
   useEffect(() => {
     let mounted = true;
@@ -98,17 +115,24 @@ export default function RootLayout() {
     // Expo Web can reject the icon-font verification promise when the development
     // server is slow or temporarily unreachable. Keep that optional font failure
     // from replacing the whole application with the development error overlay.
+    const isOptionalFontTimeout = (value) => {
+      const details = String(value?.message || '') + ' ' + String(value?.stack || '') + ' ' + String(value || '');
+      const normalized = details.toLowerCase();
+      return normalized.includes('fontfaceobserver') && normalized.includes('timeout exceeded');
+    };
+
     const ignoreOptionalFontTimeout = (event) => {
-      const reason = event.reason;
-      const message = String(reason?.message || reason || '');
-      const stack = String(reason?.stack || '');
-      if (message.includes('timeout exceeded') && stack.includes('fontfaceobserver')) {
+      if (isOptionalFontTimeout(event.reason || event.error || event.message)) {
         event.preventDefault();
       }
     };
 
     window.addEventListener('unhandledrejection', ignoreOptionalFontTimeout);
-    return () => window.removeEventListener('unhandledrejection', ignoreOptionalFontTimeout);
+    window.addEventListener('error', ignoreOptionalFontTimeout);
+    return () => {
+      window.removeEventListener('unhandledrejection', ignoreOptionalFontTimeout);
+      window.removeEventListener('error', ignoreOptionalFontTimeout);
+    };
   }, []);
 
   return (

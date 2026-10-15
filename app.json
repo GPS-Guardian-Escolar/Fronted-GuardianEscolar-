@@ -70,7 +70,9 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "GPS Guardian Escolar necesita la cámara para escanear el QR de vinculación del estudiante."
+          "cameraPermission": "GPS Guardian Escolar necesita la cámara para escanear el QR de vinculación del estudiante.",
+          "barcodeScannerEnabled": true,
+          "recordAudioAndroid": false
         }
       ],
       "expo-sharing",

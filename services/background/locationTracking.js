@@ -10,6 +10,7 @@ import { lightColors } from '../../theme/tokens';
 export const LOCATION_TASK_NAME = 'gps-guardian-background-location';
 export const CHILD_TOKEN_KEY = 'guardian_child_token';
 export const CHILD_STUDENT_ID_KEY = 'guardian_child_student_id';
+export const CHILD_CODE_KEY = 'guardian_child_code';
 export const ACTIVE_TRIP_ID_KEY = 'guardian_active_trip_id';
 
 const QUEUE_KEY = '@guardian_location_queue';
@@ -100,22 +101,34 @@ async function writeQueue(queue) {
   await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
 }
 
-export async function saveChildSession({ childToken, studentId }) {
+export async function saveChildSession({ childToken, studentId, code }) {
   const entries = [];
   if (childToken) entries.push(setStoredValue(CHILD_TOKEN_KEY, childToken));
   if (studentId) entries.push(setStoredValue(CHILD_STUDENT_ID_KEY, studentId));
+  if (code) entries.push(setStoredValue(CHILD_CODE_KEY, code));
   await Promise.all(entries);
 }
 
 export async function getChildSession() {
-  const [childToken, studentId, activeTripId] = await Promise.all([
+  const [childToken, studentId, studentCode, activeTripId] = await Promise.all([
     getStoredValue(CHILD_TOKEN_KEY),
     getStoredValue(CHILD_STUDENT_ID_KEY),
+    getStoredValue(CHILD_CODE_KEY),
     getStoredValue(ACTIVE_TRIP_ID_KEY),
   ]);
-  return { childToken, studentId, activeTripId };
+  return { childToken, studentId, studentCode, activeTripId };
 }
 
+export async function clearChildSession() {
+  await stopBackgroundUpdates();
+  await Promise.all([
+    removeStoredValue(CHILD_TOKEN_KEY),
+    removeStoredValue(CHILD_STUDENT_ID_KEY),
+    removeStoredValue(CHILD_CODE_KEY),
+    AsyncStorage.removeItem(QUEUE_KEY),
+    AsyncStorage.removeItem(LAST_COORD_KEY),
+  ]);
+}
 export async function handleLocationTask({ data, error }) {
   if (error) {
     console.warn('Error en rastreo en segundo plano:', error);
@@ -138,26 +151,36 @@ export async function requestPermissions() {
     return { granted: false, reason: 'El rastreo en segundo plano solo está disponible en Android o iOS.' };
   }
 
-  const foreground = await Location.requestForegroundPermissionsAsync();
-  if (!foreground.granted) {
-    return { granted: false, reason: 'Permite la ubicación mientras usas la app para iniciar el trayecto escolar.' };
-  }
-
-  const background = await Location.requestBackgroundPermissionsAsync();
-  if (!background.granted) {
-    return { granted: false, reason: 'Activa "Permitir siempre" para compartir ubicación durante el trayecto con la app minimizada.' };
-  }
-
-  if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
-    const notification = await Notifications.requestPermissionsAsync();
-    if (notification.status !== 'granted') {
-      return { granted: false, reason: 'Permite las notificaciones para mostrar el servicio activo de ubicación.' };
+  try {
+    if (!(await Location.hasServicesEnabledAsync())) {
+      return { granted: false, reason: 'Activa la ubicación/GPS del teléfono y vuelve a pulsar Reintentar.' };
     }
+
+    let foreground = await Location.getForegroundPermissionsAsync();
+    if (!foreground.granted) foreground = await Location.requestForegroundPermissionsAsync();
+    if (!foreground.granted) {
+      return { granted: false, reason: 'Permite la ubicación mientras usas la app. En Ajustes > Permisos > Ubicación selecciona "Permitir siempre".' };
+    }
+
+    let background = await Location.getBackgroundPermissionsAsync();
+    if (!background.granted) background = await Location.requestBackgroundPermissionsAsync();
+    if (!background.granted) {
+      return { granted: false, reason: 'La ubicación en segundo plano no está habilitada. En Ajustes > Aplicaciones > GPS Guardian Escolar > Permisos > Ubicación, selecciona "Permitir siempre".' };
+    }
+
+    if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
+      let notification = await Notifications.getPermissionsAsync();
+      if (notification.status !== 'granted') notification = await Notifications.requestPermissionsAsync();
+      if (notification.status !== 'granted') {
+        return { granted: false, reason: 'Permite las notificaciones para mantener activo el servicio de ubicación en segundo plano.' };
+      }
+    }
+
+    return { granted: true, reason: '' };
+  } catch (error) {
+    return { granted: false, reason: `No se pudieron comprobar los permisos de ubicación: ${error?.message || 'abre Ajustes del sistema y vuelve a intentarlo.'}` };
   }
-
-  return { granted: true, reason: '' };
 }
-
 export async function isTrackingActive() {
   if (Platform.OS === 'web') return false;
   return Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
@@ -167,6 +190,13 @@ export async function startBackgroundUpdates(tripId) {
   if (Platform.OS === 'web') {
     throw new Error('El rastreo en segundo plano no está disponible en web.');
   }
+
+  if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
+    throw new Error('La tarea de ubicación no está registrada. Cierra y vuelve a abrir el APK actualizado.');
+  }
+
+  const permission = await requestPermissions();
+  if (!permission.granted) throw new Error(permission.reason);
 
   await setStoredValue(ACTIVE_TRIP_ID_KEY, tripId);
   const active = await isTrackingActive();
@@ -251,3 +281,6 @@ export async function getActiveTripId() {
 export function isLocationTaskDefined() {
   return TaskManager.isTaskDefined(LOCATION_TASK_NAME);
 }
+
+
+

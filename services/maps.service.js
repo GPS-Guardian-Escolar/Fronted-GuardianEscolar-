@@ -16,4 +16,10 @@ export const mapsService = {
       formattedAddress: result.formattedAddress,
     };
   },
+  async directions(origin, destination) {
+    const response = await api.post('/maps/directions', { origin, destination, mode: 'driving', language: 'es' });
+    const route = response.data?.routes?.[0];
+    if (!route?.overviewPolyline) throw new Error('No se pudo calcular el trayecto.');
+    return route;
+  },
 };
