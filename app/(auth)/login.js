@@ -79,6 +79,10 @@ export default function LoginScreen() {
       setIsSubmitting(true);
       const normalizedEmail = email.trim().toLowerCase();
       const result = await login(normalizedEmail, password);
+      if (result?.requiresDeviceConfirmation) {
+        setErrorMsg(result.message);
+        return;
+      }
       if (rememberMe) {
         await storage.setRememberedEmail(normalizedEmail);
       } else {

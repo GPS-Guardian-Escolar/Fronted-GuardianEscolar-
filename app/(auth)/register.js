@@ -256,9 +256,36 @@ export default function RegisterScreen() {
               </View>
 
               {/* Términos */}
-              <TouchableOpacity style={styles.termsRow} onPress={() => { if (acceptTerms) { setAcceptTerms(false); } else { setTermsModalVisible(true); } setErrorMsg(''); }} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={styles.termsRow}
+                onPress={() => {
+                  if (acceptTerms) {
+                    setAcceptTerms(false);
+                  } else {
+                    setTermsModalVisible(true);
+                  }
+                  setErrorMsg('');
+                }}
+                activeOpacity={0.7}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: acceptTerms }}
+                accessibilityLabel="Aceptar Términos y Condiciones y Política de Privacidad"
+              >
                 <View style={styles.checkboxWrapper}>
-                  <Checkbox status={acceptTerms ? 'checked' : 'unchecked'} color={colors.primary} />
+                  <Checkbox
+                    status={acceptTerms ? 'checked' : 'unchecked'}
+                    color={colors.primary}
+                    onPress={() => {
+                      if (acceptTerms) {
+                        setAcceptTerms(false);
+                      } else {
+                        setTermsModalVisible(true);
+                      }
+                      setErrorMsg('');
+                    }}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: acceptTerms }}
+                  />
                 </View>
                 <Text style={[styles.termsText, { color: colors.textSecondary }]}>
                   Acepto los Términos y Condiciones y la Política de Privacidad de Guardian Escolar
