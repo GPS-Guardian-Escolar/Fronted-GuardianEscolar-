@@ -25,7 +25,7 @@ import QrSection from '../../features/students/components/QrSection';
 import StudentList from '../../features/students/components/StudentList';
 import { studentService } from '../../services/student.service';
 import { AppTouch, AppTypography } from '../../theme/tokens';
-import { addStudent, deleteStudent, getStudents, normalizeGrade, updateStudent } from '../../utils/studentStorage';
+import { addStudent, deleteStudent, getInitials, getStudents, normalizeGrade, updateStudent } from '../../utils/studentStorage';
 
 const { width } = Dimensions.get('window');
 const isWeb = width > 768;
@@ -416,7 +416,7 @@ export default function StudentScreen() {
         ) : (
           <Avatar.Text
             size={80}
-            label={item.nombre ? item.nombre.substring(0, 2).toUpperCase() : '??'}
+            label={getInitials(item.nombre)}
             style={{
               backgroundColor: getStatusColor(item.status)
             }}
