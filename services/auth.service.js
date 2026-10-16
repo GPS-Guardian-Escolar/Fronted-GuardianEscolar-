@@ -69,6 +69,11 @@ const getAuthReturnUrl = (path = '/login') => {
 
 const getFriendlyAuthError = (error, fallback) => {
   const status = error.response?.status;
+  const backendMessage = String(error.response?.data?.message || error.response?.data?.mensaje || '').toLowerCase();
+
+  if (status === 400 && backendMessage.includes('confirmar este nuevo inicio de sesión')) {
+    return 'Se envió un correo para confirmar este dispositivo. Confirma el acceso y vuelve a iniciar sesión.';
+  }
 
   if ([400, 401, 422].includes(status)) {
     return 'No pudimos iniciar sesión. Verifica tu correo y contraseña.';
@@ -103,6 +108,13 @@ export const authService = {
       }, { skipAuth: true });
       return normalizeAuthResponse(response.data);
     } catch (error) {
+      const backendMessage = String(error.response?.data?.message || error.response?.data?.mensaje || '').toLowerCase();
+      if (error.response?.status === 400 && backendMessage.includes('confirmar este nuevo inicio de sesión')) {
+        return {
+          requiresDeviceConfirmation: true,
+          message: 'Se envió un correo para confirmar este dispositivo. Confirma el acceso y vuelve a iniciar sesión.',
+        };
+      }
       throw new Error(getFriendlyAuthError(error, 'No se pudo iniciar sesión.'));
     }
   },
