@@ -22,6 +22,7 @@ const MAX_SINGLE_JUMP_METERS = 1000;
 
 let webWatchId = null;
 let webTracking = false;
+let nativeStartPromise = null;
 
 function canUseSecureStore() {
   return Platform.OS !== 'web';
@@ -259,20 +260,38 @@ export async function startBackgroundUpdates(tripId) {
   const active = await isTrackingActive();
   if (active) return;
 
-  await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-    accuracy: Location.Accuracy.High,
-    distanceInterval: 25,
-    timeInterval: 15000,
-    deferredUpdatesInterval: 15000,
-    pausesUpdatesAutomatically: false,
-    showsBackgroundLocationIndicator: true,
-    foregroundService: {
-      notificationTitle: 'Compartiendo ubicación',
-      notificationBody: 'Tu acudiente está viendo tu trayecto',
-      notificationColor: lightColors.primary,
-      killServiceOnDestroy: false,
-    },
-  });
+  if (nativeStartPromise) return nativeStartPromise;
+  nativeStartPromise = (async () => {
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('guardian-location', {
+        name: 'Seguimiento de ubicación',
+        importance: Notifications.AndroidImportance.LOW,
+        vibrationPattern: [0, 250],
+        lightColor: lightColors.primary,
+      });
+    }
+
+    await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+      accuracy: Location.Accuracy.High,
+      distanceInterval: 25,
+      timeInterval: 15000,
+      deferredUpdatesInterval: 15000,
+      pausesUpdatesAutomatically: false,
+      showsBackgroundLocationIndicator: true,
+      foregroundService: {
+        notificationTitle: 'Compartiendo ubicación',
+        notificationBody: 'Tu acudiente está viendo tu trayecto',
+        notificationColor: lightColors.primary,
+        killServiceOnDestroy: false,
+      },
+    });
+  })();
+
+  try {
+    await nativeStartPromise;
+  } finally {
+    nativeStartPromise = null;
+  }
 }
 
 export async function stopBackgroundUpdates() {
