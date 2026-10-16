@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 
 const apiPort = process.env.EXPO_PUBLIC_API_PORT || '8080';
 const frontendPort = process.env.EXPO_PUBLIC_FRONTEND_PORT || '8081';
+const webProxyEnabled = String(process.env.EXPO_PUBLIC_WEB_PROXY || '').toLowerCase() === 'true';
 
 const DEFAULT_API_URL = 'https://s3tn0qz4-8080.use.devtunnels.ms/api';
 const DEFAULT_WS_URL = 'wss://s3tn0qz4-8080.use.devtunnels.ms/ws';
@@ -34,6 +35,10 @@ function browserOrigin() {
 function browserPort() {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return '';
   return window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+}
+
+function shouldUseWebProxy() {
+  return Platform.OS === 'web' && webProxyEnabled;
 }
 
 function expoHost() {
@@ -74,8 +79,8 @@ function resolveApiUrl() {
   const configuredUrl = process.env.EXPO_PUBLIC_API_URL || DEFAULT_API_URL;
   const currentBrowserHost = browserHost();
   if (configuredUrl?.startsWith('/')) {
-    // A public Docker frontend tunnel keeps the same-origin API proxy.
-    if (Platform.OS === 'web' && isTunnelHost(currentBrowserHost)) {
+    // Static web builds served by Nginx use the same-origin API proxy.
+    if (shouldUseWebProxy()) {
       return configuredUrl;
     }
     // Docker/Nginx exposes the API through the same origin on port 8081.
@@ -110,8 +115,11 @@ function resolveWsUrl(apiUrl) {
   const origin = browserOrigin();
   const currentBrowserHost = browserHost();
   if (configuredUrl?.startsWith('/')) {
-    if (Platform.OS === 'web' && browserPort() === frontendPort) {
-      return configuredUrl;
+    if (shouldUseWebProxy() && origin) {
+      return `${origin.replace(/^http/, 'ws')}${configuredUrl}`;
+    }
+    if (Platform.OS === 'web' && browserPort() === frontendPort && origin) {
+      return `${origin.replace(/^http/, 'ws')}${configuredUrl}`;
     }
     if (apiUrl.startsWith('http')) {
       return apiUrl.replace(/^http/, 'ws').replace(/\/api\/?$/, '/ws');
