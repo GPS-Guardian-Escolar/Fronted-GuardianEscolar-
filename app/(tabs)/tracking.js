@@ -9,7 +9,6 @@ import { getStudents, getInitials } from '../../utils/studentStorage';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { trackingService } from '../../services/tracking.service';
-import { safeZoneService } from '../../services/safeZone.service';
 import { calculateRouteGeometry } from '../../utils/routeGeometry';
 
 const { width } = Dimensions.get('window');
@@ -95,7 +94,7 @@ export default function TrackingScreen() {
         setJourneyCoordinates([]);
         return;
       }
-      const zones = await safeZoneService.list().catch(() => []);
+      const zones = selectedStudent.zones || [];
       setStudentZones(zones.filter(zone => String(zone.studentId) === String(selectedStudent.id)));
       const routes = selectedStudent.routes || [];
       const routePaths = await Promise.all(routes.map(async (route, index) => {
