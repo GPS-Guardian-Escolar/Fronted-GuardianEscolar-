@@ -56,6 +56,7 @@ export default function SafeMap({
 }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
+  const resizeObserverRef = useRef(null);
   const overlaysRef = useRef([]);
   const [error, setError] = useState('');
   const region = useMemo(() => normalizeRegion(initialRegion, currentLocation, markers), [initialRegion, currentLocation, markers]);
@@ -95,9 +96,15 @@ export default function SafeMap({
     const resizeMap = () => window.google.maps.event.trigger(map, 'resize');
     const timer = window.setTimeout(resizeMap, 50);
     window.addEventListener('resize', resizeMap);
+    if (window.ResizeObserver && containerRef.current) {
+      resizeObserverRef.current = new window.ResizeObserver(resizeMap);
+      resizeObserverRef.current.observe(containerRef.current);
+    }
     return () => {
       window.clearTimeout(timer);
       window.removeEventListener('resize', resizeMap);
+      resizeObserverRef.current?.disconnect();
+      resizeObserverRef.current = null;
     };
   }, [region.latitude, region.longitude]);
   useEffect(() => {
@@ -205,7 +212,7 @@ export default function SafeMap({
     <View style={[sharedStyles.container, style]}>
       {React.createElement('div', {
         ref: containerRef,
-        style: { width: '100%', height: '100%' },
+        style: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, width: '100%', height: '100%' },
         role: 'img',
         'aria-label': 'Mapa de seguimiento escolar',
       })}
