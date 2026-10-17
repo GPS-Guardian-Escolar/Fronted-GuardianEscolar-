@@ -264,13 +264,19 @@ export const authService = {
 
   verify2FA: async (token, code, method) => {
     try {
+      const deviceInfo = await getAuthDeviceInfo();
       const response = await api.post('/auth/2fa/verify', {
         token,
         code,
         method,
+        ...deviceInfo,
       });
       return persistBackendSession(response.data);
     } catch (error) {
+      const backendMessage = String(error.response?.data?.message || error.response?.data?.mensaje || '').toLowerCase();
+      if (error.response?.status === 400 && backendMessage.includes('confirmar este nuevo inicio de sesión')) {
+        throw new Error('Se envió un correo para confirmar este dispositivo. Confirma el acceso y vuelve a iniciar sesión.');
+      }
       throw new Error(getApiErrorMessage(error, 'No se pudo verificar el código 2FA.'));
     }
   },

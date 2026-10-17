@@ -275,14 +275,6 @@ export default function RegisterScreen() {
                   <Checkbox
                     status={acceptTerms ? 'checked' : 'unchecked'}
                     color={colors.primary}
-                    onPress={() => {
-                      if (acceptTerms) {
-                        setAcceptTerms(false);
-                      } else {
-                        setTermsModalVisible(true);
-                      }
-                      setErrorMsg('');
-                    }}
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: acceptTerms }}
                   />
