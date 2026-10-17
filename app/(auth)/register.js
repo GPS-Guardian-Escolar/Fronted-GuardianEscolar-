@@ -134,7 +134,10 @@ export default function RegisterScreen() {
     setIsSubmitting(true);
     try {
       await authService.register({ name: name.trim(), email: email.trim(), password, phone: phone.trim(), acceptedTerms: true, termsVersion: TERMS_VERSION });
-      Alert.alert(t('success'), 'Cuenta creada. Ya puedes iniciar sesión.');
+      Alert.alert(
+        t('success'),
+        'Tu cuenta fue creada. Te enviamos un correo de verificación. Revisa tu bandeja de entrada y confirma tu dirección de correo electrónico antes de iniciar sesión.',
+      );
       router.replace('/(auth)/login');
     } catch (error) {
       setErrorMsg(error.message || 'No se pudo crear la cuenta.');
