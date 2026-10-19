@@ -50,20 +50,38 @@ export default function NotificationsScreen() {
   };
 
   const normalizeNotification = useCallback((item) => {
-    const tipo = item.tipo || item.type || 'Informativas';
-    const mappedType = tipo === 'ALERTA' || tipo === 'Advertencias' ? 'Advertencias'
-      : tipo === 'EXITO' || tipo === 'Exitosas' ? 'Exitosas'
+    const rawMessage = item.mensaje || item.message || item.titulo || '';
+    const message = rawMessage
+      .replace(/ entered safe zone /gi, ' ingresó a la zona segura ')
+      .replace(/ left safe zone /gi, ' salió de la zona segura ')
+      .replace(/Trip started for /gi, 'Se inició el trayecto de ')
+      .replace(/Long inactivity detected during (.+)'s trip/gi, 'Se detectó inactividad prolongada durante el trayecto de $1')
+      .replace(/Possible route deviation detected for /gi, 'Se detectó un posible desvío de ruta para ');
+    const tipo = String(item.tipo || item.type || '').toUpperCase();
+    const eventType = String(item.eventType || item.event_type || '').toUpperCase();
+    const searchableText = `${eventType} ${tipo} ${message}`.toUpperCase();
+    const isWarning = tipo.includes('ALERTA')
+      || tipo.includes('ADVERT')
+      || eventType === 'SAFE_ZONE_EXIT'
+      || eventType === 'ROUTE_DEVIATION'
+      || eventType === 'INACTIVITY'
+      || searchableText.includes('SALIÓ DE LA ZONA')
+      || searchableText.includes('SALIO DE LA ZONA')
+      || searchableText.includes('DESVÍO DE RUTA')
+      || searchableText.includes('DESVIO DE RUTA');
+    const mappedType = isWarning ? 'Advertencias'
+      : tipo.includes('EXITO') || tipo.includes('SUCCESS') ? 'Exitosas'
         : 'Informativas';
     return {
       id: item.id || item.reciboId,
       type: mappedType,
       name: item.estudianteNombre || item.name || t('notifDetail'),
-      message: item.mensaje || item.message || item.titulo || '',
+      message,
       time: item.recibidoEn || item.creadoEn || item.time || '',
-      color: mappedType === 'Advertencias' ? COLORS.ALERTA : mappedType === 'Exitosas' ? COLORS.ACENTO : COLORS.PRIMARIO,
+      color: mappedType === 'Advertencias' ? colors.error : mappedType === 'Exitosas' ? colors.success : colors.primary,
       read: item.leida || false,
     };
-  }, [t]);
+  }, [colors, t]);
 
   const loadNotifications = useCallback(async () => {
     setRefreshing(true);

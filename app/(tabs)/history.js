@@ -10,6 +10,36 @@ import CalendarDatePicker from '../../components/common/CalendarDatePicker';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { deleteHistory, deleteNotification, getHistory } from '../../utils/studentStorage';
+import { trackingService } from '../../services/tracking.service';
+
+function formatTripDate(value) {
+  if (!value) return '--';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function formatTripTime(value) {
+  if (!value) return '--';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '--' : date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+}
+
+function normalizeTrip(trip) {
+  const status = String(trip.status || '').toUpperCase();
+  const alerta = Boolean(trip.hadDeviation);
+  return {
+    id: `trip-${trip.id}`,
+    backendId: trip.id,
+    estudiante: trip.student || 'Estudiante',
+    fecha: formatTripDate(trip.tripStartedAt),
+    horaInicio: formatTripTime(trip.tripStartedAt),
+    horaFin: formatTripTime(trip.tripEndedAt),
+    ruta: trip.route || 'Ruta asignada',
+    estado: status === 'IN_PROGRESS' ? 'En Proceso' : status === 'COMPLETED' ? 'Completado' : status === 'CANCELED' ? 'Cancelado' : 'Pendiente',
+    alerta,
+    duracion: trip.tripStartedAt && trip.tripEndedAt ? Math.max(0, Math.round((new Date(trip.tripEndedAt) - new Date(trip.tripStartedAt)) / 60000)) : 0,
+  };
+}
 
 export default function HistoryScreen() {
   const { width } = useWindowDimensions();
@@ -27,8 +57,14 @@ export default function HistoryScreen() {
   const loadData = useCallback(async () => {
     setRefreshing(true);
     try {
-      const storedHistory = await getHistory();
-      setHistory(storedHistory);
+      const [storedHistory, trips] = await Promise.all([
+        getHistory(),
+        trackingService.listTrips().catch(() => []),
+      ]);
+      const remoteHistory = (trips || []).map(normalizeTrip);
+      const remoteIds = new Set(remoteHistory.map(item => item.backendId));
+      const localOnly = storedHistory.filter(item => !item.backendId && !remoteIds.has(item.id));
+      setHistory([...remoteHistory, ...localOnly]);
     } catch (error) {
       Alert.alert(t('error'), error.message || 'No se pudo cargar el historial.');
     } finally {
@@ -59,7 +95,7 @@ export default function HistoryScreen() {
   const stats = {
     total: history.length,
     completados: history.filter(item => item.estado === 'Completado').length,
-    incidentes: history.filter(item => item.estado === 'Con Incidente').length,
+    incidentes: history.filter(item => item.alerta || item.estado === 'Con Incidente').length,
     enProceso: history.filter(item => item.estado === 'En Proceso').length,
     horas: history.reduce((acc, item) => acc + (parseInt(item.duracion, 10) || 0), 0) / 60,
   };
@@ -67,7 +103,9 @@ export default function HistoryScreen() {
   const filteredHistory = history.filter((item) => {
     const matchesStudent = !filterStudent || item.estudiante.toLowerCase().includes(filterStudent.toLowerCase());
     const matchesDate = !filterDate || String(item.fecha).toLowerCase().includes(filterDate.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || item.estado === statusFilter;
+    const matchesStatus = statusFilter === 'all'
+      || item.estado === statusFilter
+      || (statusFilter === 'Con Incidente' && item.alerta);
     return matchesStudent && matchesDate && matchesStatus;
   });
 
@@ -242,7 +280,7 @@ export default function HistoryScreen() {
             <Text style={[styles.itemName, { color: colors.text }]}>{item.estudiante}</Text>
             <Text style={[styles.itemDate, { color: colors.textSecondary }]}>{item.fecha}</Text>
           </View>
-          <IconButton icon="trash-can-outline" size={18} containerColor={colors.surfaceSecondary} iconColor={colors.error} onPress={() => confirmDeleteHistory(item)} />
+          {!item.backendId && <IconButton icon="trash-can-outline" size={18} containerColor={colors.surfaceSecondary} iconColor={colors.error} onPress={() => confirmDeleteHistory(item)} />}
         </View>
 
         <View style={[styles.detailsGrid, { backgroundColor: colors.surfaceSecondary }]}>

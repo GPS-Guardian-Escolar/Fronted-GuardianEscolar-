@@ -58,7 +58,7 @@ export const storage = {
     try {
       const userJson = await AsyncStorage.getItem(USER_KEY);
       return userJson ? JSON.parse(userJson) : null;
-    } catch (error) {
+    } catch {
       return null;
     }
   },
@@ -66,7 +66,7 @@ export const storage = {
   removeUser: async () => {
     try {
       await AsyncStorage.removeItem(USER_KEY);
-    } catch (error) {}
+    } catch {}
   },
 
   setRememberedEmail: async (email) => {
