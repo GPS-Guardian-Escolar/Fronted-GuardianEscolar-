@@ -92,6 +92,25 @@ export default function RootLayout() {
     };
   }, []);
 
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+
+    // Expo Web can reject the icon-font verification promise when the development
+    // server is slow or temporarily unreachable. Keep that optional font failure
+    // from replacing the whole application with the development error overlay.
+    const ignoreOptionalFontTimeout = (event) => {
+      const reason = event.reason;
+      const message = String(reason?.message || reason || '');
+      const stack = String(reason?.stack || '');
+      if (message.includes('timeout exceeded') && stack.includes('fontfaceobserver')) {
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener('unhandledrejection', ignoreOptionalFontTimeout);
+    return () => window.removeEventListener('unhandledrejection', ignoreOptionalFontTimeout);
+  }, []);
+
   return (
     <SafeAreaProvider>
       <ThemeProvider>

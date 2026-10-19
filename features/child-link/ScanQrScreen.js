@@ -1,8 +1,8 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { KeyboardAvoidingView, Platform, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { Snackbar, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AppButton from '../../components/ui/AppButton';
@@ -46,6 +46,9 @@ export default function ScanQrScreen() {
   const [notice, setNotice] = useState('');
   const [success, setSuccess] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const [cameraKey, setCameraKey] = useState(0);
+  const scanLock = useRef(false);
 
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -56,6 +59,16 @@ export default function ScanQrScreen() {
       });
     }
   }, [permission, requestPermission]);
+
+  useEffect(() => {
+    if (!permission?.granted || cameraReady || cameraError) return undefined;
+
+    const timeout = setTimeout(() => {
+      setCameraError('La cámara está tardando en iniciar. Revisa el permiso y vuelve a intentarlo.');
+    }, 5000);
+
+    return () => clearTimeout(timeout);
+  }, [cameraError, cameraReady, permission?.granted]);
   const linkedPayload = useMemo(() => {
     if (Platform.OS !== 'web' || !params?.studentId || !params?.code) return null;
     return {
@@ -66,6 +79,8 @@ export default function ScanQrScreen() {
   }, [params]);
 
   const linkDevice = useCallback(async (payload) => {
+    if (scanLock.current) return;
+    scanLock.current = true;
     setIsProcessing(true);
     try {
       const deviceIdentifier = await getDeviceId();
@@ -99,11 +114,12 @@ export default function ScanQrScreen() {
       setNotice(message);
     } finally {
       setIsProcessing(false);
+      scanLock.current = false;
     }
   }, [router]);
 
   const handleQrValue = useCallback((value) => {
-    if (isProcessing || success) return;
+    if (isProcessing || success || scanLock.current) return;
 
     const result = parseQrValue(value);
     if (!result.ok) {
@@ -127,6 +143,7 @@ export default function ScanQrScreen() {
   if (linkedPayload) {
     return (
       <SafeAreaView style={styles.screen}>
+        <BackButton router={router} styles={styles} colors={colors} />
         <View style={styles.permissionWrap}>
           <MaterialCommunityIcons name="qrcode-check" size={72} color={colors.primary} />
           <Text style={styles.title}>Vincular dispositivo</Text>
@@ -153,6 +170,7 @@ export default function ScanQrScreen() {
   if (!permission.granted) {
     return (
       <SafeAreaView style={styles.screen}>
+        <BackButton router={router} styles={styles} colors={colors} />
         <View style={styles.permissionWrap}>
           <MaterialCommunityIcons name="camera-lock-outline" size={64} color={colors.primary} />
           <Text style={styles.title}>Permiso de cámara</Text>
@@ -176,6 +194,7 @@ export default function ScanQrScreen() {
 
   return (
     <SafeAreaView style={styles.screen}>
+      <BackButton router={router} styles={styles} colors={colors} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.content}>
         <View style={styles.cameraWrap}>
           {!cameraReady && (
@@ -185,18 +204,39 @@ export default function ScanQrScreen() {
             </View>
           )}
           <CameraView
-            key={permission.granted ? 'camera-enabled' : 'camera-disabled'}
+            key={`${permission.granted ? 'camera-enabled' : 'camera-disabled'}-${cameraKey}`}
             style={styles.camera}
             facing="back"
-            active={!isProcessing && !success}
+            mode="picture"
+            flash="off"
             barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
             onBarcodeScanned={isProcessing || success ? undefined : ({ data }) => handleQrValue(data)}
-            onCameraReady={() => setCameraReady(true)}
-            onMountError={({ message }) => {
+            onCameraReady={() => {
+              setCameraReady(true);
+              setCameraError('');
+            }}
+            onMountError={(error) => {
               setCameraReady(false);
-              setNotice(`No se pudo iniciar la cámara: ${message || 'verifica el permiso y reinicia la aplicación.'}`);
+              setCameraError(error?.message || 'Verifica el permiso de cámara y vuelve a intentarlo.');
             }}
           />
+          {cameraError ? (
+            <View style={styles.cameraError}>
+              <MaterialCommunityIcons name="camera-off-outline" size={42} color={colors.textOnPrimary} />
+              <Text style={styles.cameraLoadingText}>{cameraError}</Text>
+              <AppButton
+                title="Reintentar cámara"
+                variant="secondary"
+                onPress={() => {
+                  setCameraError('');
+                  setCameraReady(false);
+                  setCameraKey((value) => value + 1);
+                  requestPermission().catch(() => setCameraError('No se pudo solicitar el permiso de cámara.'));
+                }}
+                accessibilityLabel="Reintentar cámara"
+              />
+            </View>
+          ) : null}
           <View pointerEvents="none" style={styles.overlay}>
             <View style={styles.scanFrame} />
           </View>
@@ -228,6 +268,26 @@ export default function ScanQrScreen() {
   );
 }
 
+function BackButton({ router, styles, colors }) {
+  return (
+    <TouchableOpacity
+      style={styles.backButton}
+      onPress={() => {
+        if (router.canGoBack?.()) {
+          router.back();
+        } else {
+          router.replace('/(auth)/login');
+        }
+      }}
+      accessibilityRole="button"
+      accessibilityLabel="Volver a la pantalla anterior"
+    >
+      <MaterialCommunityIcons name="arrow-left" size={28} color={colors.primary} />
+      <Text style={styles.backButtonText}>Volver</Text>
+    </TouchableOpacity>
+  );
+}
+
 function ManualCodeCard({ colors, manualCode, setManualCode, submitManualCode, isProcessing }) {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -256,6 +316,18 @@ function createStyles(colors) {
     content: {
       flex: 1,
     },
+    backButton: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: AppSpacing.xs,
+      paddingHorizontal: AppSpacing.lg,
+      paddingVertical: AppSpacing.sm,
+    },
+    backButtonText: {
+      ...AppTypography.sm,
+      color: colors.primary,
+      fontWeight: '700',
+    },
     cameraWrap: {
       flex: 1,
       minHeight: 360,
@@ -263,7 +335,7 @@ function createStyles(colors) {
       backgroundColor: colors.black,
     },
     camera: {
-      flex: 1,
+      ...StyleSheet.absoluteFillObject,
     },
     cameraLoading: {
       ...StyleSheet.absoluteFillObject,
@@ -276,11 +348,19 @@ function createStyles(colors) {
       color: colors.textOnPrimary,
       marginTop: AppSpacing.sm,
     },
+    cameraError: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: 'center',
+      backgroundColor: colors.black,
+      justifyContent: 'center',
+      padding: AppSpacing.xl,
+      zIndex: 3,
+    },
     overlay: {
       ...StyleSheet.absoluteFillObject,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: 'rgba(0,0,0,0.18)',
+      backgroundColor: 'transparent',
     },
     scanFrame: {
       width: 248,

@@ -67,6 +67,27 @@ const getAuthReturnUrl = (path = '/login') => {
   return `${window.location.origin}${path}`;
 };
 
+const getFriendlyAuthError = (error, fallback) => {
+  const status = error.response?.status;
+  const data = error.response?.data;
+  const backendMessage = data?.message || data?.mensaje || data?.error;
+
+  if (status === 401) {
+    return 'El correo o la contraseña no son correctos. Verifica tus datos o restablece la contraseña.';
+  }
+  if (status === 403) {
+    return 'Tu cuenta no tiene permiso para iniciar sesión. Verifica el correo o contacta al administrador.';
+  }
+  if (status >= 500) {
+    return 'El servidor no está disponible en este momento. Intenta nuevamente más tarde.';
+  }
+  if (!error.response) {
+    return 'No fue posible conectarse con el servidor. Revisa tu conexión e intenta nuevamente.';
+  }
+
+  return backendMessage || fallback;
+};
+
 export const authService = {
   login: async (email, password) => {
     try {
@@ -78,7 +99,7 @@ export const authService = {
       }, { skipAuth: true });
       return normalizeAuthResponse(response.data);
     } catch (error) {
-      throw new Error(getApiErrorMessage(error, 'No se pudo iniciar sesión.'));
+      throw new Error(getFriendlyAuthError(error, 'No se pudo iniciar sesión.'));
     }
   },
 

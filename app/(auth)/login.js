@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Button, Checkbox, Text, TextInput } from 'react-native-paper';
+import { ActivityIndicator, Button, Checkbox, Text, TextInput } from 'react-native-paper';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -188,14 +188,16 @@ export default function LoginScreen() {
                   <Button
                     mode="contained"
                     onPress={handleLogin}
-                    loading={isSubmitting}
+                    loading={false}
                     disabled={isSubmitting}
                     style={styles.loginButton}
                     contentStyle={styles.buttonContent}
                     buttonColor={colors.primary}
                     textColor={colors.textOnPrimary}
                   >
-                    {t('authLoginBtn')}
+                    {isSubmitting ? (
+                      <ActivityIndicator color={colors.textOnPrimary} size="small" />
+                    ) : t('authLoginBtn')}
                   </Button>
               </>
 
