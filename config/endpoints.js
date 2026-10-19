@@ -3,6 +3,11 @@ import { Platform } from 'react-native';
 
 const apiPort = process.env.EXPO_PUBLIC_API_PORT || '8080';
 const frontendPort = process.env.EXPO_PUBLIC_FRONTEND_PORT || '8081';
+const webProxyEnabled = String(process.env.EXPO_PUBLIC_WEB_PROXY || '').toLowerCase() === 'true';
+
+const DEFAULT_API_URL = 'https://s3tn0qz4-8080.use.devtunnels.ms/api';
+const DEFAULT_WS_URL = 'wss://s3tn0qz4-8080.use.devtunnels.ms/ws';
+const DEFAULT_STUDENT_LINK_BASE_URL = 'https://s3tn0qz4-8081.use.devtunnels.ms';
 
 function isLocalHost(host) {
   return !host || host === 'localhost' || host === '127.0.0.1' || host === '::1';
@@ -25,6 +30,15 @@ function browserHost() {
 function browserOrigin() {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return '';
   return window.location.origin || '';
+}
+
+function browserPort() {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return '';
+  return window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+}
+
+function shouldUseWebProxy() {
+  return Platform.OS === 'web' && webProxyEnabled;
 }
 
 function expoHost() {
@@ -56,13 +70,28 @@ function normalizeApiUrl(value) {
   return normalized.endsWith('/api') ? normalized : `${normalized}/api`
 }
 function isTunnelHost(host) {
-  return /\.devtunnels\.ms$/i.test(host) || /\.trycloudflare\.com$/i.test(host);
+  return /\.devtunnels\.ms$/i.test(host)
+    || /\.trycloudflare\.com$/i.test(host)
+    || /\.loca\.lt$/i.test(host);
 }
 
 function resolveApiUrl() {
-  const configuredUrl = process.env.EXPO_PUBLIC_API_URL;
+  const configuredUrl = process.env.EXPO_PUBLIC_API_URL || DEFAULT_API_URL;
   const currentBrowserHost = browserHost();
   if (configuredUrl?.startsWith('/')) {
+    // Static web builds served by Nginx use the same-origin API proxy.
+    if (shouldUseWebProxy()) {
+      return configuredUrl;
+    }
+    // Docker/Nginx exposes the API through the same origin on port 8081.
+    // Expo web (8082) and native development builds must reach Spring Boot directly.
+    if (Platform.OS === 'web' && browserPort() === frontendPort) {
+      return configuredUrl;
+    }
+    const host = runtimeHost() || currentBrowserHost || 'localhost';
+    if (host) {
+      return `http://${host}:${apiPort}/api`;
+    }
     return configuredUrl;
   }
   if (isRemoteConfiguredUrl(configuredUrl) && !configuredUrl.startsWith('/')) {
@@ -82,10 +111,23 @@ function resolveApiUrl() {
 }
 
 function resolveWsUrl(apiUrl) {
-  const configuredUrl = process.env.EXPO_PUBLIC_WS_URL;
+  const configuredUrl = process.env.EXPO_PUBLIC_WS_URL || DEFAULT_WS_URL;
   const origin = browserOrigin();
   const currentBrowserHost = browserHost();
   if (configuredUrl?.startsWith('/')) {
+    if (shouldUseWebProxy() && origin) {
+      return `${origin.replace(/^http/, 'ws')}${configuredUrl}`;
+    }
+    if (Platform.OS === 'web' && browserPort() === frontendPort && origin) {
+      return `${origin.replace(/^http/, 'ws')}${configuredUrl}`;
+    }
+    if (apiUrl.startsWith('http')) {
+      return apiUrl.replace(/^http/, 'ws').replace(/\/api\/?$/, '/ws');
+    }
+    const host = runtimeHost() || currentBrowserHost || 'localhost';
+    if (host) {
+      return `ws://${host}:${apiPort}/ws`;
+    }
     return configuredUrl;
   }
   if (apiUrl.startsWith('/') && origin) {
@@ -105,7 +147,7 @@ function resolveWsUrl(apiUrl) {
 }
 
 function resolveStudentLinkBaseUrl(apiUrl) {
-  const configuredUrl = process.env.EXPO_PUBLIC_STUDENT_LINK_BASE_URL;
+  const configuredUrl = process.env.EXPO_PUBLIC_STUDENT_LINK_BASE_URL || DEFAULT_STUDENT_LINK_BASE_URL;
   const origin = browserOrigin();
   const currentBrowserHost = browserHost();
   // QR links must point to the public frontend origin, never to the API

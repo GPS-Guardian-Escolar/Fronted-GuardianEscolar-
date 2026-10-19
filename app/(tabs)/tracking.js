@@ -3,12 +3,13 @@ import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Dimensions, Scro
 import { Avatar, Text, Surface, IconButton, Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
-import * as Location from 'expo-location';
 import { COLORS } from '../../constants/colors';
 import SafeMap from '../../components/SafeMap';
 import { getStudents, getInitials } from '../../utils/studentStorage';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { trackingService } from '../../services/tracking.service';
+import { calculateRouteGeometry } from '../../utils/routeGeometry';
 
 const { width } = Dimensions.get('window');
 const isWeb = width > 768;
@@ -20,6 +21,45 @@ const INITIAL_REGION = {
   longitudeDelta: 0.005,
 };
 
+function getZoneColor(zone, colors) {
+  if (zone?.color) return zone.color;
+  if (zone?.type === 'Escuela') return colors.primary;
+  if (zone?.type === 'Casa') return colors.accent;
+  return colors.error;
+}
+
+function distanceMeters(a, b) {
+  const earthRadius = 6371000;
+  const toRadians = value => (value * Math.PI) / 180;
+  const latitudeDelta = toRadians(b.latitude - a.latitude);
+  const longitudeDelta = toRadians(b.longitude - a.longitude);
+  const haversine = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(toRadians(a.latitude)) * Math.cos(toRadians(b.latitude)) * Math.sin(longitudeDelta / 2) ** 2;
+  return earthRadius * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+function filterJourneyCoordinates(points) {
+  const withoutIsolatedJumps = points.filter((point, index) => {
+    const previous = points[index - 1];
+    const next = points[index + 1];
+    return !previous || !next
+      || distanceMeters(previous, point) <= 300
+      || distanceMeters(previous, next) >= 300;
+  });
+  const accepted = [];
+  for (const point of withoutIsolatedJumps) {
+    if (!accepted.length) {
+      accepted.push(point);
+      continue;
+    }
+    const previous = accepted[accepted.length - 1];
+    const distance = distanceMeters(previous, point);
+    const elapsedSeconds = Math.max(1, (point.timestamp - previous.timestamp) / 1000);
+    if (distance <= 1000 && distance / elapsedSeconds <= 30) accepted.push(point);
+  }
+  return accepted;
+}
+
 export default function TrackingScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -27,6 +67,10 @@ export default function TrackingScreen() {
   const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [location, setLocation] = useState(null);
+  const [studentZones, setStudentZones] = useState([]);
+  const [routeGeometry, setRouteGeometry] = useState([]);
+  const [routeGeometries, setRouteGeometries] = useState([]);
+  const [journeyCoordinates, setJourneyCoordinates] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const { t } = useLanguage();
   const { theme } = useTheme();
@@ -39,22 +83,71 @@ export default function TrackingScreen() {
     textSecondary: { color: colors.textSecondary },
   };
 
-  const refreshLocation = useCallback(async () => {
-    setIsLoading(true);
+  const refreshLocation = useCallback(async (showSpinner = true) => {
+    if (showSpinner) setIsLoading(true);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
+      if (!selectedStudent?.id) {
+        setLocation(null);
+        setStudentZones([]);
+        setRouteGeometry([]);
+        setRouteGeometries([]);
+        setJourneyCoordinates([]);
+        return;
+      }
+      const zones = selectedStudent.zones || [];
+      setStudentZones(zones.filter(zone => String(zone.studentId) === String(selectedStudent.id)));
+      const routes = selectedStudent.routes || [];
+      const routePaths = await Promise.all(routes.map(async (route, index) => {
+        const geometry = await calculateRouteGeometry(route).catch(() => []);
+        return { id: route.id || `route-${index}`, coordinates: geometry, color: '#8B95A7' };
+      }));
+      setRouteGeometries(routePaths.filter(path => path.coordinates.length >= 2).map(path => ({ ...path, color: '#8B95A7' })));
+      setRouteGeometry(routePaths[0]?.coordinates || []);
+      const trips = await trackingService.listTrips();
+      const studentTrips = trips
+        .filter(trip => String(trip.studentId) === String(selectedStudent.id))
+        .sort((a, b) => {
+          const priority = { IN_PROGRESS: 0, PENDING: 1, COMPLETED: 2, CANCELED: 3 };
+          return (priority[a.status] ?? 9) - (priority[b.status] ?? 9);
+        });
+      const selectedTrip = studentTrips.find(trip => ['IN_PROGRESS', 'PENDING'].includes(trip.status)) || studentTrips[0];
+      if (!selectedTrip) {
         setLocation(null);
         return;
       }
-      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      setLocation(current.coords);
+      const coordinates = await trackingService.listCoordinates(selectedTrip.id);
+      const orderedCoordinates = [...(coordinates || [])].sort((a, b) => {
+        const timeA = new Date(a.recordedAt || a.createdAt || a.timestamp || 0).getTime();
+        const timeB = new Date(b.recordedAt || b.createdAt || b.timestamp || 0).getTime();
+        return timeA - timeB;
+      });
+      const validCoordinates = filterJourneyCoordinates(orderedCoordinates
+        .map(point => ({
+          latitude: Number(point.latitude),
+          longitude: Number(point.longitude),
+          timestamp: new Date(point.recordedAt || point.createdAt || point.timestamp || 0).getTime(),
+          accuracy: point.accuracy,
+          recordedAt: point.recordedAt,
+        }))
+        .filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && Number.isFinite(point.timestamp)));
+      setJourneyCoordinates(validCoordinates.map(({ latitude, longitude }) => ({ latitude, longitude })));
+      const latest = validCoordinates[validCoordinates.length - 1];
+      if (!latest) {
+        setLocation(null);
+        return;
+      }
+      setLocation({
+        latitude: latest.latitude,
+        longitude: latest.longitude,
+        accuracy: latest.accuracy,
+        recordedAt: latest.recordedAt,
+      });
     } catch {
-      setLocation(null);
+      // Conserva los datos visibles si la actualización puntual falla por red.
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [selectedStudent]);
 
   useFocusEffect(
     useCallback(() => {
@@ -110,7 +203,7 @@ export default function TrackingScreen() {
             size={20} 
             style={[styles.refreshBtn, themed.surfaceSecondary]} 
             iconColor={colors.textSecondary} 
-            onPress={refreshLocation}
+            onPress={() => refreshLocation(false)}
           />
         </Surface>
 
@@ -143,16 +236,28 @@ export default function TrackingScreen() {
 
         {/* Tarjeta del Mapa */}
         <Surface style={[styles.mapCard, themed.surface]} elevation={1}>
-          {isLoading ? (
-            <View style={styles.loadingCenter}>
+          <SafeMap
+            key={selectedStudent?.id || 'tracking-map'}
+            currentLocation={location}
+            initialRegion={INITIAL_REGION}
+            style={styles.map}
+            markers={[
+              ...(studentZones || []).map(zone => {
+                const center = zone.center || { latitude: Number(zone.latitude), longitude: Number(zone.longitude) };
+                const zoneName = zone.name || zone.zoneName || zone.nombre || zone.type || zone.zoneType || 'Zona';
+                return { ...center, label: getInitials(zoneName), title: zoneName, color: getZoneColor({ ...zone, type: zone.type || zone.zoneType }, colors) };
+              }),
+            ]}
+            safeZones={(studentZones || []).map(zone => ({ ...zone, color: getZoneColor(zone, colors), center: zone.center || { latitude: Number(zone.latitude), longitude: Number(zone.longitude) } }))}
+            coordinates={routeGeometry}
+            showRoute={routeGeometry.length >= 2}
+            routePaths={routeGeometries}
+            journeyCoordinates={journeyCoordinates}
+          />
+          {isLoading && (
+            <View pointerEvents="none" style={styles.loadingOverlay}>
               <ActivityIndicator size="large" color={colors.primary} />
             </View>
-          ) : (
-            <SafeMap 
-              currentLocation={location} 
-              initialRegion={INITIAL_REGION} 
-              style={styles.map}
-            />
           )}
           <IconButton 
             icon="crosshairs-gps" 
@@ -160,7 +265,7 @@ export default function TrackingScreen() {
             containerColor={colors.surface}
             iconColor={colors.primary}
             style={styles.mapFab} 
-            onPress={refreshLocation}
+            onPress={() => refreshLocation(false)}
           />
           
           {/* Leyenda del Mapa */}
@@ -266,7 +371,7 @@ export default function TrackingScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.FONDO_PRINCIPAL },
   scrollContent: { padding: 16, paddingBottom: 40 },
-  scrollContentWeb: { maxWidth: 1000, alignSelf: 'center', width: '100%', paddingTop: 20 },
+  scrollContentWeb: { maxWidth: 1180, alignSelf: 'center', width: '100%', paddingTop: 20 },
   
   headerCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.BLANCO, borderRadius: 8, padding: 12, marginBottom: 16 },
   headerProfile: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -280,11 +385,12 @@ const styles = StyleSheet.create({
   selectorItem: { alignItems: 'center', gap: 6, padding: 4, borderRadius: 12, backgroundColor: COLORS.BLANCO, width: 75, elevation: 1 },
   selectorLabel: { fontSize: 11, color: COLORS.TEXTO_SECUNDARIO, textAlign: 'center' },
 
-  mapCard: { height: 300, backgroundColor: COLORS.BLANCO, borderRadius: 8, overflow: 'hidden', marginBottom: 16, position: 'relative' },
+  mapCard: { height: isWeb ? 520 : 330, backgroundColor: COLORS.BLANCO, borderRadius: 8, overflow: 'hidden', marginBottom: 16, position: 'relative' },
   map: { flex: 1 },
   loadingCenter: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.12)', zIndex: 5 },
   
-  mapLegend: { position: 'absolute', bottom: 10, left: 10, backgroundColor: 'rgba(255,255,255,0.9)', padding: 8, borderRadius: 8 },
+  mapLegend: { position: 'absolute', bottom: 14, left: 14, backgroundColor: 'rgba(255,255,255,0.9)', padding: 8, borderRadius: 8 },
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
   legendLine: { width: 12, height: 2 },
@@ -313,3 +419,4 @@ const styles = StyleSheet.create({
   routeBtn: { flex: 1, borderRadius: 8 },
   btnContent: { height: 48 },
 });
+

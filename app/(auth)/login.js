@@ -3,13 +3,14 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Button, Checkbox, Text, TextInput } from 'react-native-paper';
+import { ActivityIndicator, Button, Checkbox, Text, TextInput } from 'react-native-paper';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { storage } from '../../utils/storage';
 import { isValidEmail } from '../../utils/validators';
+import { AppTouch } from '../../theme/tokens';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -78,6 +79,10 @@ export default function LoginScreen() {
       setIsSubmitting(true);
       const normalizedEmail = email.trim().toLowerCase();
       const result = await login(normalizedEmail, password);
+      if (result?.requiresDeviceConfirmation) {
+        setErrorMsg(result.message);
+        return;
+      }
       if (rememberMe) {
         await storage.setRememberedEmail(normalizedEmail);
       } else {
@@ -187,14 +192,16 @@ export default function LoginScreen() {
                   <Button
                     mode="contained"
                     onPress={handleLogin}
-                    loading={isSubmitting}
+                    loading={false}
                     disabled={isSubmitting}
                     style={styles.loginButton}
                     contentStyle={styles.buttonContent}
                     buttonColor={colors.primary}
                     textColor={colors.textOnPrimary}
                   >
-                    {t('authLoginBtn')}
+                    {isSubmitting ? (
+                      <ActivityIndicator color={colors.textOnPrimary} size="small" />
+                    ) : t('authLoginBtn')}
                   </Button>
               </>
 
@@ -208,6 +215,23 @@ export default function LoginScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <TouchableOpacity
+        style={[
+          styles.studentQrFab,
+          {
+            backgroundColor: colors.primary,
+            bottom: Math.max(insets.bottom + 18, 24),
+          },
+        ]}
+        onPress={() => router.push({ pathname: '/scan-qr', params: { relink: '1' } })}
+        accessibilityRole="button"
+        accessibilityLabel="Escanear código QR del acudiente"
+        accessibilityHint="Abre la pantalla para escanear el QR o ingresar el código manualmente"
+      >
+        <MaterialCommunityIcons name="qrcode-scan" size={24} color={colors.textOnPrimary} />
+        <Text style={[styles.studentQrFabText, { color: colors.textOnPrimary }]}>Soy estudiante</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -224,7 +248,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   backButton: { padding: 8 },
-  scrollContent: { flexGrow: 1, justifyContent: 'center' },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', paddingBottom: 96 },
   cardWrapper: { width: '100%', alignItems: 'center', padding: 20, alignSelf: 'center' },
   headerLogo: { width: 120, height: 120, marginBottom: 6 },
   headerTitle: { fontSize: 28, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
@@ -260,6 +284,25 @@ const styles = StyleSheet.create({
   registerLink: { fontSize: 13, fontWeight: '700' },
   errorBox: { borderRadius: 8, padding: 10, marginBottom: 12, borderWidth: 1 },
   errorBoxText: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  studentQrFab: {
+    alignItems: 'center',
+    borderRadius: 999,
+    flexDirection: 'row',
+    gap: 8,
+    minHeight: AppTouch.min,
+    paddingHorizontal: 18,
+    position: 'absolute',
+    right: 18,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  studentQrFabText: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
   backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
   backBtnText: { marginLeft: 5, fontWeight: '600' },
   otpInfoBox: { alignItems: 'center', marginBottom: 20 },

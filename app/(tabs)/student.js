@@ -4,7 +4,6 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   Alert, Dimensions,
-  FlatList,
   KeyboardAvoidingView,
   Modal,
   Platform, RefreshControl,
@@ -14,22 +13,41 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { Avatar, Button, FAB, Surface, Text } from 'react-native-paper';
-import QRCode from 'react-native-qrcode-svg';
-import { STUDENT_LINK_BASE_URL } from '../../config/endpoints';
+import { Avatar, Button, FAB, Snackbar, Surface, Text } from 'react-native-paper';
 import CalendarDatePicker from '../../components/common/CalendarDatePicker';
 import { COLORS } from '../../constants/colors';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { buildQrPayload, encodeQrValue } from '../../features/child-link/qrPayload';
+import LinkStatusBadge from '../../features/students/components/LinkStatusBadge';
+import QrSection from '../../features/students/components/QrSection';
+import StudentList from '../../features/students/components/StudentList';
 import { studentService } from '../../services/student.service';
-import { addStudent, deleteStudent, getStudents, normalizeGrade, updateStudent } from '../../utils/studentStorage';
+import { AppTouch, AppTypography } from '../../theme/tokens';
+import { addStudent, deleteStudent, getInitials, getStudents, normalizeGrade, updateStudent } from '../../utils/studentStorage';
 
 const { width } = Dimensions.get('window');
 const isWeb = width > 768;
 const isTablet = width > 600 && width <= 1024;
 const MIN_STUDENT_AGE = 3;
 const MAX_STUDENT_AGE = 21;
+const GRADE_AGE_RANGES = {
+  PRE_KINDER: [3, 5],
+  KINDER: [4, 6],
+  TRANSITION: [5, 7],
+  FIRST: [6, 8],
+  SECOND: [7, 9],
+  THIRD: [8, 10],
+  FOURTH: [9, 11],
+  FIFTH: [10, 12],
+  SIXTH: [11, 13],
+  SEVENTH: [12, 14],
+  EIGHTH: [13, 15],
+  NINTH: [14, 16],
+  TENTH: [15, 17],
+  ELEVENTH: [16, 21],
+};
 const EMPTY_FORM = {
   nombre: '',
   grado: '',
@@ -87,6 +105,11 @@ export default function StudentScreen() {
   const [shareEmail, setShareEmail] = useState('');
   const [guardians, setGuardians] = useState([]);
   const [shareLoading, setShareLoading] = useState(false);
+  const [deleteCandidate, setDeleteCandidate] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [unlinkCandidate, setUnlinkCandidate] = useState(null);
+  const [unlinkLoading, setUnlinkLoading] = useState(false);
+  const [notice, setNotice] = useState('');
   const router = useRouter();
   const { user } = useAuth();
   const { t } = useLanguage();
@@ -191,13 +214,7 @@ export default function StudentScreen() {
 
   function confirmDelete(student) {
     if (Platform.OS === 'web') {
-      const confirmed = window.confirm(`${t('studDeleteConfirm')} ${student.nombre}? ${t('studDeleteWarning')}`);
-      if (confirmed) {
-        (async () => {
-          const updated = await deleteStudent(student.id);
-          setStudents(updated);
-        })();
-      }
+      setDeleteCandidate(student);
       return;
     }
 
@@ -209,13 +226,26 @@ export default function StudentScreen() {
         {
           text: t('delete'),
           style: 'destructive',
-          onPress: async () => {
-            const updated = await deleteStudent(student.id);
-            setStudents(updated);
-          },
+          onPress: () => executeDelete(student),
         },
       ]
     );
+  }
+
+  async function executeDelete(student) {
+    setDeleteLoading(true);
+    try {
+      const updated = await deleteStudent(student.id);
+      setStudents(updated);
+      setDeleteCandidate(null);
+      setNotice('Estudiante eliminado correctamente.');
+    } catch (error) {
+      setNotice(error?.response?.status === 401
+        ? 'La sesión expiró. Inicia sesión nuevamente.'
+        : 'No se pudo eliminar el estudiante. Intenta nuevamente.');
+    } finally {
+      setDeleteLoading(false);
+    }
   }
 
   const pickImage = async () => {
@@ -232,10 +262,13 @@ export default function StudentScreen() {
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.5,
+      base64: true,
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      setFotoCargada(result.assets[0].uri);
+      const asset = result.assets[0];
+      const mimeType = asset.mimeType || 'image/jpeg';
+      setFotoCargada(asset.base64 ? `data:${mimeType};base64,${asset.base64}` : asset.uri);
     }
   };
 
@@ -261,6 +294,12 @@ export default function StudentScreen() {
       const age = calculateAgeFromDate(birthDate);
       if (age < MIN_STUDENT_AGE || age > MAX_STUDENT_AGE) {
         errors.fechaNacimiento = `La edad debe estar entre ${MIN_STUDENT_AGE} y ${MAX_STUDENT_AGE} años.`;
+      } else {
+        const normalizedGrade = normalizeGrade(form.grado);
+        const range = GRADE_AGE_RANGES[normalizedGrade];
+        if (range && (age < range[0] || age > range[1])) {
+          errors.grado = `El grado seleccionado no corresponde a una edad de ${age} años.`;
+        }
       }
     }
     const contactName = form.contacto_nombre.trim();
@@ -280,17 +319,20 @@ export default function StudentScreen() {
     return Object.keys(errors).length === 0;
   }
 
-  function getStudentLink(student) {
-    const params = new URLSearchParams({
-      id: student.id,
-      codigo: student.codigo_vinculacion || '',
-      nombre: student.nombre || '',
-      grado: student.grado || '',
-      edad: student.edad || '',
-      contacto: student.contacto_nombre || '',
-      telefono: student.contacto_telefono || '',
-    });
-    return `${STUDENT_LINK_BASE_URL}/student-dashboard?${params.toString()}`;
+  function getStatusColor(status) {
+    if (status === 'WARNING') return colors.error;
+    if (status === 'INFO') return colors.primary;
+    return colors.accent;
+  }
+
+  function getStudentQrValue(student) {
+    return encodeQrValue(buildQrPayload({
+      studentId: student.id,
+      code: student.codigo_vinculacion,
+      name: student.nombre,
+      contactPhone: student.contacto_telefono,
+      exp: student.codigo_expira_en,
+    }));
   }
 
   async function handleSave() {
@@ -317,6 +359,42 @@ export default function StudentScreen() {
     }
   }
 
+  async function executeUnlink(student) {
+    setUnlinkLoading(true);
+    try {
+      await studentService.unlinkDevice(student.id);
+      await loadStudents();
+      setUnlinkCandidate(null);
+      setNotice('Dispositivo desvinculado correctamente.');
+    } catch (error) {
+      setNotice(error?.response?.status === 401
+        ? 'La sesión expiró. Inicia sesión nuevamente.'
+        : 'No se pudo desvincular el dispositivo. Intenta nuevamente.');
+    } finally {
+      setUnlinkLoading(false);
+    }
+  }
+
+  function handleUnlinkDevice(student) {
+    if (Platform.OS === 'web') {
+      setUnlinkCandidate(student);
+      return;
+    }
+
+    Alert.alert(
+      'Desvincular dispositivo',
+      `Se detendrá el envío de ubicación de ${student.nombre}. Podrás vincular otro celular después.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Desvincular',
+          style: 'destructive',
+          onPress: () => executeUnlink(student),
+        },
+      ],
+    );
+  }
+
   function canManageStudent(student) {
     const roles = Array.isArray(user?.roles) ? user.roles : [];
     return student.usuarioId === user?.id || user?.role === 'ADMIN' || roles.includes('ADMIN');
@@ -332,19 +410,17 @@ export default function StudentScreen() {
             size={80} 
             source={{ uri: item.foto }} 
             style={{
-              backgroundColor: item.status === 'WARNING' ? COLORS.ALERTA : 
-                               item.status === 'INFO' ? COLORS.PRIMARIO : COLORS.ACENTO
+              backgroundColor: getStatusColor(item.status)
             }}
           />
         ) : (
           <Avatar.Text
             size={80}
-            label={item.nombre ? item.nombre.substring(0, 2).toUpperCase() : '??'}
+            label={getInitials(item.nombre)}
             style={{
-              backgroundColor: item.status === 'WARNING' ? COLORS.ALERTA : 
-                               item.status === 'INFO' ? COLORS.PRIMARIO : COLORS.ACENTO
+              backgroundColor: getStatusColor(item.status)
             }}
-            color={COLORS.BLANCO}
+            color={colors.textOnPrimary}
           />
         )}
       </View>
@@ -354,16 +430,10 @@ export default function StudentScreen() {
       </Text>
       
       <View style={styles.badgeWrap}>
-        <View style={[
-          styles.badgeActive, 
-          item.status === 'WARNING' && { backgroundColor: COLORS.ALERTA },
-          item.status === 'INFO' && { backgroundColor: COLORS.PRIMARIO }
-        ]}>
-          <Text style={styles.badgeText}>
-            {item.status === 'WARNING' ? t('studAlert') : 
-             item.status === 'INFO' ? t('studOnRoute') : t('studSafeZone')}
-          </Text>
-        </View>
+        <LinkStatusBadge
+          color={getStatusColor(item.status)}
+          label={item.status === 'WARNING' ? t('studAlert') : item.status === 'INFO' ? t('studOnRoute') : t('studSafeZone')}
+        />
       </View>
 
       <View style={[styles.contactBox, themed.surfaceSecondary]}>
@@ -386,22 +456,32 @@ export default function StudentScreen() {
         </Text>
       </View>
 
+      {canManage && Number(item.dispositivos_vinculados || 0) > 0 && (
+        <TouchableOpacity
+          style={[styles.unlinkDeviceButton, { borderColor: colors.error }]}
+          onPress={() => handleUnlinkDevice(item)}
+          accessibilityRole="button"
+          accessibilityLabel="Desvincular dispositivo del estudiante"
+        >
+          <MaterialCommunityIcons name="cellphone-remove" size={18} color={colors.error} />
+          <Text style={[styles.unlinkDeviceText, { color: colors.error }]}>Desvincular dispositivo</Text>
+        </TouchableOpacity>
+      )}
+
       {canManage && (
-        <View style={[styles.qrCard, themed.surfaceSecondary]}>
-          <QRCode value={getStudentLink(item)} size={92} />
-          <View style={styles.qrTextCol}>
-            <Text style={[styles.qrTitle, themed.text]}>{t('studLinkDevice')}</Text>
-            <Text style={[styles.qrCodeText, { color: colors.primary }]}>{item.codigo_vinculacion}</Text>
-            <Text style={[styles.qrHint, themed.textSecondary]}>{t('studScanQrStudentPhone')}</Text>
-          </View>
-        </View>
+        <QrSection
+          value={getStudentQrValue(item)}
+          code={item.codigo_vinculacion}
+          title={t('studLinkDevice')}
+          hint={t('studScanQrStudentPhone')}
+          colors={colors}
+        />
       )}
 
       <Button 
         mode="contained" 
         buttonColor={
-          item.status === 'WARNING' ? COLORS.ALERTA : 
-          item.status === 'INFO' ? COLORS.PRIMARIO : COLORS.ACENTO
+          getStatusColor(item.status)
         }
         style={styles.verMapaBtn}
         onPress={() => router.push({ pathname: '/(tabs)/tracking', params: { id: item.id, name: item.nombre } })}
@@ -423,13 +503,13 @@ export default function StudentScreen() {
       {/* Acciones flotantes */}
       {canManage && (
         <View style={styles.cardActionsFloating}>
-          <TouchableOpacity style={[styles.actionBtnIcon, themed.surfaceSecondary]} onPress={() => openEdit(item)} accessibilityLabel={t('edit')}>
+          <TouchableOpacity style={[styles.actionBtnIcon, themed.surfaceSecondary]} onPress={() => openEdit(item)} accessibilityRole="button" accessibilityLabel={t('edit')}>
             <MaterialCommunityIcons name="pencil" size={16} color={colors.textSecondary} />
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtnIcon, themed.surfaceSecondary]} onPress={() => openShare(item)} accessibilityLabel={t('studShareAccess')}>
+          <TouchableOpacity style={[styles.actionBtnIcon, themed.surfaceSecondary]} onPress={() => openShare(item)} accessibilityRole="button" accessibilityLabel={t('studShareAccess')}>
             <MaterialCommunityIcons name="account-plus" size={16} color={colors.primary} />
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtnIcon, themed.surfaceSecondary]} onPress={() => confirmDelete(item)} accessibilityLabel={t('delete')}>
+          <TouchableOpacity style={[styles.actionBtnIcon, themed.surfaceSecondary]} onPress={() => confirmDelete(item)} accessibilityRole="button" accessibilityLabel={t('delete')}>
             <MaterialCommunityIcons name="trash-can" size={16} color={colors.error} />
           </TouchableOpacity>
         </View>
@@ -447,7 +527,7 @@ export default function StudentScreen() {
           <Text style={[styles.emptySub, themed.textSecondary]}>{t('studEmptySub')}</Text>
         </View>
       ) : (
-        <FlatList
+        <StudentList
           data={filteredStudents}
           keyExtractor={item => item.id}
           numColumns={isWeb ? 3 : 1}
@@ -455,7 +535,7 @@ export default function StudentScreen() {
           contentContainerStyle={styles.listContainer}
           columnWrapperStyle={isWeb ? styles.columnWrapper : undefined}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={loadStudents} colors={[COLORS.PRIMARIO]} tintColor={COLORS.PRIMARIO} />
+            <RefreshControl refreshing={refreshing} onRefresh={loadStudents} colors={[colors.primary]} tintColor={colors.primary} />
           }
           ListHeaderComponent={
             <View style={styles.pageHeader}>
@@ -464,7 +544,16 @@ export default function StudentScreen() {
               <View style={[styles.searchBox, themed.surfaceSecondary, { borderColor: colors.border }]}>
                 <MaterialCommunityIcons name="magnify" size={20} color={colors.textSecondary} />
                 <TextInput value={studentQuery} onChangeText={setStudentQuery} placeholder={t('studSearch')} placeholderTextColor={colors.textMuted} style={[styles.searchInput, { color: colors.text }]} accessibilityLabel={t('studSearch')} />
-                {!!studentQuery && <TouchableOpacity onPress={() => setStudentQuery('')} accessibilityLabel={t('studClearSearch')}><MaterialCommunityIcons name="close-circle" size={18} color={colors.textSecondary} /></TouchableOpacity>}
+                {!!studentQuery && (
+                  <TouchableOpacity
+                    style={styles.clearSearchButton}
+                    onPress={() => setStudentQuery('')}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('studClearSearch')}
+                  >
+                    <MaterialCommunityIcons name="close-circle" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           }
@@ -573,17 +662,19 @@ export default function StudentScreen() {
                         top: -5,
                         right: -5,
                         backgroundColor: colors.error,
-                        borderRadius: 15,
-                        width: 26,
-                        height: 26,
+                        borderRadius: 24,
+                        width: AppTouch.icon,
+                        height: AppTouch.icon,
                         justifyContent: 'center',
                         alignItems: 'center',
                         borderWidth: 2,
                         borderColor: colors.surface
                       }}
                       onPress={() => setFotoCargada(null)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Quitar foto del estudiante"
                     >
-                      <MaterialCommunityIcons name="close" size={16} color={COLORS.BLANCO} />
+                      <MaterialCommunityIcons name="close" size={16} color={colors.textOnPrimary} />
                     </TouchableOpacity>
                   </View>
                 )}
@@ -591,6 +682,8 @@ export default function StudentScreen() {
                 <TouchableOpacity 
                   style={[styles.mockupUploadBtn, { borderColor: colors.border }, fotoCargada && { borderColor: colors.accent, backgroundColor: colors.accentLight }]} 
                   onPress={pickImage}
+                  accessibilityRole="button"
+                  accessibilityLabel={fotoCargada ? 'Cambiar foto del estudiante' : 'Cargar foto del estudiante'}
                 >
                   <Text style={[styles.mockupUploadText, themed.textSecondary, fotoCargada && { color: colors.accent, fontWeight: 'bold' }]}>
                     {fotoCargada ? 'Cambiar Foto' : 'Cargar Foto'}
@@ -600,17 +693,20 @@ export default function StudentScreen() {
                 <View style={[styles.mockupInfoBox, { borderColor: colors.primary }]}>
                   <Text style={[styles.mockupInfoTitle, { color: colors.primary }]}>Vincular Dispositivo del Estudiante</Text>
                   <Text style={[styles.mockupInfoDesc, themed.textSecondary]}>
-                    Guarda el estudiante y usa el QR generado para abrir la vista de vinculación en su celular.
+                    Guarda el estudiante y usa el QR generado para vincular el celular desde la pantalla de escaneo.
                   </Text>
                   
                   {editingStudent && codigoGenerado ? (
                     <View style={[styles.codigoBox, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
-                      <QRCode value={getStudentLink(editingStudent)} size={isWeb ? 116 : 104} />
-                      <Text style={[styles.codigoText, { color: colors.primary }]}>Código: {codigoGenerado}</Text>
-                      <Text style={[styles.codigoHint, themed.textSecondary]}>Escanea este QR desde el celular del estudiante.</Text>
-                      <Text style={[styles.qrUrlHint, themed.textSecondary]} numberOfLines={1}>
-                        {STUDENT_LINK_BASE_URL}
-                      </Text>
+                      <QrSection
+                        value={getStudentQrValue(editingStudent)}
+                        code={`Código: ${codigoGenerado}`}
+                        title="Vincular dispositivo"
+                        hint="Escanea este QR desde el celular del estudiante."
+                        size={isWeb ? 160 : 140}
+                        colors={colors}
+                        style={styles.codigoQrSection}
+                      />
                     </View>
                   ) : (
                     <View style={[styles.codigoBox, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
@@ -620,10 +716,10 @@ export default function StudentScreen() {
                 </View>
               </ScrollView>
               <View style={[styles.mockupActions, { borderTopColor: colors.border }]}>
-                <TouchableOpacity style={[styles.mockupCancelBtn, { borderColor: colors.border }]} onPress={() => setModalVisible(false)}>
+                <TouchableOpacity style={[styles.mockupCancelBtn, { borderColor: colors.border }]} onPress={() => setModalVisible(false)} accessibilityRole="button" accessibilityLabel="Cancelar edición de estudiante">
                   <Text style={[styles.mockupCancelText, themed.text]}>Cancelar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.mockupSaveBtn, { backgroundColor: colors.primary }]} onPress={handleSave} disabled={loading}>
+                <TouchableOpacity style={[styles.mockupSaveBtn, { backgroundColor: colors.primary }]} onPress={handleSave} disabled={loading} accessibilityRole="button" accessibilityLabel="Guardar estudiante">
                   <Text style={styles.mockupSaveText}>{loading ? t('loading') : 'Guardar'}</Text>
                 </TouchableOpacity>
               </View>
@@ -682,12 +778,80 @@ export default function StudentScreen() {
               ))}
             </ScrollView>
 
-            <TouchableOpacity style={[styles.mockupCancelBtn, { borderColor: colors.border, marginTop: 14 }]} onPress={() => setShareModalVisible(false)}>
+            <TouchableOpacity style={[styles.mockupCancelBtn, { borderColor: colors.border, marginTop: 14 }]} onPress={() => setShareModalVisible(false)} accessibilityRole="button" accessibilityLabel={t('close')}>
               <Text style={[styles.mockupCancelText, themed.text]}>{t('close')}</Text>
             </TouchableOpacity>
           </Surface>
         </View>
       </Modal>
+
+      <Modal
+        visible={!!deleteCandidate}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setDeleteCandidate(null)}
+      >
+        <View style={[styles.modalOverlay, themed.overlay]}>
+          <Surface style={[styles.deleteModal, themed.surface]} elevation={5}>
+            <Text style={[styles.deleteTitle, themed.text]}>Eliminar estudiante</Text>
+            <Text style={[styles.deleteMessage, themed.textSecondary]}>
+              ¿Estás seguro de eliminar a {deleteCandidate?.nombre}? Esta acción no se puede deshacer.
+            </Text>
+            <View style={styles.deleteActions}>
+              <TouchableOpacity
+                style={[styles.mockupCancelBtn, { borderColor: colors.border }]}
+                onPress={() => setDeleteCandidate(null)}
+                disabled={deleteLoading}
+              >
+                <Text style={[styles.mockupCancelText, themed.text]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.deleteConfirmBtn, { backgroundColor: colors.error }]}
+                onPress={() => executeDelete(deleteCandidate)}
+                disabled={deleteLoading}
+              >
+                <Text style={styles.deleteConfirmText}>{deleteLoading ? 'Eliminando...' : 'Eliminar'}</Text>
+              </TouchableOpacity>
+            </View>
+          </Surface>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={!!unlinkCandidate}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setUnlinkCandidate(null)}
+      >
+        <View style={[styles.modalOverlay, themed.overlay]}>
+          <Surface style={[styles.deleteModal, themed.surface]} elevation={5}>
+            <Text style={[styles.deleteTitle, themed.text]}>Desvincular dispositivo</Text>
+            <Text style={[styles.deleteMessage, themed.textSecondary]}>
+              Se detendrá el envío de ubicación de {unlinkCandidate?.nombre}. Podrás vincular otro celular después.
+            </Text>
+            <View style={styles.deleteActions}>
+              <TouchableOpacity
+                style={[styles.mockupCancelBtn, { borderColor: colors.border }]}
+                onPress={() => setUnlinkCandidate(null)}
+                disabled={unlinkLoading}
+              >
+                <Text style={[styles.mockupCancelText, themed.text]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.deleteConfirmBtn, { backgroundColor: colors.error }]}
+                onPress={() => executeUnlink(unlinkCandidate)}
+                disabled={unlinkLoading}
+              >
+                <Text style={styles.deleteConfirmText}>{unlinkLoading ? 'Desvinculando...' : 'Desvincular'}</Text>
+              </TouchableOpacity>
+            </View>
+          </Surface>
+        </View>
+      </Modal>
+
+      <Snackbar visible={!!notice} onDismiss={() => setNotice('')}>
+        {notice}
+      </Snackbar>
     </View>
   );
 }
@@ -721,8 +885,14 @@ const styles = StyleSheet.create({
     gap: 20,
     justifyContent: 'flex-start',
   },
-  searchBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, marginTop: 14, minHeight: 46 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, marginTop: 14, minHeight: AppTouch.min },
   searchInput: { flex: 1, marginLeft: 8, fontSize: 14, paddingVertical: 8 },
+  clearSearchButton: {
+    alignItems: 'center',
+    height: AppTouch.icon,
+    justifyContent: 'center',
+    width: AppTouch.icon,
+  },
   noResultsText: { textAlign: 'center', marginTop: 18, fontSize: 13 },
   pageHeader: {
     marginBottom: 24,
@@ -756,6 +926,7 @@ const styles = StyleSheet.create({
   childAvatarWrap: {
     alignItems: 'center',
     marginBottom: 12,
+    paddingTop: 42,
   },
   childName: {
     fontSize: 16,
@@ -782,7 +953,8 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     color: '#FFFFFF',
-    fontSize: 11,
+    fontSize: AppTypography.xs.fontSize,
+    lineHeight: AppTypography.xs.lineHeight,
     fontWeight: 'bold',
     textAlign: 'center'
   },
@@ -820,6 +992,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  unlinkDeviceButton: {
+    alignItems: 'center',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    marginBottom: 14,
+    minHeight: 42,
+    paddingHorizontal: 12,
+  },
+  unlinkDeviceText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
   qrCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -842,33 +1029,35 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   qrHint: {
-    fontSize: 11,
+    fontSize: AppTypography.xs.fontSize,
+    lineHeight: AppTypography.xs.lineHeight,
     marginTop: 4,
   },
   verMapaBtn: {
     borderRadius: 8,
-    minHeight: 42,
+    minHeight: AppTouch.min,
     justifyContent: 'center',
   },
   shareAccessBtn: {
     borderRadius: 8,
-    minHeight: 40,
+    minHeight: AppTouch.min,
     justifyContent: 'center',
     marginTop: 10,
   },
   cardActionsFloating: {
     position: 'absolute',
     top: 14,
-    right: 14,
+    right: 12,
     flexDirection: 'row',
-    gap: 6,
+    gap: 8,
     alignItems: 'center',
+    zIndex: 2,
   },
   actionBtnIcon: {
-    width: 32,
-    height: 32,
+    width: 44,
+    height: 44,
     backgroundColor: '#F3F4F6',
-    borderRadius: 16,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: COLORS.GRIS_BORDE,
     alignItems: 'center',
@@ -1011,6 +1200,7 @@ const styles = StyleSheet.create({
     maxWidth: 760,
     alignSelf: 'center',
     width: isWeb ? (isTablet ? '86%' : '78%') : '94%',
+    height: isWeb ? '78%' : '84%',
     maxHeight: isWeb ? '78%' : '84%',
     overflow: 'hidden',
   },
@@ -1021,6 +1211,39 @@ const styles = StyleSheet.create({
     width: isWeb ? 520 : '92%',
     maxHeight: '86%',
     borderWidth: 1,
+  },
+  deleteModal: {
+    borderRadius: 10,
+    padding: 22,
+    width: isWeb ? 430 : '90%',
+  },
+  deleteTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  deleteMessage: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  deleteActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  deleteConfirmBtn: {
+    alignItems: 'center',
+    borderRadius: 6,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: AppTouch.min,
+  },
+  deleteConfirmText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
   shareSubtitle: {
     textAlign: 'center',
@@ -1055,11 +1278,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   guardianEmail: {
-    fontSize: 11,
+    fontSize: AppTypography.xs.fontSize,
+    lineHeight: AppTypography.xs.lineHeight,
     marginTop: 2,
   },
   guardianRole: {
-    fontSize: 10,
+    fontSize: AppTypography.xs.fontSize,
+    lineHeight: AppTypography.xs.lineHeight,
     fontWeight: '800',
   },
   modalHeaderMockup: {
@@ -1091,7 +1316,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#D1D5DB',
     borderRadius: 6,
-    minHeight: 40,
+    minHeight: AppTouch.min,
     paddingHorizontal: 10,
     marginBottom: 12,
     backgroundColor: '#FFF',
@@ -1102,9 +1327,10 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: COLORS.ALERTA,
-    fontSize: 11,
-    marginTop: -7,
-    marginBottom: 8,
+    fontSize: AppTypography.xs.fontSize,
+    lineHeight: AppTypography.xs.lineHeight,
+    marginTop: 2,
+     marginBottom: 12,
   },
   mockupRow: {
     flexDirection: isWeb ? 'row' : 'column',
@@ -1122,7 +1348,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#6B7280',
     borderRadius: 6,
-    minHeight: 42,
+    minHeight: AppTouch.min,
     paddingVertical: 9,
     paddingHorizontal: 16,
     alignSelf: 'flex-start',
@@ -1154,7 +1380,7 @@ const styles = StyleSheet.create({
   mockupGenerateBtn: {
     backgroundColor: '#1D4ED8',
     borderRadius: 6,
-    minHeight: 42,
+    minHeight: AppTouch.min,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1173,6 +1399,10 @@ const styles = StyleSheet.create({
     width: '100%',
     gap: 6,
   },
+  codigoQrSection: {
+    marginBottom: 0,
+    width: '100%',
+  },
   codigoText: {
     fontSize: 16,
     fontWeight: 'bold',
@@ -1181,13 +1411,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   codigoHint: {
-    fontSize: 11,
+    fontSize: AppTypography.xs.fontSize,
+    lineHeight: AppTypography.xs.lineHeight,
     color: '#6366F1',
     marginTop: 2,
     textAlign: 'center',
   },
   qrUrlHint: {
-    fontSize: 10,
+    fontSize: AppTypography.xs.fontSize,
+    lineHeight: AppTypography.xs.lineHeight,
     maxWidth: '100%',
   },
   mockupActions: {
@@ -1204,7 +1436,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#374151',
     borderRadius: 6,
-    minHeight: 44,
+    minHeight: AppTouch.min,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1214,9 +1446,8 @@ const styles = StyleSheet.create({
   },
   mockupSaveBtn: {
     flex: 1,
-    backgroundColor: '#1E3A8A',
     borderRadius: 6,
-    minHeight: 44,
+    minHeight: AppTouch.min,
     alignItems: 'center',
     justifyContent: 'center',
   },

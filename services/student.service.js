@@ -6,12 +6,13 @@ export const studentService = {
     return response.data;
   },
 
-  create: async ({ fullName, schoolGrade, birthDate, userId }) => {
+  create: async ({ fullName, schoolGrade, birthDate, userId, photoData }) => {
     const response = await api.post('/students', {
       fullName,
       schoolGrade,
       birthDate,
       userId,
+      photoData,
     });
     return response.data;
   },
@@ -23,6 +24,10 @@ export const studentService = {
 
   remove: async (id) => {
     await api.delete(`/students/${id}`);
+  },
+
+  unlinkDevice: async (studentId) => {
+    await api.delete(`/students/${studentId}/device`);
   },
 
   assignRoute: async (studentId, routeId) => {
@@ -49,13 +54,16 @@ export const studentService = {
   },
 
   linkDevice: async (data) => {
-    const response = await api.post('/students/link-device', {
-      studentId: data.studentId,
+    const payload = {
       code: data.code,
       deviceIdentifier: data.deviceIdentifier,
       platform: data.platform,
       deviceName: data.deviceName,
-    }, { skipAuth: true });
+    };
+
+    if (data.studentId) payload.studentId = data.studentId;
+
+    const response = await api.post('/students/link-device', payload, { skipAuth: true });
     return response.data;
   },
 

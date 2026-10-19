@@ -4,6 +4,7 @@ import { getAuthDeviceInfo } from '../utils/deviceIdentity';
 import { isValidEmail } from '../utils/validators';
 
 const RECOVERY_GENERIC_MESSAGE = 'If an account exists, we sent password recovery instructions.';
+const DEVICE_CONFIRMATION_REQUIRED = 'DEVICE_CONFIRMATION_REQUIRED';
 
 const getResponseUser = (data) => data?.user || data?.usuario || null;
 
@@ -67,6 +68,39 @@ const getAuthReturnUrl = (path = '/login') => {
   return `${window.location.origin}${path}`;
 };
 
+const getFriendlyAuthError = (error, fallback) => {
+  const status = error.response?.status;
+  const errorCodes = error.response?.data?.errors || [];
+  const backendMessage = String(error.response?.data?.message || error.response?.data?.mensaje || '').toLowerCase();
+
+  if (errorCodes.includes(DEVICE_CONFIRMATION_REQUIRED)
+    || (status === 428 && backendMessage.includes('confirmar este nuevo inicio de sesión'))
+    || (status === 400 && backendMessage.includes('confirmar este nuevo inicio de sesión'))) {
+    return 'Se envió un correo para confirmar este dispositivo. Confirma el acceso y vuelve a iniciar sesión.';
+  }
+
+  if ([400, 401, 422].includes(status)) {
+    return 'No pudimos iniciar sesión. Verifica tu correo y contraseña.';
+  }
+  if (status === 403) {
+    return 'No pudimos iniciar sesión. Verifica tus datos o contacta al administrador.';
+  }
+  if (status === 429) {
+    return 'Hay demasiados intentos. Espera unos minutos y vuelve a intentarlo.';
+  }
+  if (status >= 500) {
+    return 'El servidor no está disponible en este momento. Intenta nuevamente más tarde.';
+  }
+  if (!error.response) {
+    if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+      return 'La conexión tardó demasiado. Revisa tu red e intenta nuevamente.';
+    }
+    return 'No fue posible conectarse con el servidor. Revisa tu conexión e intenta nuevamente.';
+  }
+
+  return fallback;
+};
+
 export const authService = {
   login: async (email, password) => {
     try {
@@ -78,7 +112,17 @@ export const authService = {
       }, { skipAuth: true });
       return normalizeAuthResponse(response.data);
     } catch (error) {
-      throw new Error(getApiErrorMessage(error, 'No se pudo iniciar sesión.'));
+      const backendMessage = String(error.response?.data?.message || error.response?.data?.mensaje || '').toLowerCase();
+      const errorCodes = error.response?.data?.errors || [];
+      if (errorCodes.includes(DEVICE_CONFIRMATION_REQUIRED)
+        || (error.response?.status === 428 && backendMessage.includes('confirmar este nuevo inicio de sesión'))
+        || (error.response?.status === 400 && backendMessage.includes('confirmar este nuevo inicio de sesión'))) {
+        return {
+          requiresDeviceConfirmation: true,
+          message: 'Se envió un correo para confirmar este dispositivo. Confirma el acceso y vuelve a iniciar sesión.',
+        };
+      }
+      throw new Error(getFriendlyAuthError(error, 'No se pudo iniciar sesión.'));
     }
   },
 
@@ -227,13 +271,22 @@ export const authService = {
 
   verify2FA: async (token, code, method) => {
     try {
+      const deviceInfo = await getAuthDeviceInfo();
       const response = await api.post('/auth/2fa/verify', {
         token,
         code,
         method,
+        ...deviceInfo,
       });
       return persistBackendSession(response.data);
     } catch (error) {
+      const backendMessage = String(error.response?.data?.message || error.response?.data?.mensaje || '').toLowerCase();
+      const errorCodes = error.response?.data?.errors || [];
+      if (errorCodes.includes(DEVICE_CONFIRMATION_REQUIRED)
+        || (error.response?.status === 428 && backendMessage.includes('confirmar este nuevo inicio de sesión'))
+        || (error.response?.status === 400 && backendMessage.includes('confirmar este nuevo inicio de sesión'))) {
+        throw new Error('Se envió un correo para confirmar este dispositivo. Confirma el acceso y vuelve a iniciar sesión.');
+      }
       throw new Error(getApiErrorMessage(error, 'No se pudo verificar el código 2FA.'));
     }
   },

@@ -134,7 +134,10 @@ export default function RegisterScreen() {
     setIsSubmitting(true);
     try {
       await authService.register({ name: name.trim(), email: email.trim(), password, phone: phone.trim(), acceptedTerms: true, termsVersion: TERMS_VERSION });
-      Alert.alert(t('success'), 'Cuenta creada. Ya puedes iniciar sesión.');
+      Alert.alert(
+        t('success'),
+        'Tu cuenta fue creada. Te enviamos un correo de verificación. Revisa tu bandeja de entrada y confirma tu dirección de correo electrónico antes de iniciar sesión.',
+      );
       router.replace('/(auth)/login');
     } catch (error) {
       setErrorMsg(error.message || 'No se pudo crear la cuenta.');
@@ -256,9 +259,28 @@ export default function RegisterScreen() {
               </View>
 
               {/* Términos */}
-              <TouchableOpacity style={styles.termsRow} onPress={() => { if (acceptTerms) { setAcceptTerms(false); } else { setTermsModalVisible(true); } setErrorMsg(''); }} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={styles.termsRow}
+                onPress={() => {
+                  if (acceptTerms) {
+                    setAcceptTerms(false);
+                  } else {
+                    setTermsModalVisible(true);
+                  }
+                  setErrorMsg('');
+                }}
+                activeOpacity={0.7}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: acceptTerms }}
+                accessibilityLabel="Aceptar Términos y Condiciones y Política de Privacidad"
+              >
                 <View style={styles.checkboxWrapper}>
-                  <Checkbox status={acceptTerms ? 'checked' : 'unchecked'} color={colors.primary} />
+                  <Checkbox
+                    status={acceptTerms ? 'checked' : 'unchecked'}
+                    color={colors.primary}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: acceptTerms }}
+                  />
                 </View>
                 <Text style={[styles.termsText, { color: colors.textSecondary }]}>
                   Acepto los Términos y Condiciones y la Política de Privacidad de Guardian Escolar

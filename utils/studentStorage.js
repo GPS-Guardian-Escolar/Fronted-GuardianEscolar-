@@ -1,6 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../constants/colors';
 import { studentService } from '../services/student.service';
+import { routeService } from '../services/route.service';
+import { safeZoneService } from '../services/safeZone.service';
+import { mapsService } from '../services/maps.service';
 
 const NOTIF_KEY = '@guardian_notificaciones';
 const HISTORY_KEY = '@guardian_historial';
@@ -61,9 +64,11 @@ const ENUM_TO_GRADE = {
 };
 
 export function getInitials(nombre = '') {
-  const parts = nombre.trim().split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return parts[0]?.slice(0, 2).toUpperCase() || '??';
+  const parts = String(nombre || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toLocaleUpperCase();
+  }
+  return parts[0]?.[0]?.toLocaleUpperCase() || '??';
 }
 
 export function normalizeGrade(value = '') {
@@ -143,21 +148,44 @@ function buildLinkCode(id = '') {
   return String(id).replace(/-/g, '').slice(0, 10).toUpperCase();
 }
 
-async function getStudentExtras(studentId) {
-  const [zones, routes] = await Promise.all([
+async function getStudentExtras(studentId, preloadedZones) {
+  const [apiZones, localZones, localRoutes] = await Promise.all([
+    Array.isArray(preloadedZones) ? preloadedZones : safeZoneService.list().catch(() => []),
     getLocalCollection(ZONES_KEY, studentId),
     getLocalCollection(ROUTES_KEY, studentId),
   ]);
-  return { zones, routes };
+  const zones = apiZones
+    .filter(zone => String(zone.studentId) === String(studentId))
+    .map(zone => ({
+      ...zone,
+      id: zone.id,
+      name: zone.zoneName,
+      type: zone.zoneType || 'Personalizado',
+radius: `${zone.radiusMeters} Metros`,
+      radiusMeters: zone.radiusMeters,
+      color: zone.color,
+      center: { latitude: Number(zone.latitude), longitude: Number(zone.longitude) },
+    }));
+  return { zones: zones.length ? zones : localZones, routes: localRoutes };
 }
 
-async function mapStudent(apiStudent) {
+async function mapStudent(apiStudent, apiZones) {
   const contacts = await studentService.listEmergencyContacts(apiStudent.id).catch(() => []);
   const primaryContact = contacts.find(contact => contact.isPrimary || contact.esPrincipal) || contacts[0];
-  const extras = await getStudentExtras(apiStudent.id);
+  const extras = await getStudentExtras(apiStudent.id, apiZones);
   const fullName = apiStudent.fullName || apiStudent.nombreCompleto || '';
   const schoolGrade = apiStudent.schoolGrade || apiStudent.gradoEscolar || '';
   const birthDate = apiStudent.birthDate || apiStudent.fechaNacimiento || '';
+  const apiRoutes = apiStudent.routes || apiStudent.rutas;
+  const routes = Array.isArray(apiRoutes)
+    ? apiRoutes.map(route => ({
+      ...route,
+      id: route.id || route.routeId,
+      name: route.name || route.routeName || route.nombre,
+      start: route.start || route.originAddress || route.origen || formatCoordinates(route.originLatitude, route.originLongitude),
+      end: route.end || route.destinationAddress || route.destino || formatCoordinates(route.destinationLatitude, route.destinationLongitude),
+    }))
+    : extras.routes;
 
   return {
     id: apiStudent.id,
@@ -176,18 +204,22 @@ async function mapStudent(apiStudent) {
     dispositivos_vinculados: apiStudent.linkedDevices || 0,
     acudientes_vinculados: apiStudent.linkedGuardians || apiStudent.acudientesVinculados || 1,
     correo_acudiente: apiStudent.guardianEmail || apiStudent.correoAcudiente || '',
+    foto: apiStudent.photoData || apiStudent.foto || '',
     codigo_vinculacion: buildLinkCode(apiStudent.id),
     label: getInitials(fullName),
     color: COLORS.PRIMARIO,
     status: (apiStudent.isActive ?? apiStudent.estaActivo) ? 'SAFE' : 'INFO',
-    routes: apiStudent.routes || apiStudent.rutas || extras.routes,
+    routes,
     zones: extras.zones,
   };
 }
 
 async function refreshStudents() {
-  const students = await studentService.list();
-  return Promise.all(students.map(mapStudent));
+  const [students, apiZones] = await Promise.all([
+    studentService.list(),
+    safeZoneService.list().catch(() => []),
+  ]);
+  return Promise.all(students.map(student => mapStudent(student, apiZones)));
 }
 
 export async function getStudents() {
@@ -199,6 +231,7 @@ export async function addStudent(studentData) {
     fullName: studentData.nombre.trim(),
     schoolGrade: normalizeGrade(studentData.grado),
     birthDate: studentData.fechaNacimiento || null,
+    photoData: studentData.foto || null,
   });
 
   if (studentData.contacto_nombre?.trim() && studentData.contacto_telefono?.trim()) {
@@ -218,6 +251,7 @@ export async function updateStudent(id, studentData) {
     fullName: studentData.nombre.trim(),
     schoolGrade: normalizeGrade(studentData.grado),
     birthDate: studentData.fechaNacimiento || null,
+    photoData: studentData.foto || null,
   });
 
   if (studentData.contacto_nombre?.trim() && studentData.contacto_telefono?.trim()) {
@@ -281,45 +315,95 @@ function generateLocalId(prefix) {
 }
 
 export async function addZone(studentId, zoneData) {
-  const zones = await getLocalCollection(ZONES_KEY, studentId);
-  const updated = [...zones, { ...zoneData, id: generateLocalId('zone') }];
-  await setLocalCollection(ZONES_KEY, studentId, updated);
-  return updated;
+  const coordinates = await mapsService.geocode(zoneData.address);
+  const saved = await safeZoneService.create({
+    studentId,
+    zoneName: zoneData.name,
+    zoneType: zoneData.type || 'Personalizado',
+    address: coordinates.formattedAddress || zoneData.address,
+    latitude: coordinates.latitude,
+    longitude: coordinates.longitude,
+    radiusMeters: parseInt(String(zoneData.radius).replace(/\D/g, ''), 10),
+    color: zoneData.color || COLORS.PRIMARIO,
+    inactivityAlertSeconds: 300,
+  });
+  return [{ ...saved, name: saved.zoneName, type: saved.zoneType || zoneData.type || 'Personalizado', color: saved.color || zoneData.color, radius: `${saved.radiusMeters} Metros` }];
+}
+
+function formatCoordinates(latitude, longitude) {
+  if (latitude == null || longitude == null) return '';
+  return `${latitude}, ${longitude}`;
 }
 
 export async function updateZone(studentId, zoneId, zoneData) {
-  const zones = await getLocalCollection(ZONES_KEY, studentId);
-  const updated = zones.map(zone => zone.id === zoneId ? { ...zone, ...zoneData, id: zoneId } : zone);
-  await setLocalCollection(ZONES_KEY, studentId, updated);
-  return updated;
+  const coordinates = await mapsService.geocode(zoneData.address);
+  const saved = await safeZoneService.update(zoneId, {
+    studentId,
+    zoneName: zoneData.name,
+    zoneType: zoneData.type || 'Personalizado',
+    address: coordinates.formattedAddress || zoneData.address,
+    latitude: coordinates.latitude,
+    longitude: coordinates.longitude,
+    radiusMeters: parseInt(String(zoneData.radius).replace(/\D/g, ''), 10),
+    color: zoneData.color || COLORS.PRIMARIO,
+    inactivityAlertSeconds: 300,
+  });
+  return [{ ...saved, name: saved.zoneName, type: saved.zoneType || zoneData.type || 'Personalizado', color: saved.color || zoneData.color, radius: `${saved.radiusMeters} Metros` }];
 }
 
 export async function deleteZone(studentId, zoneId) {
-  const zones = await getLocalCollection(ZONES_KEY, studentId);
-  const updated = zones.filter(zone => zone.id !== zoneId);
-  await setLocalCollection(ZONES_KEY, studentId, updated);
-  return updated;
+  await safeZoneService.remove(zoneId);
+  return [];
 }
 
 export async function addRoute(studentId, routeData) {
-  const routes = await getLocalCollection(ROUTES_KEY, studentId);
-  const updated = [...routes, { ...routeData, id: generateLocalId('route'), isActive: true }];
-  await setLocalCollection(ROUTES_KEY, studentId, updated);
-  return updated;
+  const [origin, destination] = await Promise.all([
+    routeData.startCoordinates || mapsService.geocode(routeData.start),
+    routeData.endCoordinates || mapsService.geocode(routeData.end),
+  ]);
+  const route = await routeService.create({
+    routeName: routeData.name,
+    description: `Origen: ${routeData.start}. Destino: ${routeData.end}.`,
+    originLatitude: origin.latitude,
+    originLongitude: origin.longitude,
+    destinationLatitude: destination.latitude,
+    destinationLongitude: destination.longitude,
+     stops: (routeData.routePoints || []).slice(1, -1).map((point, index) => ({
+       stopOrder: index + 1,
+       stopName: 'Punto intermedio ' + (index + 1),
+       latitude: point.latitude,
+       longitude: point.longitude,
+     })),
+  });
+  await studentService.assignRoute(studentId, route.id);
+  return [route];
 }
 
 export async function updateRoute(studentId, routeId, routeData) {
-  const routes = await getLocalCollection(ROUTES_KEY, studentId);
-  const updated = routes.map(route => route.id === routeId ? { ...route, ...routeData, id: routeId } : route);
-  await setLocalCollection(ROUTES_KEY, studentId, updated);
-  return updated;
+  const [origin, destination] = await Promise.all([
+    routeData.startCoordinates || mapsService.geocode(routeData.start),
+    routeData.endCoordinates || mapsService.geocode(routeData.end),
+  ]);
+  const route = await routeService.update(routeId, {
+    routeName: routeData.name,
+    description: `Origen: ${routeData.start}. Destino: ${routeData.end}.`,
+    originLatitude: origin.latitude,
+    originLongitude: origin.longitude,
+    destinationLatitude: destination.latitude,
+    destinationLongitude: destination.longitude,
+     stops: (routeData.routePoints || []).slice(1, -1).map((point, index) => ({
+       stopOrder: index + 1,
+       stopName: 'Punto intermedio ' + (index + 1),
+       latitude: point.latitude,
+       longitude: point.longitude,
+     })),
+  });
+  return [route];
 }
 
 export async function deleteRoute(studentId, routeId) {
-  const routes = await getLocalCollection(ROUTES_KEY, studentId);
-  const updated = routes.filter(route => route.id !== routeId);
-  await setLocalCollection(ROUTES_KEY, studentId, updated);
-  return updated;
+  await routeService.remove(routeId);
+  return [];
 }
 
 export async function getNotifications() {
