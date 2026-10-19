@@ -148,9 +148,9 @@ function buildLinkCode(id = '') {
   return String(id).replace(/-/g, '').slice(0, 10).toUpperCase();
 }
 
-async function getStudentExtras(studentId) {
+async function getStudentExtras(studentId, preloadedZones) {
   const [apiZones, localZones, localRoutes] = await Promise.all([
-    safeZoneService.list().catch(() => []),
+    Array.isArray(preloadedZones) ? preloadedZones : safeZoneService.list().catch(() => []),
     getLocalCollection(ZONES_KEY, studentId),
     getLocalCollection(ROUTES_KEY, studentId),
   ]);
@@ -169,10 +169,10 @@ radius: `${zone.radiusMeters} Metros`,
   return { zones: zones.length ? zones : localZones, routes: localRoutes };
 }
 
-async function mapStudent(apiStudent) {
+async function mapStudent(apiStudent, apiZones) {
   const contacts = await studentService.listEmergencyContacts(apiStudent.id).catch(() => []);
   const primaryContact = contacts.find(contact => contact.isPrimary || contact.esPrincipal) || contacts[0];
-  const extras = await getStudentExtras(apiStudent.id);
+  const extras = await getStudentExtras(apiStudent.id, apiZones);
   const fullName = apiStudent.fullName || apiStudent.nombreCompleto || '';
   const schoolGrade = apiStudent.schoolGrade || apiStudent.gradoEscolar || '';
   const birthDate = apiStudent.birthDate || apiStudent.fechaNacimiento || '';
@@ -215,8 +215,11 @@ async function mapStudent(apiStudent) {
 }
 
 async function refreshStudents() {
-  const students = await studentService.list();
-  return Promise.all(students.map(mapStudent));
+  const [students, apiZones] = await Promise.all([
+    studentService.list(),
+    safeZoneService.list().catch(() => []),
+  ]);
+  return Promise.all(students.map(student => mapStudent(student, apiZones)));
 }
 
 export async function getStudents() {
