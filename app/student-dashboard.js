@@ -3,7 +3,7 @@ import { Alert, Linking, Platform, View, StyleSheet, ScrollView, SafeAreaView } 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Text, Surface, Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,6 +13,7 @@ import {
   flushQueue,
   getActiveTripId,
   getChildSession,
+  clearChildSession,
   getQueueSize,
   isTrackingActive,
   requestPermissions,
@@ -74,6 +75,7 @@ function calculateAge(birthDate) {
 
 export default function StudentDashboardScreen() {
   const params = useLocalSearchParams();
+  const router = useRouter();
   const { user } = useAuth();
   const { theme } = useTheme();
   const colors = theme.colors;
@@ -105,23 +107,42 @@ export default function StudentDashboardScreen() {
     let mounted = true;
     const connectStudent = async () => {
       try {
-        if (!params.id || !params.codigo) {
-          const session = await getChildSession();
+        const existingSession = await getChildSession();
+        const resolvedStudentId = params.id || existingSession.studentId;
+        const resolvedCode = params.codigo || existingSession.studentCode;
+
+        if (!resolvedStudentId || !resolvedCode) {
+          await clearChildSession();
+          if (mounted) router.replace('/welcome');
+          return;
+        }
+
+        const profile = await studentService.linkedProfile(String(resolvedStudentId), String(resolvedCode));
+        const linkedDevices = Number(profile?.linkedDevices);
+        if (!Number.isFinite(linkedDevices) || linkedDevices < 1) {
+          await clearChildSession();
+          if (mounted) router.replace('/welcome');
+          return;
+        }
+
+        if (mounted) {
+          setStudentProfile(profile);
+          setLinkedCount(linkedDevices);
+        }
+
+        if (existingSession.childToken && String(existingSession.studentId) === String(resolvedStudentId)) {
           if (mounted) {
-            setStoredSession(session);
-            setActiveTripId(session.activeTripId || '');
-            setLinkStatus(session.studentId ? 'linked' : 'idle');
+            setStoredSession(existingSession);
+            setActiveTripId(existingSession.activeTripId || '');
+            setLinkStatus('linked');
           }
           return;
         }
-        const profile = await studentService.linkedProfile(String(params.id), String(params.codigo));
-        if (mounted) {
-          setStudentProfile(profile);
-        }
+
         const deviceIdentifier = await getStudentDeviceId();
         const response = await studentService.linkDevice({
-          studentId: String(params.id),
-          code: String(params.codigo),
+          studentId: String(resolvedStudentId),
+          code: String(resolvedCode),
           deviceIdentifier,
           platform: platformName(),
           deviceName: Platform.OS === 'web' ? 'Navegador del estudiante' : 'Celular del estudiante',
@@ -129,15 +150,24 @@ export default function StudentDashboardScreen() {
         if (!mounted) return;
         await saveChildSession({
           childToken: response.childToken || response.token || response.studentToken,
-          studentId: String(params.id),
+          studentId: String(resolvedStudentId),
+          code: String(resolvedCode),
         });
         const session = await getChildSession();
-        if (mounted) setStoredSession(session);
-        setLinkedCount(response.linkedDevices);
-        setLinkStatus('linked');
+        if (mounted) {
+          setStoredSession(session);
+          setLinkedCount(response.linkedDevices);
+          setLinkStatus('linked');
+        }
       } catch (error) {
         if (!mounted) return;
-        setLinkError(error.message || 'No se pudo conectar con el backend.');
+        const status = error?.response?.status;
+        if (status === 401 || status === 404) {
+          await clearChildSession();
+          router.replace('/welcome');
+          return;
+        }
+        setLinkError('No se pudo conectar con el servidor. Revisa la conexión e inténtalo nuevamente.');
         setLinkStatus('error');
       }
     };
@@ -146,8 +176,31 @@ export default function StudentDashboardScreen() {
     return () => {
       mounted = false;
     };
-  }, [params.codigo, params.id]);
+  }, [params.codigo, params.id, router]);
 
+  React.useEffect(() => {
+    if (!params.id || !params.codigo) return undefined;
+
+    let mounted = true;
+    const checkLinkStatus = async () => {
+      try {
+        const profile = await studentService.linkedProfile(String(params.id), String(params.codigo));
+        const linkedDevices = Number(profile?.linkedDevices);
+        if (mounted && Number.isFinite(linkedDevices) && linkedDevices < 1) {
+          await clearChildSession();
+          router.replace('/welcome');
+        }
+      } catch {
+        // A temporary network failure must not expel the device.
+      }
+    };
+
+    const timer = setInterval(checkLinkStatus, 10000);
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
+  }, [params.codigo, params.id, router]);
   React.useEffect(() => {
     let mounted = true;
     const restoreTracking = async () => {
@@ -162,9 +215,18 @@ export default function StudentDashboardScreen() {
       setTrackingStatus(active ? 'sharing' : 'paused');
       if (tripId && !active && Platform.OS !== 'web') {
         try {
-          await startBackgroundUpdates(tripId);
+          try {
+        await startBackgroundUpdates(tripId);
+      } catch (locationError) {
+        await trackingService.updateStatus(tripId, {
+          status: 'CANCELLED',
+          tripEndedAt: new Date().toISOString(),
+        }).catch(() => null);
+        throw locationError;
+      }
           if (mounted) setTrackingStatus('sharing');
         } catch (error) {
+          await stopBackgroundUpdates().catch(() => null);
           if (mounted) setPermissionError(error.message || 'No se pudo reanudar el rastreo.');
         }
       }
@@ -185,6 +247,29 @@ export default function StudentDashboardScreen() {
     };
   }, []);
 
+  const describeTrackingError = (error) => {
+    const raw = String(
+      error?.response?.data?.message
+        || error?.response?.data?.error
+        || error?.response?.data?.details
+        || error?.message
+        || ''
+    ).trim();
+    const normalized = raw.toLowerCase();
+    if (normalized.includes('no active route assigned')) {
+      return 'No hay una ruta activa asignada a este estudiante. El acudiente debe crearla y asignarla antes de iniciar el trayecto.';
+    }
+    if (normalized.includes('does not have the requested route assigned')) {
+      return 'La ruta seleccionada no está asignada a este estudiante. Asigna la ruta desde la sección Hijos y vuelve a intentarlo.';
+    }
+    if (normalized.includes('not linked') || normalized.includes('device is not linked')) {
+      return 'Este celular ya no está vinculado a ese estudiante. Escanea nuevamente el código QR del acudiente.';
+    }
+    if (error?.response?.status === 400) {
+      return raw || 'El servidor rechazó el inicio del trayecto. Verifica que el estudiante tenga una ruta activa asignada.';
+    }
+    return raw || 'No se pudo iniciar el rastreo del trayecto. Revisa los permisos e inténtalo nuevamente.';
+  };
   const handleStartTracking = async () => {
     setTrackingLoading(true);
     setPermissionError('');
@@ -213,14 +298,25 @@ export default function StudentDashboardScreen() {
       }
 
       await saveChildSession({ childToken: session.childToken, studentId: String(resolvedStudentId) });
-      await startBackgroundUpdates(tripId);
+      try {
+        await startBackgroundUpdates(tripId);
+      } catch (locationError) {
+        await trackingService.updateStatus(tripId, {
+          status: 'CANCELLED',
+          tripEndedAt: new Date().toISOString(),
+        }).catch(() => null);
+        throw locationError;
+      }
       const result = await flushQueue();
       setSentCount(count => count + result.sent);
       setQueueSize(result.remaining);
       setActiveTripId(tripId);
       setTrackingStatus('sharing');
     } catch (error) {
-      setPermissionError(error.message || 'No se pudo iniciar el rastreo del trayecto.');
+      const status = error?.response?.status;
+      setPermissionError(status === 401
+        ? 'El dispositivo no tiene una sesión de rastreo válida. Desvincúlalo y vuelve a vincularlo desde el código QR.'
+        : describeTrackingError(error));
       setTrackingStatus('paused');
     } finally {
       setTrackingLoading(false);
@@ -329,14 +425,14 @@ export default function StudentDashboardScreen() {
           />
           <TripMap coordinates={[]} />
           <PermissionGate message={permissionError} onRetry={handleStartTracking} />
-          <TripControls
-            status={trackingStatus}
-            loading={trackingLoading}
-            onStart={handleStartTracking}
-            onFinish={confirmFinishTracking}
-          />
-
-          {/* Card 1: Mi Información */}
+          {!permissionError && (
+            <TripControls
+              status={trackingStatus}
+              loading={trackingLoading}
+              onStart={handleStartTracking}
+              onFinish={confirmFinishTracking}
+            />
+          )}{/* Card 1: Mi Información */}
           <Surface style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]} elevation={2}>
             <View style={styles.cardHeader}>
               <MaterialCommunityIcons name="account" size={24} color={colors.primary} />
@@ -620,3 +716,8 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
+
+
+
+
+
