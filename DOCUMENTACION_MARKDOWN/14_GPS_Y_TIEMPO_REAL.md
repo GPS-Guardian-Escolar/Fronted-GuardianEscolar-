@@ -28,6 +28,22 @@ Intentar renderizar `<MapView>` en un navegador lanza un error fatal. La soluciÃ
 
 ## `SafeMap.js` â€” El Envoltorio Inteligente
 
+> Actualizacion 2026-10-06: `SafeMap` ya no usa Leaflet dentro de WebView. Ahora usa Google Maps nativo en Android/iOS con `react-native-maps` y Google Maps JavaScript API en web. La clave se lee unicamente desde `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY`.
+
+### Configuracion de Google Maps
+
+- `.env` local: `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=tu-clave-real`
+- `.env.example` solo documenta la variable con placeholder para no subir secretos.
+- `app.config.js` inyecta la variable en `android.config.googleMaps.apiKey` y `ios.config.googleMapsApiKey`.
+
+### Props compatibles
+
+`SafeMap` mantiene compatibilidad con `currentLocation`, `initialRegion`, `markers`, `children`, `style`, `showRoute`, `coordinates`, `safeZones` y `circles`. Tambien acepta marcadores legacy con `lat/lng`.
+
+### Tiempo real
+
+Cuando cambia `currentLocation`, Android/iOS usa `animateToRegion(...)` y web usa `google.maps.Map.panTo(...)`. La implementacion nueva elimina la sincronizacion anterior por `postMessage`.
+
 ```javascript
 // components/SafeMap.js
 import { Platform } from 'react-native';

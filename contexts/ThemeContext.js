@@ -73,6 +73,7 @@ export const createPaperTheme = (isDark) => {
       surface: themeColors.surface,
       surfaceVariant: themeColors.surfaceSecondary,
       error: themeColors.error,
+      onError: themeColors.onError,
       outline: themeColors.border,
       outlineVariant: themeColors.borderLight,
       onPrimary: themeColors.textOnPrimary,

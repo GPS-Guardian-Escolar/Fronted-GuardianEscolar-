@@ -1,15 +1,17 @@
+import { lightColors } from '../theme/tokens'
+
 export const COLORS = {
-  primary: '#1565C0',
+  primary: lightColors.primary,
   secondary: '#0D47A1',
   accent: '#42A5F5',
-  danger: '#E53935',
+  danger: lightColors.error,
   warning: '#FB8C00',
   success: '#43A047',
-  white: '#FFFFFF',
+  white: lightColors.surface,
   black: '#000000',
-  gray: '#9E9E9E',
+  gray: lightColors.muted,
   lightGray: '#F5F5F5',
-  background: '#F8F9FA',
+  background: lightColors.background,
 }
 
 export const TRACKING = {

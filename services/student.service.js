@@ -49,13 +49,16 @@ export const studentService = {
   },
 
   linkDevice: async (data) => {
-    const response = await api.post('/students/link-device', {
-      studentId: data.studentId,
+    const payload = {
       code: data.code,
       deviceIdentifier: data.deviceIdentifier,
       platform: data.platform,
       deviceName: data.deviceName,
-    }, { skipAuth: true });
+    };
+
+    if (data.studentId) payload.studentId = data.studentId;
+
+    const response = await api.post('/students/link-device', payload, { skipAuth: true });
     return response.data;
   },
 

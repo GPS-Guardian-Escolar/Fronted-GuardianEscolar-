@@ -11,7 +11,12 @@
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.guardianescolar.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "Permite que GPS Guardian Escolar use tu ubicación durante el trayecto escolar.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Permite que GPS Guardian Escolar comparta la ubicación del trayecto escolar con tu acudiente.",
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
@@ -21,7 +26,15 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "package": "com.guardianescolar.app"
+      "package": "com.guardianescolar.app",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ]
     },
     "web": {
       "output": "static",
@@ -40,9 +53,24 @@
         }
       ],
       "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Permite que GPS Guardian Escolar comparta la ubicación del trayecto escolar con tu acudiente.",
+          "locationWhenInUsePermission": "Permite que GPS Guardian Escolar use tu ubicación durante el trayecto escolar.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
       "expo-notifications",
       "expo-font",
       "expo-image",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "GPS Guardian Escolar necesita la cámara para escanear el QR de vinculación del estudiante."
+        }
+      ],
       "expo-sharing",
       "expo-status-bar",
       "expo-web-browser"
