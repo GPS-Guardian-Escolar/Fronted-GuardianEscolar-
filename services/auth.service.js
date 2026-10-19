@@ -69,23 +69,27 @@ const getAuthReturnUrl = (path = '/login') => {
 
 const getFriendlyAuthError = (error, fallback) => {
   const status = error.response?.status;
-  const data = error.response?.data;
-  const backendMessage = data?.message || data?.mensaje || data?.error;
 
-  if (status === 401) {
-    return 'El correo o la contraseña no son correctos. Verifica tus datos o restablece la contraseña.';
+  if ([400, 401, 422].includes(status)) {
+    return 'No pudimos iniciar sesión. Verifica tu correo y contraseña.';
   }
   if (status === 403) {
-    return 'Tu cuenta no tiene permiso para iniciar sesión. Verifica el correo o contacta al administrador.';
+    return 'No pudimos iniciar sesión. Verifica tus datos o contacta al administrador.';
+  }
+  if (status === 429) {
+    return 'Hay demasiados intentos. Espera unos minutos y vuelve a intentarlo.';
   }
   if (status >= 500) {
     return 'El servidor no está disponible en este momento. Intenta nuevamente más tarde.';
   }
   if (!error.response) {
+    if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+      return 'La conexión tardó demasiado. Revisa tu red e intenta nuevamente.';
+    }
     return 'No fue posible conectarse con el servidor. Revisa tu conexión e intenta nuevamente.';
   }
 
-  return backendMessage || fallback;
+  return fallback;
 };
 
 export const authService = {

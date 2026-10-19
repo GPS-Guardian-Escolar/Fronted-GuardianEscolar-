@@ -107,9 +107,9 @@ export default function DashboardScreen() {
           </View>
         </View>
         <View style={styles.statCardRight}>
-          <Text style={[styles.statTitle, { color: theme.colors.textSecondary }]}>{title}</Text>
-          <Text style={[styles.statValue, { color: theme.colors.text }]}>{value}</Text>
-          <Text style={[styles.statSubvalue, { color: theme.colors.textMuted }]}>{subvalue}</Text>
+              <Text numberOfLines={2} style={[styles.statTitle, { color: theme.colors.textSecondary }]}>{title}</Text>
+              <Text numberOfLines={2} style={[styles.statValue, { color: theme.colors.text }]}>{value}</Text>
+              <Text numberOfLines={2} style={[styles.statSubvalue, { color: theme.colors.textMuted }]}>{subvalue}</Text>
         </View>
       </Surface>
     </TouchableOpacity>
@@ -357,23 +357,27 @@ const styles = StyleSheet.create({
 
   // ─── GRID DE ESTADÍSTICAS ───
   statsGrid: {
+    alignItems: 'stretch',
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
   statCardTouch: {
-    flex: 1,
-    minWidth: '48%',
+    alignSelf: 'stretch',
+    flexBasis: '48%',
+    flexGrow: 1,
+    minWidth: 150,
     marginBottom: 6,
   },
   statCardWide: { flexBasis: '23%', minWidth: 220 },
   statCardDesktop: { flexBasis: '48%', minWidth: 280 },
   statCard: {
+    alignSelf: 'stretch',
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
     borderRadius: 10,
     borderWidth: 1,
-    minHeight: 80,
+    minHeight: 92,
   },
   statCardLeft: {
     justifyContent: 'center',
@@ -389,6 +393,7 @@ const styles = StyleSheet.create({
   },
   statCardRight: {
     flex: 1,
+    minWidth: 0,
     justifyContent: 'center',
   },
   statTitle: {
