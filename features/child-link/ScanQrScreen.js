@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, TextInput, View } from 'react-native';
 import { Snackbar, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -36,6 +36,7 @@ async function persistLinkedChildSession(response, payload) {
 
 export default function ScanQrScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const { theme } = useTheme();
   const colors = theme.colors;
   const [permission, requestPermission] = useCameraPermissions();
@@ -44,8 +45,25 @@ export default function ScanQrScreen() {
   const [manualOpen, setManualOpen] = useState(false);
   const [notice, setNotice] = useState('');
   const [success, setSuccess] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
 
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  useEffect(() => {
+    if (permission && !permission.granted && permission.canAskAgain) {
+      requestPermission().catch(() => {
+        setNotice('No se pudo solicitar el permiso de cámara. Revisa los permisos del sistema.');
+      });
+    }
+  }, [permission, requestPermission]);
+  const linkedPayload = useMemo(() => {
+    if (Platform.OS !== 'web' || !params?.studentId || !params?.code) return null;
+    return {
+      studentId: String(params.studentId),
+      code: String(params.code),
+      name: String(params.name || 'estudiante'),
+    };
+  }, [params]);
 
   const linkDevice = useCallback(async (payload) => {
     setIsProcessing(true);
@@ -62,7 +80,14 @@ export default function ScanQrScreen() {
       await persistLinkedChildSession(response, payload);
       setSuccess(true);
       setNotice('Dispositivo vinculado correctamente.');
-      router.replace('/student-dashboard');
+      const linkedStudentId = response?.studentId || payload.studentId || '';
+      router.replace({
+        pathname: '/student-dashboard',
+        params: {
+          id: String(linkedStudentId),
+          codigo: String(payload.code),
+        },
+      });
     } catch (error) {
       const status = error?.response?.status;
       const backendMessage = error?.response?.data?.message || error?.message;
@@ -95,8 +120,31 @@ export default function ScanQrScreen() {
       setNotice('Ingresa el código de vinculación.');
       return;
     }
-    linkDevice({ code });
-  }, [linkDevice, manualCode]);
+    const studentId = String(params?.studentId || '').trim();
+    linkDevice(studentId ? { code, studentId } : { code });
+  }, [linkDevice, manualCode, params?.studentId]);
+
+  if (linkedPayload) {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <View style={styles.permissionWrap}>
+          <MaterialCommunityIcons name="qrcode-check" size={72} color={colors.primary} />
+          <Text style={styles.title}>Vincular dispositivo</Text>
+          <Text style={styles.description}>
+            Se encontró el código de vinculación de {linkedPayload.name}. Confirma para asociar este dispositivo.
+          </Text>
+          <AppButton
+            title="Vincular estudiante"
+            onPress={() => linkDevice(linkedPayload)}
+            loading={isProcessing}
+            accessibilityLabel="Vincular estudiante"
+          />
+          <AppButton title="Cancelar" variant="ghost" onPress={() => router.back()} />
+        </View>
+        <Snackbar visible={!!notice} onDismiss={() => setNotice('')}>{notice}</Snackbar>
+      </SafeAreaView>
+    );
+  }
 
   if (!permission) {
     return <AppLoading message="Preparando cámara..." />;
@@ -130,11 +178,24 @@ export default function ScanQrScreen() {
     <SafeAreaView style={styles.screen}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.content}>
         <View style={styles.cameraWrap}>
+          {!cameraReady && (
+            <View pointerEvents="none" style={styles.cameraLoading}>
+              <MaterialCommunityIcons name="camera-outline" size={42} color={colors.textOnPrimary} />
+              <Text style={styles.cameraLoadingText}>Iniciando cámara...</Text>
+            </View>
+          )}
           <CameraView
+            key={permission.granted ? 'camera-enabled' : 'camera-disabled'}
             style={styles.camera}
             facing="back"
+            active={!isProcessing && !success}
             barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
             onBarcodeScanned={isProcessing || success ? undefined : ({ data }) => handleQrValue(data)}
+            onCameraReady={() => setCameraReady(true)}
+            onMountError={({ message }) => {
+              setCameraReady(false);
+              setNotice(`No se pudo iniciar la cámara: ${message || 'verifica el permiso y reinicia la aplicación.'}`);
+            }}
           />
           <View pointerEvents="none" style={styles.overlay}>
             <View style={styles.scanFrame} />
@@ -203,6 +264,17 @@ function createStyles(colors) {
     },
     camera: {
       flex: 1,
+    },
+    cameraLoading: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 2,
+    },
+    cameraLoadingText: {
+      ...AppTypography.sm,
+      color: colors.textOnPrimary,
+      marginTop: AppSpacing.sm,
     },
     overlay: {
       ...StyleSheet.absoluteFillObject,

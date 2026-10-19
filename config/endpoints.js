@@ -27,6 +27,11 @@ function browserOrigin() {
   return window.location.origin || '';
 }
 
+function browserPort() {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return '';
+  return window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+}
+
 function expoHost() {
   if (Platform.OS === 'web') return '';
   return hostFromUri(
@@ -63,6 +68,19 @@ function resolveApiUrl() {
   const configuredUrl = process.env.EXPO_PUBLIC_API_URL;
   const currentBrowserHost = browserHost();
   if (configuredUrl?.startsWith('/')) {
+    // A public Docker frontend tunnel keeps the same-origin API proxy.
+    if (Platform.OS === 'web' && isTunnelHost(currentBrowserHost)) {
+      return configuredUrl;
+    }
+    // Docker/Nginx exposes the API through the same origin on port 8081.
+    // Expo web (8082) and native development builds must reach Spring Boot directly.
+    if (Platform.OS === 'web' && browserPort() === frontendPort) {
+      return configuredUrl;
+    }
+    const host = runtimeHost() || currentBrowserHost || 'localhost';
+    if (host) {
+      return `http://${host}:${apiPort}/api`;
+    }
     return configuredUrl;
   }
   if (isRemoteConfiguredUrl(configuredUrl) && !configuredUrl.startsWith('/')) {
@@ -86,6 +104,16 @@ function resolveWsUrl(apiUrl) {
   const origin = browserOrigin();
   const currentBrowserHost = browserHost();
   if (configuredUrl?.startsWith('/')) {
+    if (Platform.OS === 'web' && browserPort() === frontendPort) {
+      return configuredUrl;
+    }
+    if (apiUrl.startsWith('http')) {
+      return apiUrl.replace(/^http/, 'ws').replace(/\/api\/?$/, '/ws');
+    }
+    const host = runtimeHost() || currentBrowserHost || 'localhost';
+    if (host) {
+      return `ws://${host}:${apiPort}/ws`;
+    }
     return configuredUrl;
   }
   if (apiUrl.startsWith('/') && origin) {

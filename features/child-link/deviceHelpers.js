@@ -18,7 +18,9 @@ export async function getDeviceId() {
 }
 
 export function getPlatform() {
-  return Platform.OS === 'ios' ? 'ios' : 'android';
+  if (Platform.OS === 'ios') return 'IOS';
+  if (Platform.OS === 'android') return 'ANDROID';
+  return 'WEB';
 }
 
 export function getDeviceName() {

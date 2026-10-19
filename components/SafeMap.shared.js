@@ -1,7 +1,11 @@
 import { StyleSheet, Text, View } from 'react-native';
+import Constants from 'expo-constants';
 import { COLORS } from '../constants/colors';
 
-export const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+export const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
+  || Constants.expoConfig?.android?.config?.googleMaps?.apiKey
+  || Constants.expoConfig?.ios?.config?.googleMapsApiKey
+  || '';
 
 export const DEFAULT_REGION = {
   latitude: 4.5709,

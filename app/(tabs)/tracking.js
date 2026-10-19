@@ -3,12 +3,12 @@ import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Dimensions, Scro
 import { Avatar, Text, Surface, IconButton, Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
-import * as Location from 'expo-location';
 import { COLORS } from '../../constants/colors';
 import SafeMap from '../../components/SafeMap';
 import { getStudents, getInitials } from '../../utils/studentStorage';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { trackingService } from '../../services/tracking.service';
 
 const { width } = Dimensions.get('window');
 const isWeb = width > 768;
@@ -42,19 +42,40 @@ export default function TrackingScreen() {
   const refreshLocation = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
+      if (!selectedStudent?.id) {
         setLocation(null);
         return;
       }
-      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      setLocation(current.coords);
+      const trips = await trackingService.listTrips();
+      const studentTrips = trips
+        .filter(trip => String(trip.studentId) === String(selectedStudent.id))
+        .sort((a, b) => {
+          const priority = { IN_PROGRESS: 0, PENDING: 1, COMPLETED: 2, CANCELED: 3 };
+          return (priority[a.status] ?? 9) - (priority[b.status] ?? 9);
+        });
+      const selectedTrip = studentTrips.find(trip => ['IN_PROGRESS', 'PENDING'].includes(trip.status)) || studentTrips[0];
+      if (!selectedTrip) {
+        setLocation(null);
+        return;
+      }
+      const coordinates = await trackingService.listCoordinates(selectedTrip.id);
+      const latest = coordinates?.[coordinates.length - 1];
+      if (!latest || !Number.isFinite(Number(latest.latitude)) || !Number.isFinite(Number(latest.longitude))) {
+        setLocation(null);
+        return;
+      }
+      setLocation({
+        latitude: Number(latest.latitude),
+        longitude: Number(latest.longitude),
+        accuracy: latest.accuracy,
+        recordedAt: latest.recordedAt,
+      });
     } catch {
       setLocation(null);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [selectedStudent]);
 
   useFocusEffect(
     useCallback(() => {

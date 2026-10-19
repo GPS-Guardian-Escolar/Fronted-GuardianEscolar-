@@ -6,12 +6,13 @@ export const studentService = {
     return response.data;
   },
 
-  create: async ({ fullName, schoolGrade, birthDate, userId }) => {
+  create: async ({ fullName, schoolGrade, birthDate, userId, photoData }) => {
     const response = await api.post('/students', {
       fullName,
       schoolGrade,
       birthDate,
       userId,
+      photoData,
     });
     return response.data;
   },
@@ -23,6 +24,10 @@ export const studentService = {
 
   remove: async (id) => {
     await api.delete(`/students/${id}`);
+  },
+
+  unlinkDevice: async (studentId) => {
+    await api.delete(`/students/${studentId}/device`);
   },
 
   assignRoute: async (studentId, routeId) => {

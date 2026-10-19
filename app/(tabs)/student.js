@@ -234,10 +234,13 @@ export default function StudentScreen() {
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.5,
+      base64: true,
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      setFotoCargada(result.assets[0].uri);
+      const asset = result.assets[0];
+      const mimeType = asset.mimeType || 'image/jpeg';
+      setFotoCargada(asset.base64 ? `data:${mimeType};base64,${asset.base64}` : asset.uri);
     }
   };
 
@@ -322,6 +325,28 @@ export default function StudentScreen() {
     }
   }
 
+  function handleUnlinkDevice(student) {
+    Alert.alert(
+      'Desvincular dispositivo',
+      `Se detendrá el envío de ubicación de ${student.nombre}. Podrás vincular otro celular después.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Desvincular',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await studentService.unlinkDevice(student.id);
+              await loadStudents();
+            } catch (error) {
+              Alert.alert(t('error'), error.message || 'No se pudo desvincular el dispositivo.');
+            }
+          },
+        },
+      ],
+    );
+  }
+
   function canManageStudent(student) {
     const roles = Array.isArray(user?.roles) ? user.roles : [];
     return student.usuarioId === user?.id || user?.role === 'ADMIN' || roles.includes('ADMIN');
@@ -382,6 +407,18 @@ export default function StudentScreen() {
           {item.dispositivos_vinculados || 0} {t('studPhonesSendingLocation')}
         </Text>
       </View>
+
+      {canManage && Number(item.dispositivos_vinculados || 0) > 0 && (
+        <TouchableOpacity
+          style={[styles.unlinkDeviceButton, { borderColor: colors.error }]}
+          onPress={() => handleUnlinkDevice(item)}
+          accessibilityRole="button"
+          accessibilityLabel="Desvincular dispositivo del estudiante"
+        >
+          <MaterialCommunityIcons name="cellphone-remove" size={18} color={colors.error} />
+          <Text style={[styles.unlinkDeviceText, { color: colors.error }]}>Desvincular dispositivo</Text>
+        </TouchableOpacity>
+      )}
 
       {canManage && (
         <QrSection
@@ -838,6 +875,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  unlinkDeviceButton: {
+    alignItems: 'center',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    marginBottom: 14,
+    minHeight: 42,
+    paddingHorizontal: 12,
+  },
+  unlinkDeviceText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
   qrCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1030,6 +1082,7 @@ const styles = StyleSheet.create({
     maxWidth: 760,
     alignSelf: 'center',
     width: isWeb ? (isTablet ? '86%' : '78%') : '94%',
+    height: isWeb ? '78%' : '84%',
     maxHeight: isWeb ? '78%' : '84%',
     overflow: 'hidden',
   },
