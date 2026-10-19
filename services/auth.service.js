@@ -4,6 +4,7 @@ import { getAuthDeviceInfo } from '../utils/deviceIdentity';
 import { isValidEmail } from '../utils/validators';
 
 const RECOVERY_GENERIC_MESSAGE = 'If an account exists, we sent password recovery instructions.';
+const DEVICE_CONFIRMATION_REQUIRED = 'DEVICE_CONFIRMATION_REQUIRED';
 
 const getResponseUser = (data) => data?.user || data?.usuario || null;
 
@@ -69,9 +70,12 @@ const getAuthReturnUrl = (path = '/login') => {
 
 const getFriendlyAuthError = (error, fallback) => {
   const status = error.response?.status;
+  const errorCodes = error.response?.data?.errors || [];
   const backendMessage = String(error.response?.data?.message || error.response?.data?.mensaje || '').toLowerCase();
 
-  if (status === 400 && backendMessage.includes('confirmar este nuevo inicio de sesión')) {
+  if (errorCodes.includes(DEVICE_CONFIRMATION_REQUIRED)
+    || (status === 428 && backendMessage.includes('confirmar este nuevo inicio de sesión'))
+    || (status === 400 && backendMessage.includes('confirmar este nuevo inicio de sesión'))) {
     return 'Se envió un correo para confirmar este dispositivo. Confirma el acceso y vuelve a iniciar sesión.';
   }
 
@@ -109,7 +113,10 @@ export const authService = {
       return normalizeAuthResponse(response.data);
     } catch (error) {
       const backendMessage = String(error.response?.data?.message || error.response?.data?.mensaje || '').toLowerCase();
-      if (error.response?.status === 400 && backendMessage.includes('confirmar este nuevo inicio de sesión')) {
+      const errorCodes = error.response?.data?.errors || [];
+      if (errorCodes.includes(DEVICE_CONFIRMATION_REQUIRED)
+        || (error.response?.status === 428 && backendMessage.includes('confirmar este nuevo inicio de sesión'))
+        || (error.response?.status === 400 && backendMessage.includes('confirmar este nuevo inicio de sesión'))) {
         return {
           requiresDeviceConfirmation: true,
           message: 'Se envió un correo para confirmar este dispositivo. Confirma el acceso y vuelve a iniciar sesión.',
@@ -274,7 +281,10 @@ export const authService = {
       return persistBackendSession(response.data);
     } catch (error) {
       const backendMessage = String(error.response?.data?.message || error.response?.data?.mensaje || '').toLowerCase();
-      if (error.response?.status === 400 && backendMessage.includes('confirmar este nuevo inicio de sesión')) {
+      const errorCodes = error.response?.data?.errors || [];
+      if (errorCodes.includes(DEVICE_CONFIRMATION_REQUIRED)
+        || (error.response?.status === 428 && backendMessage.includes('confirmar este nuevo inicio de sesión'))
+        || (error.response?.status === 400 && backendMessage.includes('confirmar este nuevo inicio de sesión'))) {
         throw new Error('Se envió un correo para confirmar este dispositivo. Confirma el acceso y vuelve a iniciar sesión.');
       }
       throw new Error(getApiErrorMessage(error, 'No se pudo verificar el código 2FA.'));
