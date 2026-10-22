@@ -9,6 +9,7 @@ import { getStudents, getInitials } from '../../utils/studentStorage';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { trackingService } from '../../services/tracking.service';
+import { createTrackingSocket } from '../../services/socket';
 import { calculateRouteGeometry } from '../../utils/routeGeometry';
 
 const { width } = Dimensions.get('window');
@@ -71,6 +72,7 @@ export default function TrackingScreen() {
   const [routeGeometry, setRouteGeometry] = useState([]);
   const [routeGeometries, setRouteGeometries] = useState([]);
   const [journeyCoordinates, setJourneyCoordinates] = useState([]);
+  const [activeTrip, setActiveTrip] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const { t } = useLanguage();
   const { theme } = useTheme();
@@ -111,6 +113,7 @@ export default function TrackingScreen() {
           return (priority[a.status] ?? 9) - (priority[b.status] ?? 9);
         });
       const selectedTrip = studentTrips.find(trip => ['IN_PROGRESS', 'PENDING'].includes(trip.status)) || studentTrips[0];
+      setActiveTrip(selectedTrip || null);
       if (!selectedTrip) {
         setLocation(null);
         return;
@@ -179,6 +182,48 @@ export default function TrackingScreen() {
   useEffect(() => {
     refreshLocation();
   }, [refreshLocation]);
+
+  useEffect(() => {
+    if (!activeTrip?.id) return undefined;
+
+    let disposed = false;
+    let client;
+    createTrackingSocket({
+      tripId: activeTrip.id,
+      onCoordinate: (point) => {
+        if (disposed) return;
+        const normalized = {
+          latitude: Number(point.latitude),
+          longitude: Number(point.longitude),
+          timestamp: new Date(point.recordedAt || point.createdAt || Date.now()).getTime(),
+          accuracy: point.accuracy,
+          recordedAt: point.recordedAt,
+        };
+        if (!Number.isFinite(normalized.latitude) || !Number.isFinite(normalized.longitude)) return;
+        setLocation(normalized);
+        setJourneyCoordinates(current => [
+          ...current,
+          normalized,
+        ].slice(-500).map(({ latitude, longitude }) => ({ latitude, longitude })));
+      },
+      onError: (error) => {
+        if (!disposed) console.warn('Seguimiento en tiempo real no disponible:', error?.message || error);
+      },
+    }).then((connectedClient) => {
+      if (disposed) {
+        connectedClient.deactivate();
+      } else {
+        client = connectedClient;
+      }
+    }).catch((error) => {
+      if (!disposed) console.warn('No se pudo conectar el seguimiento en tiempo real:', error?.message || error);
+    });
+
+    return () => {
+      disposed = true;
+      client?.deactivate();
+    };
+  }, [activeTrip?.id]);
 
   return (
     <View style={[styles.container, themed.screen]}>

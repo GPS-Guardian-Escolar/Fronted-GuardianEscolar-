@@ -10,8 +10,11 @@ export const createTrackingSocket = async ({ tripId, onCoordinate, onError }) =>
     reconnectDelay: 5000,
     onConnect: () => {
       client.subscribe(`/topic/trips/${tripId}/coordinates`, (message) => {
-        if (message.body) {
+        if (!message.body) return;
+        try {
           onCoordinate?.(JSON.parse(message.body));
+        } catch (error) {
+          onError?.(error);
         }
       });
     },

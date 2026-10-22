@@ -5,9 +5,9 @@ const apiPort = process.env.EXPO_PUBLIC_API_PORT || '8080';
 const frontendPort = process.env.EXPO_PUBLIC_FRONTEND_PORT || '8081';
 const webProxyEnabled = String(process.env.EXPO_PUBLIC_WEB_PROXY || '').toLowerCase() === 'true';
 
-const DEFAULT_API_URL = 'https://s3tn0qz4-8080.use.devtunnels.ms/api';
-const DEFAULT_WS_URL = 'wss://s3tn0qz4-8080.use.devtunnels.ms/ws';
-const DEFAULT_STUDENT_LINK_BASE_URL = 'https://s3tn0qz4-8081.use.devtunnels.ms';
+const DEFAULT_API_URL = 'http://localhost:8080/api';
+const DEFAULT_WS_URL = 'ws://localhost:8080/ws';
+const DEFAULT_STUDENT_LINK_BASE_URL = 'http://localhost:8081';
 
 function isLocalHost(host) {
   return !host || host === 'localhost' || host === '127.0.0.1' || host === '::1';
