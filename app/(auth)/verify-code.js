@@ -174,7 +174,7 @@ export default function VerifyCodeScreen() {
 
             {/* Botón Verificar */}
             <TouchableOpacity style={[styles.verifyBtn, { backgroundColor: colors.primary }]} onPress={handleVerify} activeOpacity={0.85}>
-              <Text style={[styles.verifyText, { color: colors.white }]}>{isSubmitting ? 'Verificando...' : t('authVerifyCode')}</Text>
+              <Text style={[styles.verifyText, { color: colors.white }]}>{isSubmitting ? t('authVerifying') : t('authVerifyCode')}</Text>
             </TouchableOpacity>
 
             {errorMsg ? <Text style={[styles.errorText, { color: colors.error }]}>{errorMsg}</Text> : null}
@@ -182,10 +182,10 @@ export default function VerifyCodeScreen() {
 
             {/* Reenviar */}
             <View style={styles.footer}>
-              <Text style={[styles.footerText, { color: colors.textSecondary }]}>¿No recibiste el código? </Text>
+              <Text style={[styles.footerText, { color: colors.textSecondary }]}>{t('authNoCodeReceived')} </Text>
               <TouchableOpacity onPress={handleResend} disabled={isResending}>
                 <Text style={[styles.resendLink, { color: colors.primary }, isResending ? [styles.resendLinkDisabled, { color: colors.textSecondary }] : null]}>
-                  {isResending ? 'Reenviando...' : 'Reenviar código'}
+                  {isResending ? t('authResending') : t('authResendCode')}
                 </Text>
               </TouchableOpacity>
             </View>

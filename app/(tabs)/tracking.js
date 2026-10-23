@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Dimensions, ScrollView } from 'react-native';
 import { Avatar, Text, Surface, IconButton, Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -74,6 +74,8 @@ export default function TrackingScreen() {
   const [journeyCoordinates, setJourneyCoordinates] = useState([]);
   const [activeTrip, setActiveTrip] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const refreshSequence = useRef(0);
+  const lastStudentId = useRef(null);
   const { t } = useLanguage();
   const { theme } = useTheme();
   const colors = theme.colors;
@@ -86,10 +88,22 @@ export default function TrackingScreen() {
   };
 
   const refreshLocation = useCallback(async (showSpinner = true) => {
+    const sequence = ++refreshSequence.current;
     if (showSpinner) setIsLoading(true);
+    const studentId = selectedStudent?.id || null;
+    if (lastStudentId.current !== studentId) {
+      lastStudentId.current = studentId;
+      setLocation(null);
+      setActiveTrip(null);
+      setJourneyCoordinates([]);
+      setRouteGeometry([]);
+      setRouteGeometries([]);
+      setStudentZones([]);
+    }
     try {
-      if (!selectedStudent?.id) {
+      if (!studentId) {
         setLocation(null);
+        setActiveTrip(null);
         setStudentZones([]);
         setRouteGeometry([]);
         setRouteGeometries([]);
@@ -97,28 +111,35 @@ export default function TrackingScreen() {
         return;
       }
       const zones = selectedStudent.zones || [];
-      setStudentZones(zones.filter(zone => String(zone.studentId) === String(selectedStudent.id)));
       const routes = selectedStudent.routes || [];
       const routePaths = await Promise.all(routes.map(async (route, index) => {
         const geometry = await calculateRouteGeometry(route).catch(() => []);
         return { id: route.id || `route-${index}`, coordinates: geometry, color: '#8B95A7' };
       }));
+      if (sequence !== refreshSequence.current) return;
+      setStudentZones(zones.filter(zone => String(zone.studentId) === String(studentId)));
       setRouteGeometries(routePaths.filter(path => path.coordinates.length >= 2).map(path => ({ ...path, color: '#8B95A7' })));
       setRouteGeometry(routePaths[0]?.coordinates || []);
+      if (Number(selectedStudent.dispositivos_vinculados || 0) < 1) {
+        setLocation(null);
+        setActiveTrip(null);
+        setJourneyCoordinates([]);
+        return;
+      }
       const trips = await trackingService.listTrips();
+      if (sequence !== refreshSequence.current) return;
       const studentTrips = trips
-        .filter(trip => String(trip.studentId) === String(selectedStudent.id))
-        .sort((a, b) => {
-          const priority = { IN_PROGRESS: 0, PENDING: 1, COMPLETED: 2, CANCELED: 3 };
-          return (priority[a.status] ?? 9) - (priority[b.status] ?? 9);
-        });
-      const selectedTrip = studentTrips.find(trip => ['IN_PROGRESS', 'PENDING'].includes(trip.status)) || studentTrips[0];
+        .filter(trip => String(trip.studentId) === String(studentId) && trip.status === 'IN_PROGRESS')
+        .sort((a, b) => new Date(b.tripStartedAt || 0) - new Date(a.tripStartedAt || 0));
+      const selectedTrip = studentTrips[0];
       setActiveTrip(selectedTrip || null);
       if (!selectedTrip) {
         setLocation(null);
+        setJourneyCoordinates([]);
         return;
       }
       const coordinates = await trackingService.listCoordinates(selectedTrip.id);
+      if (sequence !== refreshSequence.current) return;
       const orderedCoordinates = [...(coordinates || [])].sort((a, b) => {
         const timeA = new Date(a.recordedAt || a.createdAt || a.timestamp || 0).getTime();
         const timeB = new Date(b.recordedAt || b.createdAt || b.timestamp || 0).getTime();
@@ -131,6 +152,7 @@ export default function TrackingScreen() {
           timestamp: new Date(point.recordedAt || point.createdAt || point.timestamp || 0).getTime(),
           accuracy: point.accuracy,
           recordedAt: point.recordedAt,
+          speedKmh: point.speedKmh,
         }))
         .filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && Number.isFinite(point.timestamp)));
       setJourneyCoordinates(validCoordinates.map(({ latitude, longitude }) => ({ latitude, longitude })));
@@ -144,11 +166,12 @@ export default function TrackingScreen() {
         longitude: latest.longitude,
         accuracy: latest.accuracy,
         recordedAt: latest.recordedAt,
+        speedKmh: latest.speedKmh,
       });
     } catch {
       // Conserva los datos visibles si la actualización puntual falla por red.
     } finally {
-      setIsLoading(false);
+      if (sequence === refreshSequence.current) setIsLoading(false);
     }
   }, [selectedStudent]);
 
@@ -198,6 +221,7 @@ export default function TrackingScreen() {
           timestamp: new Date(point.recordedAt || point.createdAt || Date.now()).getTime(),
           accuracy: point.accuracy,
           recordedAt: point.recordedAt,
+          speedKmh: point.speedKmh,
         };
         if (!Number.isFinite(normalized.latitude) || !Number.isFinite(normalized.longitude)) return;
         setLocation(normalized);
@@ -240,7 +264,11 @@ export default function TrackingScreen() {
             />
             <View style={styles.headerTextCol}>
               <Text style={[styles.studentName, themed.text]}>{selectedStudent?.nombre || t('trackSelectStudent')}</Text>
-              <Text style={[styles.studentStatus, themed.textSecondary]}>{t('trackOnline')}</Text>
+              <Text style={[styles.studentStatus, themed.textSecondary]}>
+                {Number(selectedStudent?.dispositivos_vinculados || 0) < 1
+                  ? t('trackNoDevice')
+                  : activeTrip ? t('trackOnline') : t('trackWaitingTrip')}
+              </Text>
             </View>
           </View>
           <IconButton 
@@ -358,13 +386,12 @@ export default function TrackingScreen() {
           <View style={[styles.statusRowWrapper, themed.surfaceSecondary]}>
             <MaterialCommunityIcons name="target" size={16} color={COLORS.ALERTA} style={styles.statusIcon} />
             <Text style={[styles.statusText, themed.text]}>
-              {selectedStudent ? 'Esperando trayecto activo' : t('trackSelectStudent')}
+              {activeTrip
+                ? t('trackLiveStatus')
+                : Number(selectedStudent?.dispositivos_vinculados || 0) < 1
+                  ? t('trackNoDevice')
+                  : selectedStudent ? t('trackWaitingTrip') : t('trackSelectStudent')}
             </Text>
-          </View>
-          
-          <View style={[styles.statusRowWrapper, themed.surfaceSecondary]}>
-            <MaterialCommunityIcons name="lightning-bolt" size={16} color={COLORS.ADVERTENCIA} style={styles.statusIcon} />
-            <Text style={[styles.statusText, themed.text]}>{t('trackSpeed')} -- km/h</Text>
           </View>
           
           <View style={[styles.statusRowWrapper, themed.surfaceSecondary]}>
@@ -381,8 +408,8 @@ export default function TrackingScreen() {
         <Surface style={[styles.infoCard, themed.surface]} elevation={1}>
           <Text style={[styles.cardTitle, themed.text]}>{t('trackRecentAlert')}</Text>
           <View style={[styles.alertBox, { backgroundColor: colors.accentLight }]}>
-            <Text style={[styles.alertBoxTitle, { color: colors.success }]}>Sin alertas recientes</Text>
-            <Text style={[styles.alertBoxSub, { color: colors.success }]}>Cuando exista una notificación real aparecerá aquí.</Text>
+            <Text style={[styles.alertBoxTitle, { color: colors.success }]}>{t('trackNoAlert')}</Text>
+            <Text style={[styles.alertBoxSub, { color: colors.success }]}>{t('trackNoAlertHint')}</Text>
           </View>
         </Surface>
 
@@ -395,7 +422,7 @@ export default function TrackingScreen() {
             onPress={() => router.push('/(tabs)/history')}
             contentStyle={styles.btnContent}
           >
-            {t('live') === 'Live' ? 'View History' : 'Ver Historial'}
+            {t('trackViewHistory')}
           </Button>
           <Button 
             mode="contained" 

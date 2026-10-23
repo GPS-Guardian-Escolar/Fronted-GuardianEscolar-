@@ -122,7 +122,14 @@ export const authService = {
           message: 'Se envió un correo para confirmar este dispositivo. Confirma el acceso y vuelve a iniciar sesión.',
         };
       }
-      throw new Error(getFriendlyAuthError(error, 'No se pudo iniciar sesión.'));
+      const friendlyError = new Error(getFriendlyAuthError(error, 'No se pudo iniciar sesión.'));
+      friendlyError.response = error.response;
+      if (!error.response) {
+        friendlyError.code = ['ECONNABORTED', 'ETIMEDOUT'].includes(error.code)
+          ? 'AUTH_NETWORK_TIMEOUT'
+          : 'AUTH_NETWORK_ERROR';
+      }
+      throw friendlyError;
     }
   },
 

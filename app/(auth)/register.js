@@ -9,45 +9,13 @@ import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { authService } from '../../services/auth.service';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import LanguageSelector from '../../components/common/LanguageSelector';
 import { isValidEmail, normalizePhoneDigits, passwordChecks } from '../../utils/validators';
 
 const isWeb = Dimensions.get('window').width > 768;
 
 const TERMS_VERSION = '2026-08-20';
-const TERMS_SECTIONS = [
-  {
-    title: '1. Objeto del servicio',
-    body: 'Guardian Escolar es una herramienta académica para apoyar el seguimiento de estudiantes, la administración de acudientes, rutas, zonas seguras, alertas y datos de contacto de emergencia. El servicio no reemplaza la supervisión responsable de padres, acudientes o instituciones educativas.',
-  },
-  {
-    title: '2. Uso de ubicación',
-    body: 'Al usar funciones de rastreo, el acudiente autoriza el tratamiento de datos de ubicación del dispositivo vinculado al estudiante. Estos datos se usan para mostrar recorridos, detectar salidas de zonas seguras, posibles desvíos de ruta e inactividad durante trayectos.',
-  },
-  {
-    title: '3. Responsabilidad del acudiente',
-    body: 'El usuario debe registrar información real, mantener segura su cuenta, verificar que el dispositivo del estudiante tenga permisos de ubicación activos y compartir acceso solo con personas autorizadas para consultar o acompañar al estudiante.',
-  },
-  {
-    title: '4. Privacidad y datos personales',
-    body: 'Se tratan datos como nombre, correo, teléfono, información del estudiante, contactos de emergencia, configuración de notificaciones, rutas, zonas seguras y ubicaciones reportadas. La información se usa para operar el sistema y no debe compartirse con terceros no autorizados.',
-  },
-  {
-    title: '5. Notificaciones',
-    body: 'El sistema puede enviar correos, alertas push o SMS cuando estas opciones estén habilitadas. La entrega puede depender de servicios externos, conexión a internet, permisos del dispositivo y disponibilidad del proveedor.',
-  },
-  {
-    title: '6. Seguridad de la cuenta',
-    body: 'El usuario es responsable de proteger su contraseña y cerrar sesión en dispositivos compartidos. Guardian Escolar puede bloquear acciones o solicitar verificación de correo para reducir accesos no autorizados.',
-  },
-  {
-    title: '7. Limitaciones',
-    body: 'La precisión de la ubicación puede variar por GPS, red móvil, Wi-Fi, batería, permisos del sistema operativo o condiciones del entorno. Las alertas son apoyo preventivo y pueden tener retrasos.',
-  },
-  {
-    title: '8. Aceptación',
-    body: `Al crear la cuenta, el usuario declara que leyó y acepta estos Términos y Condiciones y la Política de Privacidad de Guardian Escolar. Versión ${TERMS_VERSION}.`,
-  },
-];
+const TERMS_SECTION_KEYS = Array.from({ length: 8 }, (_, index) => index + 1);
 
 // CheckItem sin gap, sin whitespace entre nodos
 const CheckItem = ({ ok, label, colors }) => (
@@ -125,9 +93,9 @@ export default function RegisterScreen() {
   const handleRegister = async () => {
     setErrorMsg('');
 
-    if (name.trim().length < 2 || name.trim().length > 100) { setErrorMsg('El nombre debe tener entre 2 y 100 caracteres.'); return; }
-    if (!isValidPhone) { setErrorMsg('Ingresa un teléfono válido, solo números.'); return; }
-    if (!isValidEmail(email)) { setErrorMsg('Ingresa un correo real con dominio válido (ej: usuario@gmail.com).'); return; }
+    if (name.trim().length < 2 || name.trim().length > 100) { setErrorMsg(t('authNameLength')); return; }
+    if (!isValidPhone) { setErrorMsg(t('authPhoneInvalid')); return; }
+    if (!isValidEmail(email)) { setErrorMsg(t('authInvalidEmail')); return; }
     if (!allReqsMet) { setErrorMsg(t('authPasswordRulesFailed')); return; }
     if (!acceptTerms) { setTermsModalVisible(true); return; }
 
@@ -136,11 +104,11 @@ export default function RegisterScreen() {
       await authService.register({ name: name.trim(), email: email.trim(), password, phone: phone.trim(), acceptedTerms: true, termsVersion: TERMS_VERSION });
       Alert.alert(
         t('success'),
-        'Tu cuenta fue creada. Te enviamos un correo de verificación. Revisa tu bandeja de entrada y confirma tu dirección de correo electrónico antes de iniciar sesión.',
+        t('authRegisterSuccess'),
       );
       router.replace('/(auth)/login');
     } catch (error) {
-      setErrorMsg(error.message || 'No se pudo crear la cuenta.');
+      setErrorMsg(error.message || t('authRegisterFailed'));
     } finally {
       setIsSubmitting(false);
     }
@@ -148,6 +116,7 @@ export default function RegisterScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+      <LanguageSelector style={styles.languageSelector} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={styles.cardWrapper}>
@@ -207,7 +176,7 @@ export default function RegisterScreen() {
                   }
                 />
                 {showEmailError ? (
-                  <Text style={[styles.errorHint, { color: colors.error }]}>Correo inválido o dominio no permitido. Ej: usuario@gmail.com</Text>
+                  <Text style={[styles.errorHint, { color: colors.error }]}>{t('authInvalidEmailDomain')}</Text>
                 ) : null}
               </View>
 
@@ -272,7 +241,7 @@ export default function RegisterScreen() {
                 activeOpacity={0.7}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: acceptTerms }}
-                accessibilityLabel="Aceptar Términos y Condiciones y Política de Privacidad"
+                accessibilityLabel={t('authAcceptTerms')}
               >
                 <View style={styles.checkboxWrapper}>
                   <Checkbox
@@ -283,7 +252,7 @@ export default function RegisterScreen() {
                   />
                 </View>
                 <Text style={[styles.termsText, { color: colors.textSecondary }]}>
-                  Acepto los Términos y Condiciones y la Política de Privacidad de Guardian Escolar
+                  {t('authAcceptTerms')}
                 </Text>
               </TouchableOpacity>
 
@@ -312,7 +281,7 @@ export default function RegisterScreen() {
         <View style={[styles.termsOverlay, { backgroundColor: colors.overlay }]}>
           <View style={[styles.termsModal, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={[styles.termsHeader, { borderBottomColor: colors.border }]}>
-              <Text style={[styles.termsTitle, { color: colors.text }]}>Términos y Condiciones</Text>
+              <Text style={[styles.termsTitle, { color: colors.text }]}>{t('authTermsTitle')}</Text>
               <TouchableOpacity
                 style={styles.termsClose}
                 onPress={() => {
@@ -332,12 +301,12 @@ export default function RegisterScreen() {
               scrollEventThrottle={16}
             >
               <Text style={[styles.termsIntro, { color: colors.textSecondary }]}>
-                Lee el documento completo antes de aceptar. Esta aceptación quedará asociada a tu cuenta.
+                {t('authTermsIntro')}
               </Text>
-              {TERMS_SECTIONS.map(section => (
-                <View key={section.title} style={styles.termsSection}>
-                  <Text style={[styles.termsSectionTitle, { color: colors.text }]}>{section.title}</Text>
-                  <Text style={[styles.termsBody, { color: colors.textSecondary }]}>{section.body}</Text>
+              {TERMS_SECTION_KEYS.map(index => (
+                <View key={index} style={styles.termsSection}>
+                  <Text style={[styles.termsSectionTitle, { color: colors.text }]}>{t(`authTerms${index}Title`)}</Text>
+                  <Text style={[styles.termsBody, { color: colors.textSecondary }]}>{t(`authTerms${index}Body`).replace('{version}', TERMS_VERSION)}</Text>
                 </View>
               ))}
             </ScrollView>
@@ -352,7 +321,7 @@ export default function RegisterScreen() {
               }}
               style={styles.termsAccept}
             >
-              Aceptar términos
+              {t('authAcceptTermsButton')}
             </Button>
           </View>
         </View>
@@ -363,6 +332,7 @@ export default function RegisterScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
+  languageSelector: { position: 'absolute', top: 8, right: 16 },
   scrollContent: { flexGrow: 1, justifyContent: 'center' },
   cardWrapper: { width: '100%', alignItems: 'center', padding: 20, alignSelf: 'center' },
   headerLogo: { width: 120, height: 120, marginBottom: 6 },

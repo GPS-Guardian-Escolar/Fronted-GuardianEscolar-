@@ -105,6 +105,8 @@ export default function StudentScreen() {
   const [shareEmail, setShareEmail] = useState('');
   const [guardians, setGuardians] = useState([]);
   const [shareLoading, setShareLoading] = useState(false);
+  const [guardianCandidate, setGuardianCandidate] = useState(null);
+  const [guardianLoading, setGuardianLoading] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [unlinkCandidate, setUnlinkCandidate] = useState(null);
@@ -196,7 +198,7 @@ export default function StudentScreen() {
     }
     setShareLoading(true);
     try {
-      await studentService.shareWithGuardian(sharingStudent.id, { email, relationshipRole: 'VIEWER' });
+      const result = await studentService.shareWithGuardian(sharingStudent.id, { email, relationshipRole: 'VIEWER' });
       const [guardianData, updatedStudents] = await Promise.all([
         studentService.listGuardians(sharingStudent.id),
         getStudents(),
@@ -204,11 +206,33 @@ export default function StudentScreen() {
       setGuardians(guardianData);
       setStudents(updatedStudents);
       setShareEmail('');
-      Alert.alert(t('studShareSuccessTitle'), t('studShareSuccessMessage'));
+      Alert.alert(
+        t('studShareSuccessTitle'),
+        result?.emailSent ? t('studShareEmailSent') : t('studShareEmailNotSent'),
+      );
     } catch (error) {
       Alert.alert(t('error'), error.message || t('studShareError'));
     } finally {
       setShareLoading(false);
+    }
+  }
+
+  async function executeGuardianRevoke(guardian) {
+    if (!sharingStudent?.id || !guardian?.userId) return;
+    setGuardianLoading(true);
+    try {
+      await studentService.revokeGuardian(sharingStudent.id, guardian.userId);
+      const [guardianData, updatedStudents] = await Promise.all([
+        studentService.listGuardians(sharingStudent.id),
+        getStudents(),
+      ]);
+      setGuardians(guardianData);
+      setStudents(updatedStudents);
+      setGuardianCandidate(null);
+    } catch (error) {
+      Alert.alert(t('error'), error.message || t('studShareRemoveError'));
+    } finally {
+      setGuardianLoading(false);
     }
   }
 
@@ -305,8 +329,8 @@ export default function StudentScreen() {
     const contactName = form.contacto_nombre.trim();
     if (contactName.length < 2) {
       errors.contacto_nombre = 'El contacto de emergencia debe tener al menos 2 caracteres.';
-    } else if (contactName.length > 100) {
-      errors.contacto_nombre = 'El contacto de emergencia no puede superar 100 caracteres.';
+    } else if (contactName.length > 80) {
+      errors.contacto_nombre = 'El nombre del contacto no puede superar 80 caracteres.';
     } else if (!/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ ]+$/.test(contactName)) {
       errors.contacto_nombre = 'El contacto solo debe tener letras y espacios.';
     }
@@ -438,7 +462,7 @@ export default function StudentScreen() {
 
       <View style={[styles.contactBox, themed.surfaceSecondary]}>
         <Text style={[styles.contactLabel, themed.text]}>{t('studEmergencyContact')}</Text>
-        <Text style={[styles.contactName, themed.textSecondary]}>{item.contacto_nombre || t('studNotAssigned')}</Text>
+        <Text style={[styles.contactName, themed.textSecondary]} numberOfLines={2} ellipsizeMode="tail">{item.contacto_nombre || t('studNotAssigned')}</Text>
         <Text style={[styles.contactPhone, themed.textSecondary]}>{item.contacto_telefono || t('studNotAssigned')}</Text>
       </View>
 
@@ -464,7 +488,7 @@ export default function StudentScreen() {
           accessibilityLabel="Desvincular dispositivo del estudiante"
         >
           <MaterialCommunityIcons name="cellphone-remove" size={18} color={colors.error} />
-          <Text style={[styles.unlinkDeviceText, { color: colors.error }]}>Desvincular dispositivo</Text>
+          <Text style={[styles.unlinkDeviceText, { color: colors.error }]}>{t('studUnlinkDevice')}</Text>
         </TouchableOpacity>
       )}
 
@@ -590,7 +614,7 @@ export default function StudentScreen() {
               </View>
 
               <ScrollView style={styles.mockupScrollArea} showsVerticalScrollIndicator contentContainerStyle={styles.mockupScroll}>
-                <Text style={[styles.mockupLabel, themed.textSecondary]}>Nombre completo del estudiante *</Text>
+                <Text style={[styles.mockupLabel, themed.textSecondary]}>{t('studName')}</Text>
                 <TextInput
                   style={[styles.mockupInput, themed.input, formErrors.nombre && styles.inputError]}
                   value={form.nombre}
@@ -615,7 +639,7 @@ export default function StudentScreen() {
                     {!!formErrors.fechaNacimiento && <Text style={styles.errorText}>{formErrors.fechaNacimiento}</Text>}
                   </View>
                   <View style={styles.mockupHalfFieldRight}>
-                    <Text style={[styles.mockupLabel, themed.textSecondary]}>Grado *</Text>
+                    <Text style={[styles.mockupLabel, themed.textSecondary]}>{t('studGrade')} *</Text>
                     <TextInput
                       style={[styles.mockupInput, themed.input, formErrors.grado && styles.inputError]}
                       value={form.grado}
@@ -628,18 +652,18 @@ export default function StudentScreen() {
                   </View>
                 </View>
 
-                <Text style={[styles.mockupLabel, themed.textSecondary]}>Contacto de emergencia *</Text>
+                <Text style={[styles.mockupLabel, themed.textSecondary]}>{t('studContactName')} *</Text>
                 <TextInput
                   style={[styles.mockupInput, themed.input, formErrors.contacto_nombre && styles.inputError]}
                   value={form.contacto_nombre}
                   onChangeText={v => setForm(f => ({ ...f, contacto_nombre: v }))}
                   placeholder="Nombre del acudiente o contacto"
-                  maxLength={100}
+                  maxLength={80}
                   placeholderTextColor={colors.textMuted}
                 />
                 {!!formErrors.contacto_nombre && <Text style={styles.errorText}>{formErrors.contacto_nombre}</Text>}
 
-                <Text style={[styles.mockupLabel, themed.textSecondary]}>Teléfono de emergencia *</Text>
+                <Text style={[styles.mockupLabel, themed.textSecondary]}>{t('studContactPhone')} *</Text>
                 <TextInput
                   style={[styles.mockupInput, themed.input, formErrors.contacto_telefono && styles.inputError]}
                   value={form.contacto_telefono}
@@ -651,7 +675,7 @@ export default function StudentScreen() {
                 />
                 {!!formErrors.contacto_telefono && <Text style={styles.errorText}>{formErrors.contacto_telefono}</Text>}
 
-                <Text style={[styles.mockupLabel, themed.textSecondary]}>Subir foto del estudiante (Opcional)</Text>
+                <Text style={[styles.mockupLabel, themed.textSecondary]}>{t('studPhoto')}</Text>
                 
                 {fotoCargada && (
                   <View style={{ alignItems: 'center', marginBottom: 10, position: 'relative', alignSelf: 'center' }}>
@@ -691,7 +715,7 @@ export default function StudentScreen() {
                 </TouchableOpacity>
 
                 <View style={[styles.mockupInfoBox, { borderColor: colors.primary }]}>
-                  <Text style={[styles.mockupInfoTitle, { color: colors.primary }]}>Vincular Dispositivo del Estudiante</Text>
+                  <Text style={[styles.mockupInfoTitle, { color: colors.primary }]}>{t('studLinkDevice')}</Text>
                   <Text style={[styles.mockupInfoDesc, themed.textSecondary]}>
                     Guarda el estudiante y usa el QR generado para vincular el celular desde la pantalla de escaneo.
                   </Text>
@@ -710,14 +734,14 @@ export default function StudentScreen() {
                     </View>
                   ) : (
                     <View style={[styles.codigoBox, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
-                      <Text style={[styles.codigoHint, themed.textSecondary]}>El QR se genera automáticamente después de guardar.</Text>
+                      <Text style={[styles.codigoHint, themed.textSecondary]}>{t('studQrAfterSave')}</Text>
                     </View>
                   )}
                 </View>
               </ScrollView>
               <View style={[styles.mockupActions, { borderTopColor: colors.border }]}>
                 <TouchableOpacity style={[styles.mockupCancelBtn, { borderColor: colors.border }]} onPress={() => setModalVisible(false)} accessibilityRole="button" accessibilityLabel="Cancelar edición de estudiante">
-                  <Text style={[styles.mockupCancelText, themed.text]}>Cancelar</Text>
+                  <Text style={[styles.mockupCancelText, themed.text]}>{t('studCancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.mockupSaveBtn, { backgroundColor: colors.primary }]} onPress={handleSave} disabled={loading} accessibilityRole="button" accessibilityLabel="Guardar estudiante">
                   <Text style={styles.mockupSaveText}>{loading ? t('loading') : 'Guardar'}</Text>
@@ -774,6 +798,16 @@ export default function StudentScreen() {
                     <Text style={[styles.guardianEmail, themed.textSecondary]}>{item.email || item.correo}</Text>
                   </View>
                   <Text style={[styles.guardianRole, { color: colors.primary }]}>{item.relationshipRole}</Text>
+                  {item.relationshipRole !== 'OWNER' && item.userId && (
+                    <TouchableOpacity
+                      style={styles.removeGuardianButton}
+                      onPress={() => setGuardianCandidate(item)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${t('studShareRemove')} ${item.fullName || item.nombreCompleto}`}
+                    >
+                      <MaterialCommunityIcons name="account-remove-outline" size={20} color={colors.error} />
+                    </TouchableOpacity>
+                  )}
                 </View>
               ))}
             </ScrollView>
@@ -786,6 +820,38 @@ export default function StudentScreen() {
       </Modal>
 
       <Modal
+        visible={!!guardianCandidate}
+        animationType="fade"
+        transparent
+        onRequestClose={() => !guardianLoading && setGuardianCandidate(null)}
+      >
+        <View style={[styles.modalOverlay, themed.overlay]}>
+          <Surface style={[styles.deleteModal, themed.surface]} elevation={5}>
+            <Text style={[styles.deleteTitle, themed.text]}>{t('studShareRemove')}</Text>
+            <Text style={[styles.deleteMessage, themed.textSecondary]}>
+              {t('studShareRemoveConfirm')} {guardianCandidate?.fullName || guardianCandidate?.nombreCompleto}?
+            </Text>
+            <View style={styles.deleteActions}>
+              <TouchableOpacity
+                style={[styles.mockupCancelBtn, { borderColor: colors.border }]}
+                onPress={() => setGuardianCandidate(null)}
+                disabled={guardianLoading}
+              >
+                <Text style={[styles.mockupCancelText, themed.text]}>{t('studCancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.deleteConfirmBtn, { backgroundColor: colors.error }]}
+                onPress={() => executeGuardianRevoke(guardianCandidate)}
+                disabled={guardianLoading}
+              >
+                <Text style={styles.deleteConfirmText}>{guardianLoading ? t('loading') : t('studShareRemove')}</Text>
+              </TouchableOpacity>
+            </View>
+          </Surface>
+        </View>
+      </Modal>
+
+      <Modal
         visible={!!deleteCandidate}
         animationType="fade"
         transparent
@@ -793,7 +859,7 @@ export default function StudentScreen() {
       >
         <View style={[styles.modalOverlay, themed.overlay]}>
           <Surface style={[styles.deleteModal, themed.surface]} elevation={5}>
-            <Text style={[styles.deleteTitle, themed.text]}>Eliminar estudiante</Text>
+            <Text style={[styles.deleteTitle, themed.text]}>{t('studDelete')}</Text>
             <Text style={[styles.deleteMessage, themed.textSecondary]}>
               ¿Estás seguro de eliminar a {deleteCandidate?.nombre}? Esta acción no se puede deshacer.
             </Text>
@@ -803,7 +869,7 @@ export default function StudentScreen() {
                 onPress={() => setDeleteCandidate(null)}
                 disabled={deleteLoading}
               >
-                <Text style={[styles.mockupCancelText, themed.text]}>Cancelar</Text>
+                <Text style={[styles.mockupCancelText, themed.text]}>{t('studCancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.deleteConfirmBtn, { backgroundColor: colors.error }]}
@@ -825,7 +891,7 @@ export default function StudentScreen() {
       >
         <View style={[styles.modalOverlay, themed.overlay]}>
           <Surface style={[styles.deleteModal, themed.surface]} elevation={5}>
-            <Text style={[styles.deleteTitle, themed.text]}>Desvincular dispositivo</Text>
+            <Text style={[styles.deleteTitle, themed.text]}>{t('studUnlinkDevice')}</Text>
             <Text style={[styles.deleteMessage, themed.textSecondary]}>
               Se detendrá el envío de ubicación de {unlinkCandidate?.nombre}. Podrás vincular otro celular después.
             </Text>
@@ -835,7 +901,7 @@ export default function StudentScreen() {
                 onPress={() => setUnlinkCandidate(null)}
                 disabled={unlinkLoading}
               >
-                <Text style={[styles.mockupCancelText, themed.text]}>Cancelar</Text>
+                <Text style={[styles.mockupCancelText, themed.text]}>{t('studCancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.deleteConfirmBtn, { backgroundColor: colors.error }]}
@@ -973,6 +1039,7 @@ const styles = StyleSheet.create({
   contactName: {
     fontSize: 12,
     color: '#6B7280',
+    flexShrink: 1,
   },
   contactPhone: {
     fontSize: 12,
@@ -1276,6 +1343,7 @@ const styles = StyleSheet.create({
   guardianName: {
     fontSize: 13,
     fontWeight: '700',
+    flexShrink: 1,
   },
   guardianEmail: {
     fontSize: AppTypography.xs.fontSize,
@@ -1287,6 +1355,7 @@ const styles = StyleSheet.create({
     lineHeight: AppTypography.xs.lineHeight,
     fontWeight: '800',
   },
+  removeGuardianButton: { minWidth: AppTouch.min, minHeight: AppTouch.min, alignItems: 'center', justifyContent: 'center', marginLeft: 6 },
   modalHeaderMockup: {
     alignItems: 'center',
     borderBottomWidth: 1,

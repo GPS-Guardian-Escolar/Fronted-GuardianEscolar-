@@ -9,6 +9,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AppButton from '../../components/ui/AppButton';
 import AppCard from '../../components/ui/AppCard';
 import AppLoading from '../../components/ui/AppLoading';
+import LanguageSelector from '../../components/common/LanguageSelector';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { studentService } from '../../services/student.service';
 import { saveChildSession as persistChildSession } from '../../services/background/locationTracking';
 import { useTheme } from '../../theme/useTheme';
@@ -16,19 +18,19 @@ import { AppRadius, AppSpacing, AppTouch, AppTypography } from '../../theme/toke
 import { getDeviceId, getDeviceName, getPlatform } from './deviceHelpers';
 import { parseQrValue } from './qrPayload';
 
-function errorMessage(reason) {
+function errorMessage(reason, t) {
   const messages = {
-    empty: 'El QR está vacío.',
-    invalid_format: 'El QR no pertenece a GPS Guardian Escolar.',
-    unsupported_version: 'Esta versión del QR no es compatible.',
-    missing_required_fields: 'El QR no tiene los datos completos.',
-    legacy_missing_fields: 'El QR anterior no tiene los datos completos.',
-    expired: 'Este QR expiró. Pide a tu acudiente generar uno nuevo.',
+    empty: t('qrEmpty'),
+    invalid_format: t('qrWrongApp'),
+    unsupported_version: t('qrVersionUnsupported'),
+    missing_required_fields: t('qrFieldsMissing'),
+    legacy_missing_fields: t('qrLegacyFieldsMissing'),
+    expired: t('qrExpired'),
   };
-  return messages[reason] || 'No pudimos leer este QR.';
+  return messages[reason] || t('qrUnreadable');
 }
 
-function linkErrorMessage(error) {
+function linkErrorMessage(error, t) {
   const raw = String(
     error?.response?.data?.message
       || error?.response?.data?.error
@@ -37,16 +39,16 @@ function linkErrorMessage(error) {
       || ''
   ).toLowerCase();
   if (raw.includes('already has a linked phone') || raw.includes('estudiante ya tiene')) {
-    return 'Este estudiante ya tiene un celular vinculado. Desvincula el dispositivo anterior antes de vincular otro.';
+    return t('qrStudentAlreadyLinked');
   }
   if (raw.includes('already linked to another student') || raw.includes('celular ya está vinculado')) {
-    return 'Este celular ya está vinculado a otro estudiante. Desvincúlalo primero.';
+    return t('qrPhoneLinkedElsewhere');
   }
   if (error?.response?.status === 401) {
-    return 'La sesión del acudiente expiró. Inicia sesión nuevamente.';
+    return t('qrGuardianSessionExpired');
   }
-  if (!error?.response) return 'No hay conexión. Revisa internet e intenta de nuevo.';
-  return 'No se pudo vincular el dispositivo. Verifica el código e intenta nuevamente.';
+  if (!error?.response) return t('qrNoConnection');
+  return t('qrLinkFailed');
 }
 
 async function persistLinkedChildSession(response, payload) {
@@ -60,6 +62,7 @@ export default function ScanQrScreen() {
   const router = useRouter();
   const isFocused = useIsFocused();
   const params = useLocalSearchParams();
+  const { t } = useLanguage();
   const { theme } = useTheme();
   const colors = theme.colors;
   const { width: windowWidth } = useWindowDimensions();
@@ -84,29 +87,29 @@ export default function ScanQrScreen() {
   useEffect(() => {
     if (permission && !permission.granted && permission.canAskAgain) {
       requestPermission().catch(() => {
-        setNotice('No se pudo solicitar el permiso de cámara. Revisa los permisos del sistema.');
+        setNotice(t('qrCameraPermissionFailed'));
       });
     }
-  }, [permission, requestPermission]);
+  }, [permission, requestPermission, t]);
 
   useEffect(() => {
     if (!permission?.granted || cameraReady || cameraError) return undefined;
 
     const timeout = setTimeout(() => {
-      setCameraError('La cámara está tardando en iniciar. Revisa el permiso y vuelve a intentarlo.');
+      setCameraError(t('qrCameraSlow'));
     }, 12000);
 
     return () => clearTimeout(timeout);
-  }, [cameraError, cameraReady, permission?.granted]);
+  }, [cameraError, cameraReady, permission?.granted, t]);
 
   const linkedPayload = useMemo(() => {
     if (Platform.OS !== 'web' || !params?.studentId || !params?.code) return null;
     return {
       studentId: String(params.studentId),
       code: String(params.code),
-      name: String(params.name || 'estudiante'),
+      name: String(params.name || t('studentLabel')),
     };
-  }, [params]);
+  }, [params, t]);
 
   const linkDevice = useCallback(async (payload) => {
     if (scanLock.current) return;
@@ -124,7 +127,7 @@ export default function ScanQrScreen() {
 
       await persistLinkedChildSession(response, payload);
       setSuccess(true);
-      setNotice('Dispositivo vinculado correctamente.');
+      setNotice(t('qrLinkedSuccess'));
       const linkedStudentId = response?.studentId || payload.studentId || '';
       router.replace({
         pathname: '/student-dashboard',
@@ -134,24 +137,24 @@ export default function ScanQrScreen() {
         },
       });
     } catch (error) {
-      setNotice(linkErrorMessage(error));
+      setNotice(linkErrorMessage(error, t));
     } finally {
       setIsProcessing(false);
       scanLock.current = false;
     }
-  }, [router]);
+  }, [router, t]);
 
   const handleQrValue = useCallback((value) => {
     if (isProcessing || success || scanLock.current) return;
 
     const result = parseQrValue(value);
     if (!result.ok) {
-      setNotice(errorMessage(result.reason));
+      setNotice(errorMessage(result.reason, t));
       return;
     }
 
     linkDevice(result.payload);
-  }, [isProcessing, linkDevice, success]);
+  }, [isProcessing, linkDevice, success, t]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || !cameraReady || !permission?.granted || !isFocused || cameraError) return undefined;
@@ -195,30 +198,31 @@ export default function ScanQrScreen() {
   const submitManualCode = useCallback(() => {
     const code = manualCode.trim();
     if (!code) {
-      setNotice('Ingresa el código de vinculación.');
+      setNotice(t('qrEnterCode'));
       return;
     }
     const studentId = String(params?.studentId || '').trim();
     linkDevice(studentId ? { code, studentId } : { code });
-  }, [linkDevice, manualCode, params?.studentId]);
+  }, [linkDevice, manualCode, params?.studentId, t]);
 
   if (linkedPayload) {
     return (
       <SafeAreaView style={styles.screen}>
-        <BackButton router={router} styles={styles} colors={colors} />
+        <BackButton router={router} styles={styles} colors={colors} t={t} />
+        <LanguageSelector style={styles.languageSelector} />
         <View style={styles.permissionWrap}>
           <MaterialCommunityIcons name="qrcode-check" size={72} color={colors.primary} />
-          <Text style={styles.title}>Vincular dispositivo</Text>
+          <Text style={styles.title}>{t('qrLinkTitle')}</Text>
           <Text style={styles.description}>
-            Se encontró el código de vinculación de {linkedPayload.name}. Confirma para asociar este dispositivo.
+            {t('qrLinkConfirmPrefix')} {linkedPayload.name}. {t('qrLinkConfirmSuffix')}
           </Text>
           <AppButton
-            title="Vincular estudiante"
+            title={t('qrLinkStudent')}
             onPress={() => linkDevice(linkedPayload)}
             loading={isProcessing}
-            accessibilityLabel="Vincular estudiante"
+            accessibilityLabel={t('qrLinkStudent')}
           />
-          <AppButton title="Cancelar" variant="ghost" onPress={() => router.back()} />
+          <AppButton title={t('cancel')} variant="ghost" onPress={() => router.back()} />
         </View>
         <Snackbar visible={!!notice} onDismiss={() => setNotice('')}>{notice}</Snackbar>
       </SafeAreaView>
@@ -226,19 +230,20 @@ export default function ScanQrScreen() {
   }
 
   if (!permission) {
-    return <AppLoading message="Preparando cámara..." />;
+    return <AppLoading message={t('qrCameraPreparing')} />;
   }
 
   if (!permission.granted) {
     return (
       <SafeAreaView style={styles.screen}>
-        <BackButton router={router} styles={styles} colors={colors} />
+        <BackButton router={router} styles={styles} colors={colors} t={t} />
+        <LanguageSelector style={styles.languageSelector} />
         <View style={styles.permissionWrap}>
           <MaterialCommunityIcons name="camera-lock-outline" size={64} color={colors.primary} />
-          <Text style={styles.title}>Permiso de cámara</Text>
-          <Text style={styles.description}>Necesitamos la cámara para escanear el QR que te muestra tu acudiente.</Text>
-          <AppButton title="Permitir cámara" onPress={requestPermission} accessibilityLabel="Permitir cámara" />
-          <AppButton title="Ingresar código manualmente" variant="ghost" onPress={() => setManualOpen(true)} />
+          <Text style={styles.title}>{t('qrCameraPermissionTitle')}</Text>
+          <Text style={styles.description}>{t('qrCameraPermissionDescription')}</Text>
+          <AppButton title={t('qrAllowCamera')} onPress={requestPermission} accessibilityLabel={t('qrAllowCamera')} />
+          <AppButton title={t('qrEnterManually')} variant="ghost" onPress={() => setManualOpen(true)} />
           {manualOpen && (
             <ManualCodeCard
               colors={colors}
@@ -246,6 +251,7 @@ export default function ScanQrScreen() {
               setManualCode={setManualCode}
               submitManualCode={submitManualCode}
               isProcessing={isProcessing}
+              t={t}
             />
           )}
         </View>
@@ -256,13 +262,14 @@ export default function ScanQrScreen() {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <BackButton router={router} styles={styles} colors={colors} />
+      <BackButton router={router} styles={styles} colors={colors} t={t} />
+      <LanguageSelector style={styles.languageSelector} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.content, isMobile && styles.mobileContent]}>
         <View ref={cameraContainerRef} style={[styles.cameraWrap, isMobile ? styles.mobileCameraWrap : null]}>
           {!cameraReady && !cameraError && (
             <View pointerEvents="none" style={styles.cameraLoading}>
               <MaterialCommunityIcons name="camera-outline" size={42} color={colors.textOnPrimary} />
-              <Text style={styles.cameraLoadingText}>Iniciando cámara...</Text>
+              <Text style={styles.cameraLoadingText}>{t('qrCameraStarting')}</Text>
             </View>
           )}
           <CameraView
@@ -279,31 +286,31 @@ export default function ScanQrScreen() {
             }}
             onMountError={(error) => {
               setCameraReady(false);
-              setCameraError(error?.message || 'Verifica el permiso de cámara y vuelve a intentarlo.');
+              setCameraError(t('qrCheckCameraPermission'));
             }}
           />
           {cameraError ? (
             <View style={styles.cameraError}>
               <MaterialCommunityIcons name="camera-off-outline" size={42} color={colors.textOnPrimary} />
-              <Text style={styles.cameraLoadingText}>No se pudo iniciar la cámara.</Text>
+              <Text style={styles.cameraLoadingText}>{t('qrCameraStartFailed')}</Text>
               <Text style={styles.cameraErrorDetail}>{cameraError}</Text>
               <AppButton
-                title="Reintentar cámara"
+                title={t('qrRetryCamera')}
                 variant="secondary"
                 onPress={() => {
                   setCameraError('');
                   setCameraReady(Platform.OS !== 'web');
                   setCameraKey((value) => value + 1);
-                  requestPermission().catch(() => setCameraError('No se pudo solicitar el permiso de cámara.'));
+                  requestPermission().catch(() => setCameraError(t('qrCameraPermissionFailed')));
                 }}
-                accessibilityLabel="Reintentar cámara"
+                accessibilityLabel={t('qrRetryCamera')}
               />
               {Platform.OS !== 'web' && (
                 <AppButton
-                  title="Abrir ajustes"
+                  title={t('qrOpenSettings')}
                   variant="ghost"
                   onPress={() => Linking.openSettings().catch(() => {})}
-                  accessibilityLabel="Abrir ajustes de permisos de cámara"
+                  accessibilityLabel={t('qrOpenCameraSettings')}
                 />
               )}
             </View>
@@ -317,13 +324,13 @@ export default function ScanQrScreen() {
 
         {isMobile ? (
           <View pointerEvents="none" style={styles.mobileInfo}>
-            <Text style={styles.mobileInfoTitle}>Escanea el QR del estudiante</Text>
-            <Text style={styles.mobileInfoDescription}>Ubica el QR dentro del marco. La vinculación iniciará automáticamente.</Text>
+            <Text style={styles.mobileInfoTitle}>{t('qrScanTitle')}</Text>
+            <Text style={styles.mobileInfoDescription}>{t('qrScanDescription')}</Text>
           </View>
         ) : (
           <View style={styles.bottomPanel}>
-            <Text style={styles.title}>Escanea el QR del estudiante</Text>
-            <Text style={styles.description}>Ubica el QR dentro del marco. La vinculación iniciará automáticamente.</Text>
+            <Text style={styles.title}>{t('qrScanTitle')}</Text>
+            <Text style={styles.description}>{t('qrScanDescription')}</Text>
             {manualOpen ? (
               <ManualCodeCard
                 colors={colors}
@@ -331,13 +338,14 @@ export default function ScanQrScreen() {
                 setManualCode={setManualCode}
                 submitManualCode={submitManualCode}
                 isProcessing={isProcessing}
+                t={t}
               />
             ) : (
               <AppButton
-                title="Ingresar código manualmente"
+                title={t('qrEnterManually')}
                 variant="secondary"
                 onPress={() => setManualOpen(true)}
-                accessibilityLabel="Ingresar código manualmente"
+                accessibilityLabel={t('qrEnterManually')}
               />
             )}
           </View>
@@ -347,7 +355,7 @@ export default function ScanQrScreen() {
         <>
           <TouchableOpacity
             accessibilityRole="button"
-            accessibilityLabel="Ingresar código manualmente"
+            accessibilityLabel={t('qrEnterManually')}
             style={styles.floatingCodeButton}
             onPress={() => setManualOpen(true)}
           >
@@ -361,6 +369,7 @@ export default function ScanQrScreen() {
             submitManualCode={submitManualCode}
             isProcessing={isProcessing}
             onClose={() => setManualOpen(false)}
+            t={t}
           />
         </>
       )}
@@ -369,7 +378,7 @@ export default function ScanQrScreen() {
   );
 }
 
-function ManualCodeModal({ visible, colors, manualCode, setManualCode, submitManualCode, isProcessing, onClose }) {
+function ManualCodeModal({ visible, colors, manualCode, setManualCode, submitManualCode, isProcessing, onClose, t }) {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
@@ -379,31 +388,31 @@ function ManualCodeModal({ visible, colors, manualCode, setManualCode, submitMan
         <View style={styles.modalSheet}>
           <View style={styles.modalHeader}>
             <View>
-              <Text style={styles.modalTitle}>Vincular estudiante</Text>
-              <Text style={styles.modalDescription}>Ingresa el código de vinculación si no puedes escanear el QR.</Text>
+              <Text style={styles.modalTitle}>{t('qrLinkTitle')}</Text>
+              <Text style={styles.modalDescription}>{t('qrManualCodeHelp')}</Text>
             </View>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Cerrar" onPress={onClose} style={styles.modalClose}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('close')} onPress={onClose} style={styles.modalClose}>
               <MaterialCommunityIcons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
           <TextInput
-            accessibilityLabel="Código de vinculación"
+            accessibilityLabel={t('qrCodeLabel')}
             autoCapitalize="characters"
             autoFocus
-            placeholder="Código de vinculación"
+            placeholder={t('qrCodeLabel')}
             placeholderTextColor={colors.textMuted}
             value={manualCode}
             onChangeText={setManualCode}
             style={styles.modalInput}
           />
-          <AppButton title="Vincular estudiante" loading={isProcessing} onPress={submitManualCode} accessibilityLabel="Vincular estudiante" />
-          <AppButton title="Cancelar" variant="ghost" onPress={onClose} accessibilityLabel="Cancelar" />
+          <AppButton title={t('qrLinkStudent')} loading={isProcessing} onPress={submitManualCode} accessibilityLabel={t('qrLinkStudent')} />
+          <AppButton title={t('cancel')} variant="ghost" onPress={onClose} accessibilityLabel={t('cancel')} />
         </View>
       </KeyboardAvoidingView>
     </Modal>
   );
 }
-function BackButton({ router, styles, colors }) {
+function BackButton({ router, styles, colors, t }) {
   return (
     <TouchableOpacity
       style={styles.backButton}
@@ -415,29 +424,29 @@ function BackButton({ router, styles, colors }) {
         }
       }}
       accessibilityRole="button"
-      accessibilityLabel="Volver a la pantalla anterior"
+      accessibilityLabel={t('back')}
     >
       <MaterialCommunityIcons name="arrow-left" size={28} color={colors.primary} />
-      <Text style={styles.backButtonText}>Volver</Text>
+      <Text style={styles.backButtonText}>{t('back')}</Text>
     </TouchableOpacity>
   );
 }
 
-function ManualCodeCard({ colors, manualCode, setManualCode, submitManualCode, isProcessing }) {
+function ManualCodeCard({ colors, manualCode, setManualCode, submitManualCode, isProcessing, t }) {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
     <AppCard style={styles.manualCard} elevation="none">
       <TextInput
-        accessibilityLabel="Código de vinculación"
+        accessibilityLabel={t('qrCodeLabel')}
         autoCapitalize="characters"
-        placeholder="Código de vinculación"
+        placeholder={t('qrCodeLabel')}
         placeholderTextColor={colors.textMuted}
         value={manualCode}
         onChangeText={setManualCode}
         style={styles.manualInput}
       />
-      <AppButton title="Vincular dispositivo" loading={isProcessing} onPress={submitManualCode} accessibilityLabel="Vincular dispositivo" />
+      <AppButton title={t('qrLinkStudent')} loading={isProcessing} onPress={submitManualCode} accessibilityLabel={t('qrLinkStudent')} />
     </AppCard>
   );
 }
@@ -462,6 +471,7 @@ function createStyles(colors) {
       paddingHorizontal: AppSpacing.lg,
       paddingVertical: AppSpacing.sm,
     },
+    languageSelector: { position: 'absolute', top: 8, right: 12 },
     backButtonText: {
       ...AppTypography.sm,
       color: colors.primary,

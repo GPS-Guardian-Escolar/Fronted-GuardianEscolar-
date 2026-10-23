@@ -13,38 +13,18 @@ import { SUPPORTED_LANGUAGES } from '../../translations';
 import { AppSpacing, AppTouch, AppTypography } from '../../theme/tokens';
 
 const slides = [
-  {
-    icon: 'shield-check-outline',
-    title: 'Cuida a tus hijos',
-    text: 'Cuida a tus hijos en cada trayecto escolar, en tiempo real.',
-  },
-  {
-    icon: 'qrcode',
-    title: 'Vincula al acudiente',
-    text: 'Registra a tu hijo, obtén un QR y vincúlalo.',
-  },
-  {
-    icon: 'qrcode-scan',
-    title: 'Celular del hijo',
-    text: 'Escanea el QR con tu celular y comparte tu ubicación durante el trayecto.',
-  },
-  {
-    icon: 'lock-check-outline',
-    title: 'Privacidad',
-    text: 'Tu ubicación solo se comparte durante el trayecto escolar. Tú controlas cuándo.',
-  },
-  {
-    icon: 'rocket-launch-outline',
-    title: 'Comenzar',
-    text: 'Elige cómo quieres entrar a GPS Guardian Escolar.',
-  },
+  { id: 'safety', icon: 'shield-check-outline', titleKey: 'welcomeSlide1Title', textKey: 'welcomeSlide1Text' },
+  { id: 'guardian', icon: 'qrcode', titleKey: 'welcomeSlide2Title', textKey: 'welcomeSlide2Text' },
+  { id: 'student-phone', icon: 'qrcode-scan', titleKey: 'welcomeSlide3Title', textKey: 'welcomeSlide3Text' },
+  { id: 'privacy', icon: 'lock-check-outline', titleKey: 'welcomeSlide4Title', textKey: 'welcomeSlide4Text' },
+  { id: 'start', icon: 'rocket-launch-outline', titleKey: 'welcomeSlide5Title', textKey: 'welcomeSlide5Text' },
 ];
 const AUTO_ADVANCE_MS = 6000;
 
 export default function WelcomeScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const { lang, setLanguage } = useLanguage();
+  const { lang, setLanguage, t } = useLanguage();
   const { theme } = useTheme();
   const colors = theme.colors;
   const listRef = useRef(null);
@@ -96,19 +76,19 @@ export default function WelcomeScreen() {
   const renderSlide = ({ item, index }) => (
     <Animated.View style={[styles.slide, { width, opacity: fade }]} accessibilityRole="header">
       <MaterialCommunityIcons name={item.icon} size={48} color={colors.primary} />
-      <Text style={[styles.slideTitle, { color: colors.text }]}>{item.title}</Text>
-      <Text style={[styles.slideText, { color: colors.textSecondary }]}>{item.text}</Text>
+      <Text style={[styles.slideTitle, { color: colors.text }]}>{t(item.titleKey)}</Text>
+      <Text style={[styles.slideText, { color: colors.textSecondary }]}>{t(item.textKey)}</Text>
 
       {index === slides.length - 1 && (
         <View style={styles.ctaStack}>
-          <AppButton title="Comenzar" onPress={() => finish('/(auth)/register')} accessibilityLabel="Comenzar registro" />
-          <AppButton title="Ya tengo cuenta" variant="secondary" onPress={() => finish('/(auth)/login')} accessibilityLabel="Ya tengo cuenta" />
+          <AppButton title={t('welcomeStart')} onPress={() => finish('/(auth)/register')} accessibilityLabel={t('welcomeStart')} />
+          <AppButton title={t('welcomeHaveAccount')} variant="secondary" onPress={() => finish('/(auth)/login')} accessibilityLabel={t('welcomeHaveAccount')} />
           <AppButton
-            title="Soy estudiante (escanear QR)"
+            title={t('welcomeStudentScan')}
             variant="ghost"
             onPress={() => finish({ pathname: '/scan-qr', params: { relink: '1' } })}
-            accessibilityLabel="Escanear código QR del acudiente"
-            accessibilityHint="Abre la cámara para vincular este celular al estudiante"
+            accessibilityLabel={t('welcomeStudentScan')}
+            accessibilityHint={t('welcomeStudentScanHint')}
           />
         </View>
       )}
@@ -120,7 +100,7 @@ export default function WelcomeScreen() {
     return (
       <TouchableOpacity
         accessibilityRole="button"
-        accessibilityLabel={`Cambiar idioma a ${item.label}`}
+        accessibilityLabel={`${t('welcomeChangeLanguage')} ${item.label}`}
         style={[
           styles.langItem,
           { borderBottomColor: colors.border },
@@ -134,7 +114,7 @@ export default function WelcomeScreen() {
         }}
       >
         <Text style={styles.langFlag}>{item.flag}</Text>
-        <Text style={[styles.langLabel, { color: isSelected ? colors.primary : colors.text }]}>{item.label}</Text>
+        <Text style={[styles.langLabel, { color: isSelected ? colors.primary : colors.text }]}>{t(({ es: 'langEs', en: 'langEn', fr: 'langFr', pt: 'langPt' })[item.code])}</Text>
         {isSelected && <MaterialCommunityIcons name="check" size={20} color={colors.accent} />}
       </TouchableOpacity>
     );
@@ -147,7 +127,7 @@ export default function WelcomeScreen() {
           style={[styles.topButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
           onPress={() => setLangModalVisible(true)}
           accessibilityRole="button"
-          accessibilityLabel="Cambiar idioma"
+          accessibilityLabel={t('welcomeChangeLanguage')}
         >
           <MaterialCommunityIcons name="web" size={24} color={colors.primary} />
         </TouchableOpacity>
@@ -155,9 +135,9 @@ export default function WelcomeScreen() {
           style={[styles.skipButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
           onPress={skip}
           accessibilityRole="button"
-          accessibilityLabel="Omitir onboarding"
+          accessibilityLabel={t('welcomeSkip')}
         >
-          <Text style={[styles.skipText, { color: colors.primary }]}>Omitir</Text>
+          <Text style={[styles.skipText, { color: colors.primary }]}>{t('welcomeSkip')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -174,7 +154,7 @@ export default function WelcomeScreen() {
       <FlatList
         ref={listRef}
         data={slides}
-        keyExtractor={item => item.title}
+        keyExtractor={item => item.id}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
@@ -195,10 +175,10 @@ export default function WelcomeScreen() {
       />
 
       <View style={styles.footer}>
-        <View style={styles.indicators} accessibilityRole="text" accessibilityLabel={`Página ${activeIndex + 1} de ${slides.length}`}>
+        <View style={styles.indicators} accessibilityRole="text" accessibilityLabel={t('welcomePage').replace('{current}', String(activeIndex + 1)).replace('{total}', String(slides.length))}>
           {slides.map((item, index) => (
             <View
-              key={item.title}
+              key={item.id}
               style={[
                 styles.indicator,
                 { backgroundColor: index === activeIndex ? colors.primary : colors.border },
@@ -209,16 +189,16 @@ export default function WelcomeScreen() {
         {activeIndex < slides.length - 1 && (
           <View style={styles.navRow}>
             <AppButton
-              title="Atrás"
+              title={t('welcomeBack')}
               variant="secondary"
               disabled={activeIndex === 0}
               onPress={previous}
-              accessibilityLabel="Ver slide anterior"
+              accessibilityLabel={t('welcomeBack')}
             />
             <AppButton
-              title="Siguiente"
+              title={t('welcomeNext')}
               onPress={next}
-              accessibilityLabel="Ver siguiente slide"
+              accessibilityLabel={t('welcomeNext')}
             />
           </View>
         )}
@@ -232,11 +212,11 @@ export default function WelcomeScreen() {
                 onPress={() => setLangModalVisible(false)}
                 style={styles.modalIconBtn}
                 accessibilityRole="button"
-                accessibilityLabel="Cerrar selector de idioma"
+                accessibilityLabel={t('close')}
               >
                 <MaterialCommunityIcons name="close" size={24} color={colors.primary} />
               </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: colors.primary }]}>Selecciona idioma</Text>
+              <Text style={[styles.modalTitle, { color: colors.primary }]}>{t('profileSelectLang')}</Text>
             </View>
             <FlatList
               data={SUPPORTED_LANGUAGES}

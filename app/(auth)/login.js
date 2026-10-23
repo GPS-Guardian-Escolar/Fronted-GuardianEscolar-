@@ -2,8 +2,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { ActivityIndicator, Button, Checkbox, Text, TextInput } from 'react-native-paper';
+import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Button, Checkbox, Surface, Text, TextInput } from 'react-native-paper';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -11,12 +11,13 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { storage } from '../../utils/storage';
 import { isValidEmail } from '../../utils/validators';
 import { AppTouch } from '../../theme/tokens';
+import { SUPPORTED_LANGUAGES } from '../../translations';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { login } = useAuth();
-  const { t } = useLanguage();
+  const { t, lang, setLanguage } = useLanguage();
   const { theme } = useTheme();
   const colors = theme.colors;
 
@@ -26,6 +27,7 @@ export default function LoginScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [secureText, setSecureText] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
+  const [languageModalVisible, setLanguageModalVisible] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -67,11 +69,11 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     setErrorMsg('');
     if (!email.trim() || !password) {
-      setErrorMsg(t('authRequiredFields'));
+      setErrorMsg('authRequiredFields');
       return;
     }
     if (!isValidEmail(email)) {
-      setErrorMsg(t('authInvalidEmail'));
+      setErrorMsg('authInvalidEmail');
       return;
     }
 
@@ -80,7 +82,7 @@ export default function LoginScreen() {
       const normalizedEmail = email.trim().toLowerCase();
       const result = await login(normalizedEmail, password);
       if (result?.requiresDeviceConfirmation) {
-        setErrorMsg(result.message);
+        setErrorMsg('authDeviceConfirmRequired');
         return;
       }
       if (rememberMe) {
@@ -100,7 +102,15 @@ export default function LoginScreen() {
         });
       }
     } catch (error) {
-      setErrorMsg(error.message || t('authInvalidCredentials'));
+      if (error.code === 'AUTH_NETWORK_TIMEOUT' || error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+        setErrorMsg('authConnectionTimeout');
+      } else if (error.code === 'AUTH_NETWORK_ERROR' || !error.response) {
+        setErrorMsg('authConnectionFailed');
+      } else if (error.response.status >= 500) {
+        setErrorMsg('authServerUnavailable');
+      } else {
+        setErrorMsg('authInvalidCredentials');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -117,8 +127,17 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       <View style={styles.topBar}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={t('back')}>
           <MaterialCommunityIcons name="arrow-left" size={28} color={colors.primary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.languageButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+          onPress={() => setLanguageModalVisible(true)}
+          accessibilityRole="button"
+          accessibilityLabel={t('profileSelectLang')}
+        >
+          <MaterialCommunityIcons name="web" size={20} color={colors.primary} />
+          <Text style={[styles.languageButtonText, { color: colors.primary }]}>{lang.toUpperCase()}</Text>
         </TouchableOpacity>
       </View>
 
@@ -171,7 +190,7 @@ export default function LoginScreen() {
                     <View style={styles.checkboxContainer}>
                       <Checkbox status={rememberMe ? 'checked' : 'unchecked'} onPress={handleRememberToggle} color={colors.primary} />
                       <TouchableOpacity onPress={handleRememberToggle}>
-                        <Text style={[styles.checkboxLabel, { color: colors.text }]}>Recordarme</Text>
+                        <Text style={[styles.checkboxLabel, { color: colors.text }]}>{t('authRemember')}</Text>
                       </TouchableOpacity>
                     </View>
                     <TouchableOpacity
@@ -185,7 +204,7 @@ export default function LoginScreen() {
 
                   {errorMsg ? (
                     <View style={[styles.errorBox, { backgroundColor: colors.errorLight, borderColor: colors.error }]}>
-                      <Text style={[styles.errorBoxText, { color: colors.error }]}>{errorMsg}</Text>
+                      <Text style={[styles.errorBoxText, { color: colors.error }]}>{t(errorMsg)}</Text>
                     </View>
                   ) : null}
 
@@ -226,12 +245,44 @@ export default function LoginScreen() {
         ]}
         onPress={() => router.push({ pathname: '/scan-qr', params: { relink: '1' } })}
         accessibilityRole="button"
-        accessibilityLabel="Escanear código QR del acudiente"
-        accessibilityHint="Abre la pantalla para escanear el QR o ingresar el código manualmente"
+          accessibilityLabel={t('authStudentQr')}
+          accessibilityHint={t('authStudentQrHint')}
       >
         <MaterialCommunityIcons name="qrcode-scan" size={24} color={colors.textOnPrimary} />
-        <Text style={[styles.studentQrFabText, { color: colors.textOnPrimary }]}>Soy estudiante</Text>
+        <Text style={[styles.studentQrFabText, { color: colors.textOnPrimary }]}>{t('authStudentQr')}</Text>
       </TouchableOpacity>
+
+      <Modal visible={languageModalVisible} transparent animationType="fade" onRequestClose={() => setLanguageModalVisible(false)}>
+        <View style={[styles.languageOverlay, { backgroundColor: colors.overlay }]}>
+          <Surface style={[styles.languageSheet, { backgroundColor: colors.surface, borderColor: colors.border }]} elevation={5}>
+            <View style={styles.languageHeader}>
+              <Text style={[styles.languageTitle, { color: colors.primary }]}>{t('profileSelectLang')}</Text>
+              <TouchableOpacity onPress={() => setLanguageModalVisible(false)} accessibilityRole="button" accessibilityLabel={t('close')}>
+                <MaterialCommunityIcons name="close" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            {SUPPORTED_LANGUAGES.map(item => {
+              const selected = item.code === lang;
+              return (
+                <TouchableOpacity
+                  key={item.code}
+                  style={[styles.languageOption, { backgroundColor: colors.surfaceSecondary, borderColor: selected ? colors.accent : colors.border }]}
+                  onPress={() => {
+                    setLanguage(item.code);
+                    setLanguageModalVisible(false);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                >
+                  <Text style={styles.languageFlag}>{item.flag}</Text>
+                  <Text style={[styles.languageOptionText, { color: selected ? colors.primary : colors.text }]}>{t(({ es: 'langEs', en: 'langEn', fr: 'langFr', pt: 'langPt' })[item.code])}</Text>
+                  {selected && <MaterialCommunityIcons name="check-circle" size={20} color={colors.accent} />}
+                </TouchableOpacity>
+              );
+            })}
+          </Surface>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -242,12 +293,21 @@ const styles = StyleSheet.create({
   topBar: {
     width: '100%',
     flexDirection: 'row',
-    justifyContent: 'flex-start',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 10,
     zIndex: 10,
   },
   backButton: { padding: 8 },
+  languageButton: { minHeight: AppTouch.min, minWidth: AppTouch.min, borderWidth: 1, borderRadius: 999, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 5, paddingHorizontal: 10 },
+  languageButtonText: { fontSize: 12, fontWeight: '700' },
+  languageOverlay: { flex: 1, justifyContent: 'center', padding: 24 },
+  languageSheet: { width: '100%', maxWidth: 420, alignSelf: 'center', borderWidth: 1, borderRadius: 16, padding: 16 },
+  languageHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 12, marginBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#CBD5E1' },
+  languageTitle: { fontSize: 18, fontWeight: '700' },
+  languageOption: { minHeight: AppTouch.min, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center' },
+  languageFlag: { fontSize: 20, marginRight: 10 },
+  languageOptionText: { flex: 1, fontSize: 14, fontWeight: '600' },
   scrollContent: { flexGrow: 1, justifyContent: 'center', paddingBottom: 96 },
   cardWrapper: { width: '100%', alignItems: 'center', padding: 20, alignSelf: 'center' },
   headerLogo: { width: 120, height: 120, marginBottom: 6 },

@@ -87,4 +87,8 @@ export const studentService = {
     });
     return response.data;
   },
+
+  revokeGuardian: async (studentId, guardianUserId) => {
+    await api.delete(`/students/${studentId}/guardians/${guardianUserId}`);
+  },
 };

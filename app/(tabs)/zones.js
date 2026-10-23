@@ -124,7 +124,7 @@ export default function ZonesScreen() {
       loadData().catch((error) => {
         setStudents([]);
         setSelectedStudent(null);
-        Alert.alert(t('error'), error.message || 'No se pudieron cargar los estudiantes.');
+        Alert.alert(t('error'), error.message || t('zonesStudentsLoadFail'));
       });
     }, [loadData, t])
   );
@@ -144,23 +144,23 @@ export default function ZonesScreen() {
   async function handleSaveZone() {
     const radius = parseRadiusMeters(form.radius);
     if (!String(form.name || '').trim()) {
-      Alert.alert(t('zonesRequiredFields'), 'Por favor completa el nombre de la zona.');
+      Alert.alert(t('zonesRequiredFields'), t('zonesEnterName'));
       return;
     }
     if (!String(form.address || '').trim()) {
-      Alert.alert(t('zonesRequiredFields'), 'Por favor completa la dirección de la zona.');
+      Alert.alert(t('zonesRequiredFields'), t('zonesEnterAddress'));
       return;
     }
     if (form.name.trim().length < 2 || form.name.trim().length > 100) {
-      Alert.alert(t('zonesRequiredFields'), 'El nombre de la zona debe tener entre 2 y 100 caracteres.');
+      Alert.alert(t('zonesRequiredFields'), t('zonesNameLength'));
       return;
     }
     if (form.address.trim().length < 5 || form.address.trim().length > 160) {
-      Alert.alert(t('zonesRequiredFields'), 'La dirección debe tener entre 5 y 160 caracteres.');
+      Alert.alert(t('zonesRequiredFields'), t('zonesAddressLength'));
       return;
     }
     if (!Number.isInteger(radius) || radius < 5 || radius > 50000) {
-      Alert.alert(t('zonesRequiredFields'), 'El radio debe ser un numero entre 5 y 50000 metros.');
+      Alert.alert(t('zonesRequiredFields'), t('zonesRadiusRange'));
       return;
     }
     const payload = normalizeZoneForm(form);
@@ -173,9 +173,9 @@ export default function ZonesScreen() {
       }
       await loadData();
       setModalVisible(false);
-      Alert.alert('Zona guardada', 'La zona fue geocodificada y guardada correctamente.');
+      Alert.alert(t('zonesSavedTitle'), t('zonesSavedMessage'));
     } catch (error) {
-      Alert.alert('No se pudo guardar la zona', requestErrorMessage(error, 'Verifica la dirección y el radio e inténtalo de nuevo.'));
+      Alert.alert(t('zonesSaveFailed'), requestErrorMessage(error, t('zonesVerifyAddressRadius')));
     } finally {
       setLoading(false);
     }
@@ -269,20 +269,20 @@ export default function ZonesScreen() {
       return;
     }
     if (routeForm.name.trim().length < 2 || routeForm.name.trim().length > 100) {
-      Alert.alert(t('zonesRequiredFields'), 'El nombre de la ruta debe tener entre 2 y 100 caracteres.');
+      Alert.alert(t('zonesRequiredFields'), t('zonesRouteNameLength'));
       return;
     }
     if (routeForm.start.trim().length < 3 || routeForm.start.trim().length > 160) {
-      Alert.alert(t('zonesRequiredFields'), 'El punto inicial debe tener entre 3 y 160 caracteres.');
+      Alert.alert(t('zonesRequiredFields'), t('zonesRouteStartLength'));
       return;
     }
     if (routeForm.end.trim().length < 3 || routeForm.end.trim().length > 160) {
-      Alert.alert(t('zonesRequiredFields'), 'El punto final debe tener entre 3 y 160 caracteres.');
+      Alert.alert(t('zonesRequiredFields'), t('zonesRouteEndLength'));
       return;
     }
     const payload = { ...normalizeRouteForm(routeForm), routePoints };
     if (isDuplicateRoute(payload, currentRoutes, editingRoute?.id)) {
-      Alert.alert('Ruta duplicada', 'Ya existe una ruta con el mismo nombre, origen y destino para este estudiante.');
+      Alert.alert(t('zonesDuplicateRouteTitle'), t('zonesDuplicateRouteMessage'));
       return;
     }
     setLoading(true);
@@ -294,9 +294,9 @@ export default function ZonesScreen() {
       }
       await loadData();
       setModalRouteVisible(false);
-      Alert.alert('Ruta guardada', 'La ruta fue geocodificada y guardada correctamente.');
+      Alert.alert(t('zonesRouteSavedTitle'), t('zonesRouteSavedMessage'));
     } catch (error) {
-      Alert.alert('No se pudo guardar la ruta', requestErrorMessage(error, 'Verifica los puntos inicial y final e inténtalo de nuevo.'));
+      Alert.alert(t('zonesRouteSaveFailed'), requestErrorMessage(error, t('zonesVerifyRoutePoints')));
     } finally {
       setLoading(false);
     }
@@ -319,7 +319,7 @@ export default function ZonesScreen() {
       }
       await loadData();
     } catch (error) {
-      Alert.alert('No se pudo eliminar', requestErrorMessage(error, 'Inténtalo nuevamente.'));
+      Alert.alert(t('zonesDeleteFailed'), requestErrorMessage(error, t('tryAgain')));
     } finally {
       setLoading(false);
     }
@@ -550,7 +550,7 @@ export default function ZonesScreen() {
                     <View style={styles.zoneFooter}>
                       <TouchableOpacity style={[styles.viewBtn, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]} onPress={() => openRoutePreview(route)}>
                         <MaterialCommunityIcons name={'map-outline'} size={16} color={colors.primary} />
-                        <Text style={[styles.viewBtnText, { color: colors.primary }]}>Ver mapa</Text>
+                        <Text style={[styles.viewBtnText, { color: colors.primary }]}>{t('zonesViewMap')}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={[styles.editBtn, { backgroundColor: colors.primary }]} onPress={() => openEditRoute(route)}>
                         <Text style={[styles.editBtnText, { color: colors.textOnPrimary }]}>{t('live') === 'Live' ? 'Edit' : 'Editar'}</Text>
@@ -580,11 +580,11 @@ export default function ZonesScreen() {
             </Text>
             <View style={styles.deleteConfirmActions}>
               <TouchableOpacity style={[styles.cancelBtn, styles.deleteConfirmCancel, { borderColor: colors.border }]} onPress={() => setDeleteConfirmation(null)}>
-                <Text style={[styles.cancelBtnText, themed.textSecondary]}>Cancelar</Text>
+                <Text style={[styles.cancelBtnText, themed.textSecondary]}>{t('zonesCancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.deleteConfirmDelete, { backgroundColor: colors.error }]} onPress={handleConfirmDelete}>
                 <MaterialCommunityIcons name="trash-can-outline" size={18} color={colors.textOnPrimary} />
-                <Text style={[styles.deleteConfirmDeleteText, { color: colors.textOnPrimary }]}>Eliminar</Text>
+                <Text style={[styles.deleteConfirmDeleteText, { color: colors.textOnPrimary }]}>{t('zonesDelete')}</Text>
               </TouchableOpacity>
             </View>
           </Surface>
@@ -597,7 +597,7 @@ export default function ZonesScreen() {
             <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
               <View>
                 <Text style={[styles.modalTitle, themed.text]}>{routePreview?.name || 'Mapa de ruta'}</Text>
-                <Text style={[styles.routePreviewSubtitle, themed.textSecondary]}>Ruta completa por calles</Text>
+                <Text style={[styles.routePreviewSubtitle, themed.textSecondary]}>{t('zonesFullRouteByStreets')}</Text>
               </View>
               <IconButton icon="close" size={22} iconColor={colors.textSecondary} onPress={() => setRoutePreview(null)} />
             </View>
@@ -646,7 +646,7 @@ export default function ZonesScreen() {
                   </View>
                   <View style={styles.formHalf}>
                     <View style={styles.typeSelector}>
-                      <Text style={[styles.fieldLabel, themed.textSecondary]}>Tipo de zona</Text>
+                      <Text style={[styles.fieldLabel, themed.textSecondary]}>{t('zonesType')}</Text>
                       <View style={styles.typeRow}>
                         {['Casa', 'Escuela', 'Personalizado'].map(t => {
                           const isActive = form.type === t;
@@ -673,7 +673,7 @@ export default function ZonesScreen() {
               </ScrollView>
               <View style={[styles.modalFooter, { borderTopColor: colors.border }]}>
                 <TouchableOpacity style={[styles.cancelBtn, { borderColor: colors.border }]} onPress={() => setModalVisible(false)}>
-                  <Text style={[styles.cancelBtnText, themed.textSecondary]}>Cancelar</Text>
+                  <Text style={[styles.cancelBtnText, themed.textSecondary]}>{t('zonesCancel')}</Text>
                 </TouchableOpacity>
                 {editingZone && (
                   <TouchableOpacity 
@@ -683,7 +683,7 @@ export default function ZonesScreen() {
                       confirmDeleteZone(editingZone);
                     }}
                   >
-                    <Text style={[styles.deleteBtnText, { color: colors.onError }]}>Eliminar</Text>
+                    <Text style={[styles.deleteBtnText, { color: colors.onError }]}>{t('zonesDelete')}</Text>
                   </TouchableOpacity>
                 )}
                 <Button 
@@ -713,16 +713,16 @@ export default function ZonesScreen() {
               <ScrollView style={styles.routeModalBody} contentContainerStyle={styles.routeModalBodyContent} showsVerticalScrollIndicator>
                {currentZones.length > 0 && (
                  <View style={styles.routeZonePicker}>
-                   <Text style={[styles.routeZonePickerTitle, themed.text]}>Usar una zona existente en la ruta</Text>
+                   <Text style={[styles.routeZonePickerTitle, themed.text]}>{t('zonesUseExisting')}</Text>
                    <View style={styles.routeZoneList}>
                      {currentZones.map(zone => (
                        <View key={zone.id} style={[styles.routeZoneRow, themed.surfaceSecondary, { borderColor: colors.border }]}>
                          <Text style={[styles.routeZoneName, themed.text]} numberOfLines={1}>{zone.name}</Text>
                          <TouchableOpacity style={[styles.routeZoneAction, { backgroundColor: colors.accent }]} onPress={() => selectZoneForRoute(zone, 'origin')}>
-                           <Text style={[styles.routeZoneActionText, { color: colors.textOnAccent }]}>Inicio</Text>
+                           <Text style={[styles.routeZoneActionText, { color: colors.textOnAccent }]}>{t('zonesStart')}</Text>
                          </TouchableOpacity>
                          <TouchableOpacity style={[styles.routeZoneAction, { backgroundColor: colors.primary }]} onPress={() => selectZoneForRoute(zone, 'destination')}>
-                           <Text style={[styles.routeZoneActionText, { color: colors.textOnPrimary }]}>Destino</Text>
+                           <Text style={[styles.routeZoneActionText, { color: colors.textOnPrimary }]}>{t('zonesDestination')}</Text>
                          </TouchableOpacity>
                        </View>
                      ))}
@@ -756,7 +756,7 @@ export default function ZonesScreen() {
                 </View>
                 
                 <View style={styles.fieldGroup}>
-                  <Text style={[styles.fieldLabel, themed.textSecondary]}>Estudiante</Text>
+                  <Text style={[styles.fieldLabel, themed.textSecondary]}>{t('studTitle')}</Text>
                   <TextInput 
                     style={[styles.input, themed.surfaceSecondary, { color: colors.textSecondary }]} 
                     value={selectedStudent?.nombre} 
@@ -767,7 +767,7 @@ export default function ZonesScreen() {
               </ScrollView>
               <View style={[styles.modalFooter, { borderTopColor: colors.border }]}>
                 <TouchableOpacity style={[styles.cancelBtn, { borderColor: colors.border }]} onPress={() => setModalRouteVisible(false)}>
-                  <Text style={[styles.cancelBtnText, themed.textSecondary]}>Cancelar</Text>
+                  <Text style={[styles.cancelBtnText, themed.textSecondary]}>{t('zonesCancel')}</Text>
                 </TouchableOpacity>
                 {editingRoute && (
                   <TouchableOpacity 
@@ -777,7 +777,7 @@ export default function ZonesScreen() {
                       confirmDeleteRoute(editingRoute);
                     }}
                   >
-                    <Text style={[styles.deleteBtnText, { color: colors.onError }]}>Eliminar</Text>
+                    <Text style={[styles.deleteBtnText, { color: colors.onError }]}>{t('zonesDelete')}</Text>
                   </TouchableOpacity>
                 )}
                 <Button 

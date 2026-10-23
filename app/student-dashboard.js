@@ -6,6 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { studentService } from '../services/student.service';
 import { trackingService } from '../services/tracking.service';
@@ -30,21 +31,11 @@ import TripMap from '../features/child/components/TripMap';
 
 const DEVICE_ID_KEY = '@guardian_student_device_id';
 
-const GRADE_LABELS = {
-  PRE_KINDER: 'Pre Kinder',
-  KINDER: 'Kinder',
-  TRANSITION: 'Transicion',
-  FIRST: 'Primero',
-  SECOND: 'Segundo',
-  THIRD: 'Tercero',
-  FOURTH: 'Cuarto',
-  FIFTH: 'Quinto',
-  SIXTH: 'Sexto',
-  SEVENTH: 'Septimo',
-  EIGHTH: 'Octavo',
-  NINTH: 'Noveno',
-  TENTH: 'Decimo',
-  ELEVENTH: 'Undecimo',
+const GRADE_KEYS = {
+  PRE_KINDER: 'gradePreKinder', KINDER: 'gradeKinder', TRANSITION: 'gradeTransition',
+  FIRST: 'gradeFirst', SECOND: 'gradeSecond', THIRD: 'gradeThird', FOURTH: 'gradeFourth',
+  FIFTH: 'gradeFifth', SIXTH: 'gradeSixth', SEVENTH: 'gradeSeventh', EIGHTH: 'gradeEighth',
+  NINTH: 'gradeNinth', TENTH: 'gradeTenth', ELEVENTH: 'gradeEleventh',
 };
 
 async function getStudentDeviceId() {
@@ -77,18 +68,20 @@ export default function StudentDashboardScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const { theme } = useTheme();
   const colors = theme.colors;
   const insets = useSafeAreaInsets();
   const [studentProfile, setStudentProfile] = React.useState(null);
   
   // Datos del estudiante
-  const studentName = studentProfile?.fullName || studentProfile?.nombreCompleto || params.nombre || 'Estudiante';
-  const studentAge = calculateAge(studentProfile?.birthDate || studentProfile?.fechaNacimiento) || params.edad || 'No especificada';
-  const studentGrade = GRADE_LABELS[studentProfile?.schoolGrade || studentProfile?.gradoEscolar] || params.grado || 'No especificado';
+  const studentName = studentProfile?.fullName || studentProfile?.nombreCompleto || params.nombre || t('studentLabel');
+  const studentAge = calculateAge(studentProfile?.birthDate || studentProfile?.fechaNacimiento) || params.edad || t('notSpecified');
+  const studentGradeCode = studentProfile?.schoolGrade || studentProfile?.gradoEscolar;
+  const studentGrade = (studentGradeCode && GRADE_KEYS[studentGradeCode] && t(GRADE_KEYS[studentGradeCode])) || params.grado || t('notSpecified');
   const [storedSession, setStoredSession] = React.useState({ childToken: '', studentId: '', activeTripId: '' });
-  const studentId = params.id || storedSession.studentId || 'No asignado';
-  const studentCode = params.codigo || 'No asignado';
+  const studentId = params.id || storedSession.studentId || t('studNotAssigned');
+  const studentCode = params.codigo || t('studNotAssigned');
   const [linkStatus, setLinkStatus] = React.useState('idle');
   const [linkedCount, setLinkedCount] = React.useState(null);
   const [linkError, setLinkError] = React.useState('');
@@ -100,7 +93,7 @@ export default function StudentDashboardScreen() {
   const [sentCount, setSentCount] = React.useState(0);
 
   // Datos del contacto de emergencia enviados por el QR.
-  const parentName = studentProfile?.contactName || studentProfile?.contactoNombre || params.contacto || user?.name || 'No registrado';
+  const parentName = studentProfile?.contactName || studentProfile?.contactoNombre || params.contacto || user?.name || t('notRegistered');
   const parentPhone = studentProfile?.contactPhone || studentProfile?.contactoTelefono || params.telefono || user?.phone || '';
 
   React.useEffect(() => {
@@ -351,7 +344,7 @@ export default function StudentDashboardScreen() {
       setActiveTripId('');
       setTrackingStatus('paused');
     } catch (error) {
-      Alert.alert('No se pudo finalizar', error.message || 'Intenta nuevamente para detener el rastreo.');
+      Alert.alert(t('error'), error.message || t('studentStopTrackingError'));
     } finally {
       setTrackingLoading(false);
     }
@@ -359,26 +352,26 @@ export default function StudentDashboardScreen() {
 
   const confirmFinishTracking = () => {
     Alert.alert(
-      'Finalizar trayecto',
-      '¿Seguro que quieres detener el envío de ubicación?',
+      t('studentFinishTrip'),
+      t('studentConfirmFinishTrip'),
       [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Finalizar', style: 'destructive', onPress: finishTracking },
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('studentFinishTrip'), style: 'destructive', onPress: finishTracking },
       ]
     );
   };
 
   const callEmergencyContact = async () => {
     const phoneDigits = String(parentPhone).replace(/[^\d+]/g, '');
-    if (!phoneDigits || phoneDigits === 'No registrado') {
-      Alert.alert('Contacto no disponible', 'Este QR no tiene un teléfono de emergencia válido.');
+    if (!phoneDigits || phoneDigits === t('notRegistered')) {
+      Alert.alert(t('studentContactUnavailable'), t('studentQrNoEmergencyPhone'));
       return;
     }
 
     const phoneUrl = `tel:${phoneDigits}`;
     const supported = await Linking.canOpenURL(phoneUrl);
     if (!supported) {
-      Alert.alert('No se puede llamar', 'Este dispositivo no permite abrir llamadas telefonicas.');
+      Alert.alert(t('studentCannotCall'), t('studentDeviceCannotCall'));
       return;
     }
     await Linking.openURL(phoneUrl);
@@ -413,12 +406,12 @@ export default function StudentDashboardScreen() {
                     { color: linkStatus === 'linked' ? colors.success : colors.error },
                   ]}
                 >
-                  {linkStatus === 'linked' ? 'Celular conectado al estudiante' : 'No se pudo conectar este celular'}
+                  {linkStatus === 'linked' ? t('studentPhoneLinked') : t('studentPhoneLinkFailed')}
                 </Text>
                 <Text style={styles.connectionSubtitle}>
                   {linkStatus === 'linked'
-                    ? `Este celular ya puede enviar ubicación. Dispositivos vinculados: ${linkedCount ?? 1}.`
-                    : linkError || 'Verifica que el QR sea válido o vuelve a escanearlo.'}
+                    ? `${t('studentPhoneCanSendLocation')} ${t('studentLinkedDevices')}: ${linkedCount ?? 1}.`
+                    : linkError || t('studentVerifyQr')}
                 </Text>
                 {linkStatus === 'error' && (
                   <Text style={styles.connectionDebug} numberOfLines={1}>
@@ -448,30 +441,30 @@ export default function StudentDashboardScreen() {
           <Surface style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]} elevation={2}>
             <View style={styles.cardHeader}>
               <MaterialCommunityIcons name="account" size={24} color={colors.primary} />
-              <Text style={[styles.cardTitle, { color: colors.text }]}>Mi información</Text>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>{t('studentMyInfo')}</Text>
             </View>
 
             <View style={styles.infoRow}>
               <View style={styles.infoColFull}>
-                <Text style={[styles.label, { color: colors.textMuted }]}>Nombre Completo</Text>
+                <Text style={[styles.label, { color: colors.textMuted }]}>{t('studName')}</Text>
                 <Text style={[styles.value, { color: colors.text }]}>{studentName}</Text>
               </View>
             </View>
 
             <View style={styles.infoRow}>
               <View style={styles.infoCol}>
-                <Text style={[styles.label, { color: colors.textMuted }]}>Edad</Text>
+                <Text style={[styles.label, { color: colors.textMuted }]}>{t('studAge')}</Text>
                 <Text style={[styles.value, { color: colors.text }]}>{studentAge}</Text>
               </View>
               <View style={styles.infoCol}>
-                <Text style={[styles.label, { color: colors.textMuted }]}>Grado</Text>
+                <Text style={[styles.label, { color: colors.textMuted }]}>{t('studGrade')}</Text>
                 <Text style={[styles.value, { color: colors.text }]}>{studentGrade}</Text>
               </View>
             </View>
 
             <View style={[styles.idBox, { backgroundColor: colors.surfaceSecondary }]}>
-              <Text style={[styles.idText, { color: colors.textSecondary }]}>ID Estudiante: {studentId}</Text>
-              <Text style={[styles.idText, { color: colors.textSecondary }]}>Código QR: {studentCode}</Text>
+              <Text style={[styles.idText, { color: colors.textSecondary }]}>{t('studentId')}: {studentId}</Text>
+              <Text style={[styles.idText, { color: colors.textSecondary }]}>{t('studentQrCode')}: {studentCode}</Text>
             </View>
           </Surface>
 
@@ -479,18 +472,18 @@ export default function StudentDashboardScreen() {
           <Surface style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]} elevation={2}>
             <View style={styles.cardHeader}>
               <MaterialCommunityIcons name="phone" size={24} color={colors.textSecondary} />
-              <Text style={[styles.cardTitle, { color: colors.text }]}>Contacto de Emergencia</Text>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>{t('studEmergencyContact')}</Text>
             </View>
 
             <View style={styles.inputSim}>
-              <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Nombre Completo</Text>
+              <Text style={[styles.inputLabel, { color: colors.textMuted }]}>{t('studContactName')}</Text>
               <View style={[styles.inputField, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
                 <Text style={[styles.inputValue, { color: colors.text }]}>{parentName}</Text>
               </View>
             </View>
 
             <View style={styles.inputSim}>
-              <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Telefono</Text>
+              <Text style={[styles.inputLabel, { color: colors.textMuted }]}>{t('studContactPhone')}</Text>
               <View style={[styles.inputField, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
                 <Text style={[styles.inputValue, { color: colors.primary }]}>{parentPhone}</Text>
               </View>
@@ -504,7 +497,7 @@ export default function StudentDashboardScreen() {
               disabled={!parentPhone}
               onPress={callEmergencyContact}
             >
-              Llamar Emergencia
+              {t('studentCallEmergency')}
             </Button>
           </Surface>
 
@@ -512,25 +505,25 @@ export default function StudentDashboardScreen() {
           <Surface style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]} elevation={2}>
             <View style={styles.cardHeader}>
               <MaterialCommunityIcons name="target" size={24} color={colors.error} />
-              <Text style={[styles.cardTitle, { color: colors.text }]}>¿Como funciona el rastreo?</Text>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>{t('studentHowTrackingWorks')}</Text>
             </View>
 
             <View style={styles.bulletList}>
               <View style={styles.bulletRow}>
                 <Text style={[styles.bulletDot, { color: colors.textSecondary }]}>•</Text>
-                <Text style={[styles.bulletText, { color: colors.textSecondary }]}>La aplicación envía tu ubicación en segundo plano automáticamente</Text>
+                <Text style={[styles.bulletText, { color: colors.textSecondary }]}>{t('studentTrackingBackground')}</Text>
               </View>
               <View style={styles.bulletRow}>
                 <Text style={[styles.bulletDot, { color: colors.textSecondary }]}>•</Text>
-                <Text style={[styles.bulletText, { color: colors.textSecondary }]}>Solo tus padres pueden ver dónde estás</Text>
+                <Text style={[styles.bulletText, { color: colors.textSecondary }]}>{t('studentParentsOnly')}</Text>
               </View>
               <View style={styles.bulletRow}>
                 <Text style={[styles.bulletDot, { color: colors.textSecondary }]}>•</Text>
-                <Text style={[styles.bulletText, { color: colors.textSecondary }]}>Tus datos están protegidos con encriptación</Text>
+                <Text style={[styles.bulletText, { color: colors.textSecondary }]}>{t('studentDataEncrypted')}</Text>
               </View>
               <View style={styles.bulletRow}>
                 <Text style={[styles.bulletDot, { color: colors.textSecondary }]}>•</Text>
-                <Text style={[styles.bulletText, { color: colors.textSecondary }]}>No necesitas abrir la app, funciona automáticamente</Text>
+                <Text style={[styles.bulletText, { color: colors.textSecondary }]}>{t('studentRunsAutomatically')}</Text>
               </View>
             </View>
           </Surface>
