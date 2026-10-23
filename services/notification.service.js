@@ -71,6 +71,11 @@ export const notificationService = {
     return response.data;
   },
 
+  markAllAsRead: async () => {
+    const response = await api.patch('/notifications/read-all');
+    return response.data;
+  },
+
   getPreferences: async () => {
     const response = await api.get('/notifications/settings');
     return response.data;

@@ -216,17 +216,25 @@ export default function StudentDashboardScreen() {
       if (tripId && !active && Platform.OS !== 'web') {
         try {
           try {
-        await startBackgroundUpdates(tripId);
-      } catch (locationError) {
-        await trackingService.updateStatus(tripId, {
-          status: 'CANCELLED',
-          tripEndedAt: new Date().toISOString(),
-        }).catch(() => null);
-        throw locationError;
-      }
+            await startBackgroundUpdates(tripId);
+          } catch (locationError) {
+          try {
+            await trackingService.updateStatus(tripId, {
+              status: 'CANCELED',
+              tripEndedAt: new Date().toISOString(),
+            });
+          } catch (statusError) {
+            console.warn('No se pudo cancelar el trayecto tras fallar el rastreo:', statusError?.message || statusError);
+          }
+            throw locationError;
+          }
           if (mounted) setTrackingStatus('sharing');
         } catch (error) {
-          await stopBackgroundUpdates().catch(() => null);
+          try {
+            await stopBackgroundUpdates();
+          } catch (stopError) {
+            console.warn('No se pudo detener el rastreo tras un fallo:', stopError?.message || stopError);
+          }
           if (mounted) setPermissionError(error.message || 'No se pudo reanudar el rastreo.');
         }
       }
@@ -301,10 +309,14 @@ export default function StudentDashboardScreen() {
       try {
         await startBackgroundUpdates(tripId);
       } catch (locationError) {
-        await trackingService.updateStatus(tripId, {
-          status: 'CANCELLED',
-          tripEndedAt: new Date().toISOString(),
-        }).catch(() => null);
+        try {
+          await trackingService.updateStatus(tripId, {
+            status: 'CANCELED',
+            tripEndedAt: new Date().toISOString(),
+          });
+        } catch (statusError) {
+          console.warn('No se pudo cancelar el trayecto tras rechazar la ubicación:', statusError?.message || statusError);
+        }
         throw locationError;
       }
       const result = await flushQueue();
@@ -330,9 +342,9 @@ export default function StudentDashboardScreen() {
       const result = await flushQueue();
       if (activeTripId) {
         await trackingService.updateStatus(activeTripId, {
-          status: 'FINISHED',
+          status: 'COMPLETED',
           tripEndedAt: new Date().toISOString(),
-        }).catch(() => null);
+        });
       }
       setSentCount(count => count + result.sent);
       setQueueSize(result.remaining);
