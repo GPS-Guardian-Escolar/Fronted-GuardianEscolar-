@@ -10,7 +10,7 @@ import { authService } from '../../services/auth.service';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import LanguageSelector from '../../components/common/LanguageSelector';
-import { isValidEmail, normalizePhoneDigits, passwordChecks } from '../../utils/validators';
+import { isValidEmail, isValidPersonName, isValidPhone, normalizePhoneDigits, passwordChecks } from '../../utils/validators';
 
 const isWeb = Dimensions.get('window').width > 768;
 
@@ -68,7 +68,7 @@ export default function RegisterScreen() {
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('+57 ');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [secureText, setSecureText] = useState(true);
@@ -83,7 +83,7 @@ export default function RegisterScreen() {
   const reqs = passwordChecks(password, confirmPassword);
   const allReqsMet = Object.values(reqs).every(Boolean);
   const phoneDigits = normalizePhoneDigits(phone);
-  const isValidPhone = phoneDigits.length >= 10 && phoneDigits.length <= 15;
+  const phoneValid = isValidPhone(phone);
 
   // Booleans explícitos para evitar string vacío en render
   const showEmailError = email.length > 0 && !isValidEmail(email);
@@ -93,15 +93,15 @@ export default function RegisterScreen() {
   const handleRegister = async () => {
     setErrorMsg('');
 
-    if (name.trim().length < 2 || name.trim().length > 100) { setErrorMsg(t('authNameLength')); return; }
-    if (!isValidPhone) { setErrorMsg(t('authPhoneInvalid')); return; }
+    if (!isValidPersonName(name, { min: 2, max: 80 })) { setErrorMsg(t('authNameLength')); return; }
+    if (!phoneValid) { setErrorMsg(t('authPhoneInvalid')); return; }
     if (!isValidEmail(email)) { setErrorMsg(t('authInvalidEmail')); return; }
     if (!allReqsMet) { setErrorMsg(t('authPasswordRulesFailed')); return; }
     if (!acceptTerms) { setTermsModalVisible(true); return; }
 
     setIsSubmitting(true);
     try {
-      await authService.register({ name: name.trim(), email: email.trim(), password, phone: phone.trim(), acceptedTerms: true, termsVersion: TERMS_VERSION });
+      await authService.register({ name: name.trim(), email: email.trim(), password, phone: phoneDigits, acceptedTerms: true, termsVersion: TERMS_VERSION });
       Alert.alert(
         t('success'),
         t('authRegisterSuccess'),
@@ -145,15 +145,13 @@ export default function RegisterScreen() {
                 <TextInput
                   mode="outlined" value={phone}
                   onChangeText={(v) => {
-                    const digits = normalizePhoneDigits(v, 13);
-                    const withoutCountry = digits.startsWith('57') ? digits.slice(2) : digits;
-                    setPhone(`+57 ${withoutCountry}`);
+                    setPhone(normalizePhoneDigits(v, 10));
                   }}
                   keyboardType="phone-pad"
-                  outlineColor={phone.length > 4 && !isValidPhone ? colors.error : colors.border} activeOutlineColor={colors.primary}
+                  outlineColor={phone.length > 0 && !phoneValid ? colors.error : colors.border} activeOutlineColor={colors.primary}
                   style={[styles.input, { backgroundColor: colors.surfaceSecondary }]} textColor={colors.text} theme={{ roundness: 6 }}
                   left={<TextInput.Icon icon={({ size, color }) => <FieldSvgIcon type="phone" size={size} color={color} />} color={colors.textSecondary} />}
-                  placeholder="+57 300 123 4567"
+                  placeholder="300 123 4567"
                   placeholderTextColor={colors.textMuted}
                 />
               </View>

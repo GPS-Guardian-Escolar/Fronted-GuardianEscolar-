@@ -152,7 +152,6 @@ export default function TrackingScreen() {
           timestamp: new Date(point.recordedAt || point.createdAt || point.timestamp || 0).getTime(),
           accuracy: point.accuracy,
           recordedAt: point.recordedAt,
-          speedKmh: point.speedKmh,
         }))
         .filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && Number.isFinite(point.timestamp)));
       setJourneyCoordinates(validCoordinates.map(({ latitude, longitude }) => ({ latitude, longitude })));
@@ -166,7 +165,6 @@ export default function TrackingScreen() {
         longitude: latest.longitude,
         accuracy: latest.accuracy,
         recordedAt: latest.recordedAt,
-        speedKmh: latest.speedKmh,
       });
     } catch {
       // Conserva los datos visibles si la actualización puntual falla por red.
@@ -221,7 +219,6 @@ export default function TrackingScreen() {
           timestamp: new Date(point.recordedAt || point.createdAt || Date.now()).getTime(),
           accuracy: point.accuracy,
           recordedAt: point.recordedAt,
-          speedKmh: point.speedKmh,
         };
         if (!Number.isFinite(normalized.latitude) || !Number.isFinite(normalized.longitude)) return;
         setLocation(normalized);

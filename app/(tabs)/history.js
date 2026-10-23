@@ -116,8 +116,8 @@ export default function HistoryScreen() {
   });
 
   const getStatusColor = (item) => {
-    if (item.estado === 'En Proceso') return colors.primary;
     if (item.alerta || item.estado === 'Con Incidente') return colors.error;
+    if (item.estado === 'En Proceso') return colors.primary;
     if (item.advertencia) return colors.warning;
     return colors.accent;
   };

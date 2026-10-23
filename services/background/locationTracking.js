@@ -60,7 +60,6 @@ function normalizeCoordinate(location) {
     accuracy: coords.accuracy,
     altitude: coords.altitude,
     heading: coords.heading,
-    speed: coords.speed,
     recordedAt: new Date(location.timestamp || Date.now()).toISOString(),
   };
 }

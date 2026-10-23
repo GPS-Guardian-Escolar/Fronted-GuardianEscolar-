@@ -26,6 +26,7 @@ import StudentList from '../../features/students/components/StudentList';
 import { studentService } from '../../services/student.service';
 import { AppTouch, AppTypography } from '../../theme/tokens';
 import { addStudent, deleteStudent, getInitials, getStudents, normalizeGrade, updateStudent } from '../../utils/studentStorage';
+import { isValidPersonName } from '../../utils/validators';
 
 const { width } = Dimensions.get('window');
 const isWeb = width > 768;
@@ -211,7 +212,10 @@ export default function StudentScreen() {
         result?.emailSent ? t('studShareEmailSent') : t('studShareEmailNotSent'),
       );
     } catch (error) {
-      Alert.alert(t('error'), error.message || t('studShareError'));
+      const message = /email does not belong to a registered user/i.test(error.message || '')
+        ? t('studShareEmailNotRegistered')
+        : t('studShareError');
+      Alert.alert(t('error'), message);
     } finally {
       setShareLoading(false);
     }
@@ -303,8 +307,7 @@ export default function StudentScreen() {
     today.setHours(0, 0, 0, 0);
     const birthDate = parseValidBirthDate(form.fechaNacimiento);
 
-    if (name.length < 2) errors.nombre = 'El nombre debe tener al menos 2 caracteres.';
-    if (name.length > 100) errors.nombre = 'El nombre no puede superar 100 caracteres.';
+    if (!isValidPersonName(name, { min: 2, max: 80 })) errors.nombre = t('studNameInvalid');
     if (!form.grado.trim()) {
       errors.grado = 'Selecciona o escribe el grado escolar.';
     } else if (!normalizeGrade(form.grado)) {
@@ -334,6 +337,7 @@ export default function StudentScreen() {
     } else if (!/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ ]+$/.test(contactName)) {
       errors.contacto_nombre = 'El contacto solo debe tener letras y espacios.';
     }
+    if (!isValidPersonName(contactName, { min: 2, max: 80 })) errors.contacto_nombre = t('studContactNameInvalid');
     const phoneDigits = form.contacto_telefono.replace(/\D/g, '');
     if (!/^3\d{9}$/.test(phoneDigits)) {
       errors.contacto_telefono = 'Ingresa un celular colombiano válido de 10 dígitos, inicia por 3.';

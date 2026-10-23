@@ -12,8 +12,13 @@ export const isValidEmail = (email) => {
 export const normalizePhoneDigits = (phone, maxLength = 15) => String(phone || '').replace(/\D/g, '').slice(0, maxLength);
 
 export const isValidPhone = (phone) => {
-  const digits = normalizePhoneDigits(phone);
-  return digits.length >= 10 && digits.length <= 15;
+  return /^3\d{9}$/.test(normalizePhoneDigits(phone, 10));
+};
+
+export const isValidPersonName = (name, { min = 2, max = 80 } = {}) => {
+  const value = String(name || '').trim();
+  return value.length >= min && value.length <= max
+    && /^\p{L}[\p{L}\p{M}]*(?:[ '\u2019-][\p{L}\p{M}]+)*$/u.test(value);
 };
 
 export const passwordChecks = (password, confirmation = password) => ({

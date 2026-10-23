@@ -25,7 +25,7 @@ export default function WelcomeScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const { lang, setLanguage, t } = useLanguage();
-  const { theme } = useTheme();
+  const { theme, isDark, toggleTheme } = useTheme();
   const colors = theme.colors;
   const listRef = useRef(null);
   const fade = useRef(new Animated.Value(1)).current;
@@ -130,6 +130,14 @@ export default function WelcomeScreen() {
           accessibilityLabel={t('welcomeChangeLanguage')}
         >
           <MaterialCommunityIcons name="web" size={24} color={colors.primary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.topButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={toggleTheme}
+          accessibilityRole="button"
+          accessibilityLabel={t(isDark ? 'themeLight' : 'themeDark')}
+        >
+          <MaterialCommunityIcons name={isDark ? 'white-balance-sunny' : 'moon-waning-crescent'} size={22} color={colors.primary} />
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.skipButton, { backgroundColor: colors.surface, borderColor: colors.border }]}

@@ -10,7 +10,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { authService } from '../../services/auth.service';
 import { notificationService } from '../../services/notification.service';
 import { SUPPORTED_LANGUAGES } from '../../translations';
-import { isValidEmail, isValidPhone, passwordChecks } from '../../utils/validators';
+import { isValidEmail, isValidPersonName, isValidPhone, normalizePhoneDigits, passwordChecks } from '../../utils/validators';
 function ProfileField({ colors, label, value, onChangeText, editable = true, keyboardType = 'default', secureTextEntry = false }) {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const hidden = secureTextEntry && !passwordVisible;
@@ -77,6 +77,12 @@ export default function ProfileScreen() {
   const isWide = width >= 769;
   const appVersion = Constants.expoConfig?.version || '1.0.0';
   const currentLanguage = SUPPORTED_LANGUAGES.find(item => item.code === lang) || SUPPORTED_LANGUAGES[0];
+  const accountRole = (user?.roles || [user?.role || 'PARENT']).map(role => String(role).toUpperCase());
+  const accountRoleLabel = accountRole.some(role => ['ADMIN', 'ADMINISTRADOR'].includes(role))
+    ? t('profileAdmin')
+    : accountRole.some(role => ['STUDENT', 'ESTUDIANTE'].includes(role))
+      ? t('profileStudent')
+      : t('profileParentGuardian');
 
   const [notifBateria, setNotifBateria] = useState(true);
   const [notifEmail, setNotifEmail] = useState(true);
@@ -97,7 +103,7 @@ export default function ProfileScreen() {
   const [form, setForm] = useState({
     name: user?.name || '',
     email: user?.email || '',
-    phone: user?.phone || '',
+    phone: (() => { const digits = normalizePhoneDigits(user?.phone, 12); return digits.startsWith('57') && digits.length === 12 ? digits.slice(2) : digits; })(),
   });
   const [emailForm, setEmailForm] = useState({ currentPassword: '', nextEmail: form.email });
   const [passForm, setPassForm] = useState({ current: '', next: '', confirm: '' });
@@ -148,13 +154,14 @@ export default function ProfileScreen() {
   };
 
   const handleSaveProfile = async () => {
-    if (form.name.trim().length < 2 || form.name.trim().length > 100 || !isValidPhone(form.phone)) {
+    if (!isValidPersonName(form.name, { min: 2, max: 80 }) || !isValidPhone(form.phone)) {
       Alert.alert(t('error'), t('invalidInput'));
       return;
     }
     try {
-      await authService.updateProfile(user.email, form.name.trim(), form.phone.trim());
-      await updateUserInSession({ name: form.name.trim(), phone: form.phone.trim() });
+      const phone = normalizePhoneDigits(form.phone, 10);
+      await authService.updateProfile(user.email, form.name.trim(), phone);
+      await updateUserInSession({ name: form.name.trim(), phone });
       setIsEditing(false);
       Alert.alert(t('profileTitle'), t('profileUpdated'));
     } catch (error) {
@@ -181,7 +188,7 @@ export default function ProfileScreen() {
       setEmailForm({ currentPassword: '', nextEmail });
       Alert.alert(t('success'), t('profileUpdated'));
     } catch (error) {
-      setEmailError(error.message || t('profileUpdateFailed'));
+      setEmailError(/401|unauthorized|jwt|token/i.test(error.message || '') ? t('profileSessionExpired') : t('profileUpdateFailed'));
     }
   };
 
@@ -192,6 +199,10 @@ export default function ProfileScreen() {
     }
     if (!allPassReqsMet) {
       Alert.alert(t('profileSecurity'), t('profilePasswordRulesFailed'));
+      return;
+    }
+    if (passForm.next === passForm.current) {
+      Alert.alert(t('error'), t('profilePasswordMustDiffer'));
       return;
     }
     try {
@@ -213,7 +224,10 @@ export default function ProfileScreen() {
       Alert.alert(t('twoFACodeSent'), `${t('twoFACodeSentTo')} ${method === 'SMS' ? t('twoFASMS') : t('twoFAEmail')}.`);
       setTwoFAToken(challenge.twoFAToken || '');
     } catch (error) {
-      Alert.alert(t('error'), error.message || t('twoFAActivateFailed'));
+      const message = method === 'EMAIL' && /email delivery|mail|email/i.test(error.message || '')
+        ? t('twoFAEmailUnavailable')
+        : t('twoFAActivateFailed');
+      Alert.alert(t('error'), message);
     } finally {
       setTwoFASubmitting(false);
     }
@@ -308,7 +322,7 @@ export default function ProfileScreen() {
             <Avatar.Text size={60} label={form.name.substring(0, 2).toUpperCase()} style={{ backgroundColor: colors.primary }} color={colors.textOnPrimary} />
             <View style={styles.profileInputs}>
               <ProfileField colors={colors} label={t('profileName')} value={form.name} editable={isEditing} onChangeText={name => setForm(current => ({ ...current, name }))} />
-              <ProfileField colors={colors} label={t('profilePhone')} value={form.phone} editable={isEditing} keyboardType="phone-pad" onChangeText={phone => setForm(current => ({ ...current, phone }))} />
+              <ProfileField colors={colors} label={t('profilePhone')} value={form.phone} editable={isEditing} keyboardType="phone-pad" onChangeText={phone => setForm(current => ({ ...current, phone: normalizePhoneDigits(phone, 10) }))} />
               <View style={styles.inputWrap}>
                 <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{t('profileEmail')}</Text>
                 <View style={styles.emailRow}>
@@ -317,7 +331,7 @@ export default function ProfileScreen() {
                 </View>
               </View>
               {isEditing && (
-                <Button mode="text" textColor={colors.textSecondary} onPress={() => { setIsEditing(false); setForm({ name: user?.name || form.name, email: user?.email || form.email, phone: user?.phone || form.phone }); }}>
+                <Button mode="text" textColor={colors.textSecondary} onPress={() => { const digits = normalizePhoneDigits(user?.phone, 12); setIsEditing(false); setForm({ name: user?.name || form.name, email: user?.email || form.email, phone: digits.startsWith('57') && digits.length === 12 ? digits.slice(2) : digits }); }}>
                   {t('profileCancel')}
                 </Button>
               )}
@@ -382,7 +396,7 @@ export default function ProfileScreen() {
           <View style={[styles.infoRow, { backgroundColor: colors.surfaceSecondary }]}>
             <Text style={[styles.settingLabel, { color: colors.text }]}>{t('profileAccountType')}</Text>
             <View style={[styles.badgeGreen, { backgroundColor: colors.accentLight }]}>
-              <Text style={[styles.badgeGreenText, { color: colors.accent }]}>{t('profileParentGuardian')}</Text>
+              <Text style={[styles.badgeGreenText, { color: colors.accent }]}>{accountRoleLabel}</Text>
             </View>
           </View>
         </Surface>
@@ -459,7 +473,7 @@ export default function ProfileScreen() {
                     <MaterialCommunityIcons name="email-outline" size={20} color={colors.primary} />
                     <Text style={[styles.twoFAMethodText, { color: colors.text }]}>{t('twoFAEmail')}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.twoFAMethodBtn, { borderColor: twoFAMethod === 'SMS' ? colors.primary : colors.border, backgroundColor: colors.surfaceSecondary }]} onPress={() => handleRequest2FA('SMS')}>
+                  <TouchableOpacity disabled={!smsDisponible || twoFASubmitting} style={[styles.twoFAMethodBtn, { borderColor: twoFAMethod === 'SMS' ? colors.primary : colors.border, backgroundColor: colors.surfaceSecondary, opacity: smsDisponible ? 1 : 0.5 }]} onPress={() => handleRequest2FA('SMS')}>
                     <MaterialCommunityIcons name="cellphone-message" size={20} color={colors.primary} />
                     <Text style={[styles.twoFAMethodText, { color: colors.text }]}>{t('twoFASMS')}</Text>
                   </TouchableOpacity>
