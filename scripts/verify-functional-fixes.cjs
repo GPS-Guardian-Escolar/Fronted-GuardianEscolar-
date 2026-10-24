@@ -50,6 +50,8 @@ async function main() {
   assert.equal(validators.isValidPersonName('A'), false);
   assert.equal(validators.isValidPersonName('Ab', { min: 3, max: 60 }), false);
   assert.equal(validators.isValidPersonName('Ana', { min: 3, max: 60 }), true);
+  assert.equal(validators.isValidPersonName('aaa', { min: 3, max: 60 }), false);
+  assert.equal(validators.isValidPersonName('Alberto', { min: 3, max: 60 }), true);
   assert.equal(validators.isValidPersonName('A'.repeat(61)), false);
   assert.equal(validators.isValidPersonName('Ana123'), false);
   assert.equal(validators.isValidPersonName('Anaaaaa'), false);

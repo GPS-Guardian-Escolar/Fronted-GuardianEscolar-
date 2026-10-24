@@ -30,7 +30,7 @@ export const isValidPhone = (phone) => {
 export const isValidPersonName = (name, { min = 2, max = 60 } = {}) => {
   const value = String(name || '').trim();
   return value.length >= min && value.length <= max
-    && !/(\p{L})\1{3}/iu.test(value)
+    && !/(\p{L})\1{2}/iu.test(value)
     && /^\p{L}[\p{L}\p{M}]*(?:[ '\u2019-][\p{L}\p{M}]+)*$/u.test(value);
 };
 
