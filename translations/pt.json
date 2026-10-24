@@ -111,8 +111,8 @@
   "studShareLoadError": "Nao foi possivel carregar os acessos.",
   "studShareError": "Nao foi possivel compartilhar o acesso.",
   "studShareEmailNotRegistered": "Este e-mail não está cadastrado. Verifique o endereço ou peça à pessoa para criar uma conta.",
-  "studNameInvalid": "Digite um nome de 2 a 80 letras. Espaços, acentos e hífens são permitidos.",
-  "studContactNameInvalid": "Digite um contato de emergencia com 2 a 80 letras, sem numeros.",
+  "studNameInvalid": "Digite um nome de 2 a 60 letras. Espaços, acentos e hífens são permitidos.",
+  "studContactNameInvalid": "Digite um contato de emergencia com 2 a 60 letras, sem numeros.",
   "studReviewFields": "Revise os campos marcados antes de salvar.",
   "studSaveFailed": "Nao foi possivel salvar o estudante e o contato. Confira os dados e tente novamente.",
   "studPhoneInvalid": "Digite um celular colombiano valido de 10 digitos com inicio em 3.",
@@ -543,7 +543,7 @@
   "qrScanDescription": "Posicione o QR code dentro da moldura. A vinculacao comecara automaticamente.",
   "qrManualCodeHelp": "Digite o codigo de vinculacao se nao puder escanear o QR code.",
   "qrCodeLabel": "Codigo de vinculacao",
-  "authNameLength": "O nome deve ter de 2 a 80 letras.",
+  "authNameLength": "O nome deve ter de 2 a 60 letras.",
   "authPhoneInvalid": "Digite um celular colombiano de 10 digitos com inicio em 3.",
   "authRegisterSuccess": "Sua conta foi criada. Enviamos um e-mail de verificacao. Confira sua caixa de entrada e confirme o endereco antes de entrar.",
   "authRegisterFailed": "Nao foi possivel criar a conta.",
@@ -564,5 +564,10 @@
   "authTerms7Title": "7. Limitacoes",
   "authTerms7Body": "A precisao pode variar conforme GPS, rede movel, Wi-Fi, bateria, permissoes ou ambiente. Os alertas sao preventivos e podem atrasar.",
   "authTerms8Title": "8. Aceitacao",
-  "authTerms8Body": "Ao criar a conta, o usuario declara que leu e aceita estes termos e a politica de privacidade do Guardian Escolar. Versao {version}."
+  "authTerms8Body": "Ao criar a conta, o usuario declara que leu e aceita estes termos e a politica de privacidade do Guardian Escolar. Versao {version}.",
+  "authSendRecoveryLink": "Enviar link de recuperação",
+  "authRecoverySent": "Se o e-mail estiver cadastrado, você receberá um link para redefinir a senha.",
+  "authRecoveryUnavailable": "O serviço de e-mail está indisponível. Tente novamente mais tarde.",
+  "profileLoginAgain": "Ir para entrar",
+  "profileEmailVerificationSent": "Enviamos um link para o novo e-mail. Abra-o para confirmar a alteração."
 }

@@ -111,8 +111,8 @@
   "studShareLoadError": "Impossible de charger les acces.",
   "studShareError": "Impossible de partager l'acces.",
   "studShareEmailNotRegistered": "Cette adresse e-mail n'est pas inscrite. Vérifiez-la ou demandez à la personne de créer un compte.",
-  "studNameInvalid": "Saisissez un nom de 2 à 80 lettres. Espaces, accents et traits d'union autorisés.",
-  "studContactNameInvalid": "Saisissez un contact de 2 a 80 lettres, sans chiffres.",
+  "studNameInvalid": "Saisissez un nom de 2 à 60 lettres. Espaces, accents et traits d'union autorisés.",
+  "studContactNameInvalid": "Saisissez un contact de 2 a 60 lettres, sans chiffres.",
   "studReviewFields": "V?rifiez les champs signal?s avant d?enregistrer.",
   "studSaveFailed": "Impossible d enregistrer l eleve et son contact. Verifiez les informations puis reessayez.",
   "studPhoneInvalid": "Saisissez un mobile colombien valide de 10 chiffres commencant par 3.",
@@ -543,7 +543,7 @@
   "qrScanDescription": "Placez le QR code dans le cadre. L?association demarrera automatiquement.",
   "qrManualCodeHelp": "Saisissez le code d?association si vous ne pouvez pas scanner le QR code.",
   "qrCodeLabel": "Code d?association",
-  "authNameLength": "Le nom doit contenir de 2 a 80 lettres.",
+  "authNameLength": "Le nom doit contenir de 2 a 60 lettres.",
   "authPhoneInvalid": "Saisissez un mobile colombien de 10 chiffres commencant par 3.",
   "authRegisterSuccess": "Votre compte a ete cree. Un e-mail de verification vous a ete envoye. Consultez votre boite de reception et confirmez votre adresse avant de vous connecter.",
   "authRegisterFailed": "Impossible de creer le compte.",
@@ -564,5 +564,10 @@
   "authTerms7Title": "7. Limites",
   "authTerms7Body": "La precision peut varier selon le GPS, le reseau mobile, le Wi-Fi, la batterie, les autorisations et l?environnement. Les alertes sont preventives et peuvent etre retardees.",
   "authTerms8Title": "8. Acceptation",
-  "authTerms8Body": "En creant un compte, l?utilisateur confirme avoir lu et accepter ces conditions et la politique de confidentialite de Guardian Escolar. Version {version}."
+  "authTerms8Body": "En creant un compte, l?utilisateur confirme avoir lu et accepter ces conditions et la politique de confidentialite de Guardian Escolar. Version {version}.",
+  "authSendRecoveryLink": "Envoyer le lien de récupération",
+  "authRecoverySent": "Si cette adresse est enregistrée, vous recevrez un lien de réinitialisation.",
+  "authRecoveryUnavailable": "Le service de courriel est indisponible. Réessayez plus tard.",
+  "profileLoginAgain": "Aller à la connexion",
+  "profileEmailVerificationSent": "Un lien a été envoyé à la nouvelle adresse. Ouvrez-le pour vérifier le changement."
 }

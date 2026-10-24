@@ -18,7 +18,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const { login } = useAuth();
   const { t, lang, setLanguage } = useLanguage();
-  const { theme } = useTheme();
+  const { theme, isDark, toggleTheme } = useTheme();
   const colors = theme.colors;
 
   const [email, setEmail] = useState('');
@@ -127,9 +127,10 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       <View style={styles.topBar}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={t('back')}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/(auth)/welcome')} accessibilityRole="button" accessibilityLabel={t('back')}>
           <MaterialCommunityIcons name="arrow-left" size={28} color={colors.primary} />
         </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <TouchableOpacity
           style={[styles.languageButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
           onPress={() => setLanguageModalVisible(true)}
@@ -139,6 +140,15 @@ export default function LoginScreen() {
           <MaterialCommunityIcons name="web" size={20} color={colors.primary} />
           <Text style={[styles.languageButtonText, { color: colors.primary }]}>{lang.toUpperCase()}</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.languageButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+          onPress={toggleTheme}
+          accessibilityRole="button"
+          accessibilityLabel={t(isDark ? 'themeLight' : 'themeDark')}
+        >
+          <MaterialCommunityIcons name={isDark ? 'white-balance-sunny' : 'moon-waning-crescent'} size={20} color={colors.primary} />
+        </TouchableOpacity>
+        </View>
       </View>
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>

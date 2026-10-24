@@ -93,7 +93,7 @@ export default function RegisterScreen() {
   const handleRegister = async () => {
     setErrorMsg('');
 
-    if (!isValidPersonName(name, { min: 2, max: 80 })) { setErrorMsg(t('authNameLength')); return; }
+    if (!isValidPersonName(name, { min: 2, max: 60 })) { setErrorMsg(t('authNameLength')); return; }
     if (!phoneValid) { setErrorMsg(t('authPhoneInvalid')); return; }
     if (!isValidEmail(email)) { setErrorMsg(t('authInvalidEmail')); return; }
     if (!allReqsMet) { setErrorMsg(t('authPasswordRulesFailed')); return; }
@@ -102,13 +102,16 @@ export default function RegisterScreen() {
     setIsSubmitting(true);
     try {
       await authService.register({ name: name.trim(), email: email.trim(), password, phone: phoneDigits, acceptedTerms: true, termsVersion: TERMS_VERSION });
-      Alert.alert(
-        t('success'),
-        t('authRegisterSuccess'),
-      );
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert(`${t('success')}\n\n${t('authRegisterSuccess')}`);
+      } else {
+        Alert.alert(t('success'), t('authRegisterSuccess'));
+      }
       router.replace('/(auth)/login');
     } catch (error) {
-      setErrorMsg(error.message || t('authRegisterFailed'));
+      setErrorMsg(/servicio de correo|email delivery|no se pudo enviar el correo/i.test(error.message || '')
+        ? t('authRecoveryUnavailable')
+        : error.message || t('authRegisterFailed'));
     } finally {
       setIsSubmitting(false);
     }
@@ -147,10 +150,10 @@ export default function RegisterScreen() {
                   onChangeText={(v) => {
                     setPhone(normalizeColombianPhoneInput(v));
                   }}
-                  keyboardType="phone-pad"
+                  keyboardType="phone-pad" maxLength={10}
                   outlineColor={phone.length > 0 && !phoneValid ? colors.error : colors.border} activeOutlineColor={colors.primary}
                   style={[styles.input, { backgroundColor: colors.surfaceSecondary }]} textColor={colors.text} theme={{ roundness: 6 }}
-                  left={<TextInput.Icon icon={({ size, color }) => <FieldSvgIcon type="phone" size={size} color={color} />} color={colors.textSecondary} />}
+                  left={<TextInput.Affix text="+57" />}
                   placeholder="300 123 4567"
                   placeholderTextColor={colors.textMuted}
                 />

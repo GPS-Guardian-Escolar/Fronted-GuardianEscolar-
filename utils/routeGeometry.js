@@ -57,11 +57,13 @@ export async function calculateRouteGeometry(route) {
   segments.forEach((directions, index) => {
     const segment = decodePolyline(directions?.overviewPolyline || '');
     if (segment.length < 2) throw new Error('El proveedor de mapas devolvió una ruta incompleta.');
-    // Keep each saved waypoint in the line. Google snaps route endpoints to nearby roads,
-    // so omitting these points can leave visible gaps between legs or before the destination.
-    append(points[index]);
+    if (distanceMeters(points[index], segment[0]) > 100
+      || distanceMeters(points[index + 1], segment[segment.length - 1]) > 100) {
+      throw new Error('La ruta calculada no llega a los puntos guardados. Revisa las direcciones.');
+    }
+    if (index === 0) append(points[0]);
     segment.forEach(append);
-    append(points[index + 1]);
   });
+  append(points[points.length - 1]);
   return geometry;
 }

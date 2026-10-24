@@ -111,8 +111,8 @@
   "studShareLoadError": "No se pudieron cargar los accesos.",
   "studShareError": "No se pudo compartir el acceso.",
   "studShareEmailNotRegistered": "Ese correo no está registrado. Verifica la dirección o pide a la persona que cree una cuenta.",
-  "studNameInvalid": "Escribe un nombre de 2 a 80 letras. Puedes incluir espacios, tildes y guiones.",
-  "studContactNameInvalid": "Escribe un nombre de contacto de 2 a 80 letras, sin numeros.",
+  "studNameInvalid": "Escribe un nombre de 2 a 60 letras. Puedes incluir espacios, tildes y guiones.",
+  "studContactNameInvalid": "Escribe un nombre de contacto de 2 a 60 letras, sin numeros.",
   "studReviewFields": "Revisa los campos marcados antes de guardar.",
   "studSaveFailed": "No se pudo guardar el estudiante y su contacto. Revisa los datos e intenta de nuevo.",
   "studPhoneInvalid": "Ingresa un celular colombiano valido de 10 digitos que comience por 3.",
@@ -543,7 +543,7 @@
   "qrScanDescription": "Ubica el QR dentro del marco. La vinculacion iniciara automaticamente.",
   "qrManualCodeHelp": "Ingresa el codigo de vinculacion si no puedes escanear el QR.",
   "qrCodeLabel": "Codigo de vinculacion",
-  "authNameLength": "El nombre debe tener entre 2 y 80 letras.",
+  "authNameLength": "El nombre debe tener entre 2 y 60 letras.",
   "authPhoneInvalid": "Ingresa un celular colombiano de 10 digitos que comience por 3.",
   "authRegisterSuccess": "Tu cuenta fue creada. Te enviamos un correo de verificacion. Revisa tu bandeja de entrada y confirma tu correo antes de iniciar sesion.",
   "authRegisterFailed": "No se pudo crear la cuenta.",
@@ -564,5 +564,10 @@
   "authTerms7Title": "7. Limitaciones",
   "authTerms7Body": "La precision puede variar por GPS, red movil, Wi-Fi, bateria, permisos o entorno. Las alertas son preventivas y pueden tener retrasos.",
   "authTerms8Title": "8. Aceptacion",
-  "authTerms8Body": "Al crear la cuenta, el usuario declara que leyo y acepta estos terminos y la politica de privacidad de Guardian Escolar. Version {version}."
+  "authTerms8Body": "Al crear la cuenta, el usuario declara que leyo y acepta estos terminos y la politica de privacidad de Guardian Escolar. Version {version}.",
+  "authSendRecoveryLink": "Enviar enlace de recuperación",
+  "authRecoverySent": "Si el correo está registrado, recibirás un enlace para restablecer la contraseña.",
+  "authRecoveryUnavailable": "El servicio de correo no está disponible ahora. Intenta más tarde.",
+  "profileLoginAgain": "Ir a iniciar sesión",
+  "profileEmailVerificationSent": "Te enviamos un enlace al nuevo correo. Ábrelo para verificar el cambio."
 }

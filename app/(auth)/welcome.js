@@ -123,6 +123,7 @@ export default function WelcomeScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.topBar}>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
         <TouchableOpacity
           style={[styles.topButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
           onPress={() => setLangModalVisible(true)}
@@ -139,6 +140,7 @@ export default function WelcomeScreen() {
         >
           <MaterialCommunityIcons name={isDark ? 'white-balance-sunny' : 'moon-waning-crescent'} size={22} color={colors.primary} />
         </TouchableOpacity>
+        </View>
         <TouchableOpacity
           style={[styles.skipButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
           onPress={skip}

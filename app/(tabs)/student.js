@@ -308,7 +308,7 @@ export default function StudentScreen() {
     today.setHours(0, 0, 0, 0);
     const birthDate = parseValidBirthDate(form.fechaNacimiento);
 
-    if (!isValidPersonName(name, { min: 2, max: 80 })) errors.nombre = t('studNameInvalid');
+    if (!isValidPersonName(name, { min: 2, max: 60 })) errors.nombre = t('studNameInvalid');
     if (!form.grado.trim()) {
       errors.grado = t('studGradeRequired');
     } else if (!normalizeGrade(form.grado)) {
@@ -331,7 +331,7 @@ export default function StudentScreen() {
       }
     }
     const contactName = form.contacto_nombre.trim();
-    if (!isValidPersonName(contactName, { min: 2, max: 80 })) errors.contacto_nombre = t('studContactNameInvalid');
+    if (!isValidPersonName(contactName, { min: 2, max: 60 })) errors.contacto_nombre = t('studContactNameInvalid');
     const phoneDigits = form.contacto_telefono.replace(/\D/g, '');
     if (!/^3\d{9}$/.test(phoneDigits)) {
       errors.contacto_telefono = t('studPhoneInvalid');
@@ -618,7 +618,7 @@ export default function StudentScreen() {
                   value={form.nombre}
                       onChangeText={v => setForm(f => ({ ...f, nombre: sanitizePersonNameInput(v) }))}
                   placeholder="Nombre y apellido"
-                  maxLength={100}
+                  maxLength={60}
                   placeholderTextColor={colors.textMuted}
                 />
                 {!!formErrors.nombre && <Text style={styles.errorText}>{formErrors.nombre}</Text>}
@@ -656,14 +656,16 @@ export default function StudentScreen() {
                   value={form.contacto_nombre}
                   onChangeText={v => setForm(f => ({ ...f, contacto_nombre: sanitizePersonNameInput(v) }))}
                   placeholder="Nombre del acudiente o contacto"
-                  maxLength={80}
+                  maxLength={60}
                   placeholderTextColor={colors.textMuted}
                 />
                 {!!formErrors.contacto_nombre && <Text style={styles.errorText}>{formErrors.contacto_nombre}</Text>}
 
                 <Text style={[styles.mockupLabel, themed.textSecondary]}>{t('studContactPhone')} *</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={[styles.mockupLabel, themed.textSecondary]}>+57</Text>
                 <TextInput
-                  style={[styles.mockupInput, themed.input, formErrors.contacto_telefono && styles.inputError]}
+                  style={[styles.mockupInput, themed.input, { flex: 1 }, formErrors.contacto_telefono && styles.inputError]}
                   value={form.contacto_telefono}
                   onChangeText={v => setForm(f => ({ ...f, contacto_telefono: formatEmergencyPhoneInput(v) }))}
                   placeholder="3001234567"
@@ -671,6 +673,7 @@ export default function StudentScreen() {
                   keyboardType="number-pad"
                   maxLength={10}
                 />
+                </View>
                 {!!formErrors.contacto_telefono && <Text style={styles.errorText}>{formErrors.contacto_telefono}</Text>}
 
                 <Text style={[styles.mockupLabel, themed.textSecondary]}>{t('studPhoto')}</Text>

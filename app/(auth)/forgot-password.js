@@ -7,6 +7,7 @@ import { Button, Text, TextInput } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import LanguageSelector from '../../components/common/LanguageSelector';
 import { authService } from '../../services/auth.service';
 
 export default function ForgotPasswordScreen() {
@@ -16,10 +17,12 @@ export default function ForgotPasswordScreen() {
   const colors = theme.colors;
   const [contact, setContact] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleResetPassword = async () => {
     setErrorMsg('');
+    setSuccessMsg('');
     if (!contact.trim()) {
       setErrorMsg(t('invalidInput'));
       return;
@@ -27,9 +30,9 @@ export default function ForgotPasswordScreen() {
     try {
       setIsSubmitting(true);
       await authService.requestPasswordRecovery(contact);
-      router.replace('/(auth)/login');
+      setSuccessMsg(t('authRecoverySent'));
     } catch (error) {
-      setErrorMsg(error.message || t('someError'));
+      setErrorMsg(/mail|correo|email delivery/i.test(error.message || '') ? t('authRecoveryUnavailable') : t('someError'));
     } finally {
       setIsSubmitting(false);
     }
@@ -37,8 +40,9 @@ export default function ForgotPasswordScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+       <LanguageSelector style={{ position: "absolute", top: 16, right: 16, zIndex: 10 }} />
        <View style={styles.topBar}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/(auth)/login')}>
           <MaterialCommunityIcons name="arrow-left" size={28} color={colors.primary} />
         </TouchableOpacity>
       </View>
@@ -77,6 +81,7 @@ export default function ForgotPasswordScreen() {
                   <Text style={[styles.errorText, { color: colors.error }]}>{errorMsg}</Text>
                 </View>
               ) : null}
+              {successMsg ? <Text style={{ color: colors.accent, marginBottom: 12 }}>{successMsg}</Text> : null}
 
               <Button
                 mode="contained"
@@ -88,7 +93,7 @@ export default function ForgotPasswordScreen() {
                 textColor={colors.textOnPrimary}
                 disabled={isSubmitting}
               >
-                Enviar enlace de recuperación
+                {t('authSendRecoveryLink')}
               </Button>
             </View>
           </View>

@@ -111,8 +111,8 @@
   "studShareLoadError": "Could not load accesses.",
   "studShareError": "Could not share access.",
   "studShareEmailNotRegistered": "That email is not registered. Check the address or ask the person to create an account.",
-  "studNameInvalid": "Enter a name with 2 to 80 letters. Spaces, accents, and hyphens are allowed.",
-  "studContactNameInvalid": "Enter an emergency contact name with 2 to 80 letters and no numbers.",
+  "studNameInvalid": "Enter a name with 2 to 60 letters. Spaces, accents, and hyphens are allowed.",
+  "studContactNameInvalid": "Enter an emergency contact name with 2 to 60 letters and no numbers.",
   "studReviewFields": "Review the highlighted fields before saving.",
   "studSaveFailed": "Could not save the student and contact. Check the information and try again.",
   "studPhoneInvalid": "Enter a valid 10-digit Colombian mobile number starting with 3.",
@@ -543,7 +543,7 @@
   "qrScanDescription": "Place the QR code inside the frame. Linking will start automatically.",
   "qrManualCodeHelp": "Enter the linking code if you cannot scan the QR code.",
   "qrCodeLabel": "Linking code",
-  "authNameLength": "The name must contain 2 to 80 letters.",
+  "authNameLength": "The name must contain 2 to 60 letters.",
   "authPhoneInvalid": "Enter a Colombian mobile number with 10 digits starting with 3.",
   "authRegisterSuccess": "Your account was created. We sent you a verification email. Check your inbox and confirm your email address before signing in.",
   "authRegisterFailed": "Could not create the account.",
@@ -564,5 +564,10 @@
   "authTerms7Title": "7. Limitations",
   "authTerms7Body": "Location accuracy may vary due to GPS, mobile networks, Wi-Fi, battery, operating-system permissions, or surroundings. Alerts are preventive aids and may be delayed.",
   "authTerms8Title": "8. Acceptance",
-  "authTerms8Body": "By creating an account, the user confirms they have read and accept these Terms and the Guardian Escolar Privacy Policy. Version {version}."
+  "authTerms8Body": "By creating an account, the user confirms they have read and accept these Terms and the Guardian Escolar Privacy Policy. Version {version}.",
+  "authSendRecoveryLink": "Send recovery link",
+  "authRecoverySent": "If the email is registered, you will receive a password reset link.",
+  "authRecoveryUnavailable": "Email delivery is unavailable right now. Please try later.",
+  "profileLoginAgain": "Go to sign in",
+  "profileEmailVerificationSent": "We sent a link to the new email address. Open it to verify the change."
 }

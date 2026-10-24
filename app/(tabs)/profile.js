@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
+import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Avatar, Button, Divider, IconButton, Surface, Switch, Text, TextInput } from 'react-native-paper';
@@ -12,12 +13,21 @@ import { notificationService } from '../../services/notification.service';
 import { SUPPORTED_LANGUAGES } from '../../translations';
 import { isValidEmail, isValidPersonName, isValidPhone, normalizeColombianPhoneInput, normalizePhoneDigits, passwordChecks, sanitizePersonNameInput } from '../../utils/validators';
 
+function showProfileAlert(title, message) {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.alert([title, message].filter(Boolean).join('\n\n'));
+  } else {
+    Alert.alert(title, message);
+  }
+}
+
 function localizedProfileError(error, t, fallbackKey) {
   const message = String(error?.message || '').toLowerCase();
   if (/401|unauthorized|jwt|token/.test(message)) return t('profileSessionExpired');
-  if (/current password|contrase(?:Ã±|ñ)a actual/.test(message)) return t('profilePasswordIncorrect');
+  if (/servicio de correo|email delivery|mail provider|no se pudo enviar el correo/.test(message)) return t('authRecoveryUnavailable');
+  if (/current password|contrase.*a actual/.test(message)) return t('profilePasswordIncorrect');
   if (/already registered|already exists|ya existe una cuenta/.test(message)) return t('profileEmailAlreadyUsed');
-  if (/code.*(invalid|expired)|c[oó]digo.*(incorrecto|expirado)/.test(message)) return t('twoFAInvalidCode');
+  if (/code.*(invalid|expired)|c.digo.*(incorrecto|expirado)/.test(message)) return t('twoFAInvalidCode');
   return t(fallbackKey);
 }
 function ProfileField({ colors, label, value, onChangeText, editable = true, keyboardType = 'default', secureTextEntry = false }) {
@@ -54,6 +64,8 @@ function ProfileField({ colors, label, value, onChangeText, editable = true, key
         onChangeText={onChangeText}
         editable={editable}
         keyboardType={keyboardType}
+        maxLength={keyboardType === "phone-pad" ? 10 : undefined}
+        left={keyboardType === "phone-pad" ? <TextInput.Affix text="+57" /> : undefined}
         secureTextEntry={hidden}
         autoCapitalize="none"
         autoCorrect={false}
@@ -77,6 +89,7 @@ function ProfileField({ colors, label, value, onChangeText, editable = true, key
 }
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const { user, logout, updateUserInSession } = useAuth();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -152,19 +165,19 @@ export default function ProfileScreen() {
       const saved = await notificationService.updatePreferences(next);
       applyNotificationPreferences(saved);
       if (changes.canalSms && !saved.smsDisponible) {
-        Alert.alert(t('profileNotifications'), t('profileSmsSavedNoProvider'));
+        showProfileAlert(t('profileNotifications'), t('profileSmsSavedNoProvider'));
       }
     } catch (error) {
       setNotifBateria(previous.alertaInactividad);
       setNotifEmail(previous.canalEmail);
       setNotifSMS(previous.canalSms);
-      Alert.alert(t('error'), localizedProfileError(error, t, 'someError'));
+      showProfileAlert(t('error'), localizedProfileError(error, t, 'someError'));
     }
   };
 
   const handleSaveProfile = async () => {
-    if (!isValidPersonName(form.name, { min: 2, max: 80 }) || !isValidPhone(form.phone)) {
-      Alert.alert(t('error'), t('invalidInput'));
+    if (!isValidPersonName(form.name, { min: 2, max: 60 }) || !isValidPhone(form.phone)) {
+      showProfileAlert(t('error'), t('invalidInput'));
       return;
     }
     try {
@@ -172,20 +185,20 @@ export default function ProfileScreen() {
       await authService.updateProfile(user.email, form.name.trim(), phone);
       await updateUserInSession({ name: form.name.trim(), phone });
       setIsEditing(false);
-      Alert.alert(t('profileTitle'), t('profileUpdated'));
+      showProfileAlert(t('profileTitle'), t('profileUpdated'));
     } catch (error) {
-      Alert.alert(t('error'), localizedProfileError(error, t, 'profileUpdateFailed'));
+      showProfileAlert(t('error'), localizedProfileError(error, t, 'profileUpdateFailed'));
     }
   };
 
   const handleChangeEmail = async () => {
     setEmailError('');
     if (!isValidEmail(emailForm.nextEmail)) {
-      Alert.alert(t('error'), t('authInvalidEmail'));
+      showProfileAlert(t('error'), t('authInvalidEmail'));
       return;
     }
     if (!emailForm.currentPassword) {
-      Alert.alert(t('error'), t('profilePasswordCurrentRequired'));
+      showProfileAlert(t('error'), t('profilePasswordCurrentRequired'));
       return;
     }
     try {
@@ -195,7 +208,7 @@ export default function ProfileScreen() {
       await updateUserInSession({ email: nextEmail });
       setEmailModalVisible(false);
       setEmailForm({ currentPassword: '', nextEmail });
-      Alert.alert(t('success'), t('profileUpdated'));
+      showProfileAlert(t('success'), t('profileEmailVerificationSent'));
     } catch (error) {
       setEmailError(localizedProfileError(error, t, 'profileUpdateFailed'));
     }
@@ -203,24 +216,24 @@ export default function ProfileScreen() {
 
   const handleChangePassword = async () => {
     if (!passForm.current) {
-      Alert.alert(t('error'), t('profilePasswordCurrentRequired'));
+      showProfileAlert(t('error'), t('profilePasswordCurrentRequired'));
       return;
     }
     if (!allPassReqsMet) {
-      Alert.alert(t('profileSecurity'), t('profilePasswordRulesFailed'));
+      showProfileAlert(t('profileSecurity'), t('profilePasswordRulesFailed'));
       return;
     }
     if (passForm.next === passForm.current) {
-      Alert.alert(t('error'), t('profilePasswordMustDiffer'));
+      showProfileAlert(t('error'), t('profilePasswordMustDiffer'));
       return;
     }
     try {
       await authService.updatePassword(form.email, passForm.current, passForm.next);
       setPassModalVisible(false);
       setPassForm({ current: '', next: '', confirm: '' });
-      Alert.alert(t('success'), t('profilePasswordUpdated'));
+      showProfileAlert(t('success'), t('profilePasswordUpdated'));
     } catch (error) {
-      Alert.alert(t('error'), localizedProfileError(error, t, 'profilePasswordUpdateFailed'));
+      showProfileAlert(t('error'), localizedProfileError(error, t, 'profilePasswordUpdateFailed'));
     }
   };
 
@@ -230,13 +243,13 @@ export default function ProfileScreen() {
       setTwoFACode('');
       const challenge = await authService.request2FACode(method);
       setTwoFAMethod(method);
-      Alert.alert(t('twoFACodeSent'), `${t('twoFACodeSentTo')} ${method === 'SMS' ? t('twoFASMS') : t('twoFAEmail')}.`);
+      showProfileAlert(t('twoFACodeSent'), `${t('twoFACodeSentTo')} ${method === 'SMS' ? t('twoFASMS') : t('twoFAEmail')}.`);
       setTwoFAToken(challenge.twoFAToken || '');
     } catch (error) {
       const message = method === 'EMAIL' && /email delivery|mail|email/i.test(error.message || '')
         ? t('twoFAEmailUnavailable')
         : localizedProfileError(error, t, 'twoFAActivateFailed');
-      Alert.alert(t('error'), message);
+      showProfileAlert(t('error'), message);
     } finally {
       setTwoFASubmitting(false);
     }
@@ -244,7 +257,7 @@ export default function ProfileScreen() {
 
   const handleVerify2FA = async () => {
     if (!/^\d{6}$/.test(twoFACode)) {
-      Alert.alert(t('error'), t('twoFAInvalidCode'));
+      showProfileAlert(t('error'), t('twoFAInvalidCode'));
       return;
     }
     try {
@@ -263,9 +276,9 @@ export default function ProfileScreen() {
       setTwoFAPassword('');
       setTwoFAToken('');
       setTwoFAModalVisible(false);
-      Alert.alert(t('twoFAActivationTitle'), t('twoFAActivated'));
+      showProfileAlert(t('twoFAActivationTitle'), t('twoFAActivated'));
     } catch (error) {
-      Alert.alert(t('error'), localizedProfileError(error, t, 'twoFAActivateFailed'));
+      showProfileAlert(t('error'), localizedProfileError(error, t, 'twoFAActivateFailed'));
     } finally {
       setTwoFASubmitting(false);
     }
@@ -273,7 +286,7 @@ export default function ProfileScreen() {
 
   const handleDisable2FA = async () => {
     if (!twoFAPassword) {
-      Alert.alert(t('error'), t('profilePasswordCurrentRequired'));
+      showProfileAlert(t('error'), t('profilePasswordCurrentRequired'));
       return;
     }
     try {
@@ -285,7 +298,7 @@ export default function ProfileScreen() {
       setTwoFAPassword('');
       setTwoFAModalVisible(false);
     } catch (error) {
-      Alert.alert(t('error'), localizedProfileError(error, t, 'twoFADeactivateFailed'));
+      showProfileAlert(t('error'), localizedProfileError(error, t, 'twoFADeactivateFailed'));
     } finally {
       setTwoFASubmitting(false);
     }
@@ -365,6 +378,7 @@ export default function ProfileScreen() {
             subtitle={smsDisponible ? undefined : t('profileSmsProviderRequired')}
             value={notifSMS}
             onValueChange={value => updateNotificationPreferences({ canalSms: value })}
+            disabled={!smsDisponible && !notifSMS}
           />
         </Surface>
 
@@ -425,6 +439,11 @@ export default function ProfileScreen() {
             <ProfileField colors={colors} label={t('profileEmail')} value={emailForm.nextEmail} keyboardType="email-address" onChangeText={nextEmail => setEmailForm(current => ({ ...current, nextEmail }))} />
             <ProfileField colors={colors} label={t('profileCurrentPass')} value={emailForm.currentPassword} secureTextEntry onChangeText={currentPassword => setEmailForm(current => ({ ...current, currentPassword }))} />
             {!!emailError && <Text style={[styles.modalError, { color: colors.error }]}>{emailError}</Text>}
+            {emailError === t('profileSessionExpired') && (
+              <Button onPress={async () => { await logout(); router.replace('/(auth)/login'); }} textColor={colors.primary}>
+                {t('profileLoginAgain')}
+              </Button>
+            )}
             <Button mode="contained" buttonColor={colors.primary} textColor={colors.textOnPrimary} style={styles.modalButton} onPress={handleChangeEmail}>
               {t('profileSave')}
             </Button>

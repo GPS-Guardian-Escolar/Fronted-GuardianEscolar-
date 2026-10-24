@@ -17,19 +17,20 @@ export const normalizeColombianPhoneInput = (phone) => {
   return digits.slice(0, 10);
 };
 
-export const sanitizePersonNameInput = (name, maxLength = 80) => String(name || '')
+export const sanitizePersonNameInput = (name, maxLength = 60) => String(name || '')
   .replace(/[^\p{L}\p{M} '\u2019-]/gu, '')
   .slice(0, maxLength);
 
 export const isValidPhone = (phone) => {
   const digits = String(phone || '').replace(/\D/g, '');
   const nationalNumber = digits.length === 12 && digits.startsWith('57') ? digits.slice(2) : digits;
-  return /^3\d{9}$/.test(nationalNumber);
+  return /^3\d{9}$/.test(nationalNumber) && !/^(\d)\1{9}$/.test(nationalNumber);
 };
 
-export const isValidPersonName = (name, { min = 2, max = 80 } = {}) => {
+export const isValidPersonName = (name, { min = 2, max = 60 } = {}) => {
   const value = String(name || '').trim();
   return value.length >= min && value.length <= max
+    && !/(\p{L})\1{3}/iu.test(value)
     && /^\p{L}[\p{L}\p{M}]*(?:[ '\u2019-][\p{L}\p{M}]+)*$/u.test(value);
 };
 

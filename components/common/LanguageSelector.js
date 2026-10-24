@@ -9,12 +9,15 @@ const LANGUAGE_LABELS = { es: 'langEs', en: 'langEn', fr: 'langFr', pt: 'langPt'
 
 export default function LanguageSelector({ style }) {
   const { lang, setLanguage, t } = useLanguage();
-  const { theme } = useTheme();
+  const { theme, isDark, toggleTheme } = useTheme();
   const colors = theme.colors;
   const [visible, setVisible] = useState(false);
 
   return (
-    <View style={[styles.root, style]}>
+    <View style={[styles.root, style, { flexDirection: 'row', gap: 8 }]}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={t(isDark ? 'themeLight' : 'themeDark')} onPress={toggleTheme} style={[styles.trigger, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <MaterialCommunityIcons name={isDark ? 'white-balance-sunny' : 'moon-waning-crescent'} size={20} color={colors.primary} />
+      </TouchableOpacity>
       <TouchableOpacity
         accessibilityRole="button"
         accessibilityLabel={t('welcomeChangeLanguage') + ` ${t(LANGUAGE_LABELS[lang])}`}
