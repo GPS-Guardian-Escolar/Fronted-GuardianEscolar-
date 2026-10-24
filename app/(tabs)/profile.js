@@ -10,7 +10,16 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { authService } from '../../services/auth.service';
 import { notificationService } from '../../services/notification.service';
 import { SUPPORTED_LANGUAGES } from '../../translations';
-import { isValidEmail, isValidPersonName, isValidPhone, normalizePhoneDigits, passwordChecks } from '../../utils/validators';
+import { isValidEmail, isValidPersonName, isValidPhone, normalizeColombianPhoneInput, normalizePhoneDigits, passwordChecks, sanitizePersonNameInput } from '../../utils/validators';
+
+function localizedProfileError(error, t, fallbackKey) {
+  const message = String(error?.message || '').toLowerCase();
+  if (/401|unauthorized|jwt|token/.test(message)) return t('profileSessionExpired');
+  if (/current password|contrase(?:Ã±|ñ)a actual/.test(message)) return t('profilePasswordIncorrect');
+  if (/already registered|already exists|ya existe una cuenta/.test(message)) return t('profileEmailAlreadyUsed');
+  if (/code.*(invalid|expired)|c[oó]digo.*(incorrecto|expirado)/.test(message)) return t('twoFAInvalidCode');
+  return t(fallbackKey);
+}
 function ProfileField({ colors, label, value, onChangeText, editable = true, keyboardType = 'default', secureTextEntry = false }) {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const hidden = secureTextEntry && !passwordVisible;
@@ -149,7 +158,7 @@ export default function ProfileScreen() {
       setNotifBateria(previous.alertaInactividad);
       setNotifEmail(previous.canalEmail);
       setNotifSMS(previous.canalSms);
-      Alert.alert(t('error'), error.message || t('someError'));
+      Alert.alert(t('error'), localizedProfileError(error, t, 'someError'));
     }
   };
 
@@ -165,7 +174,7 @@ export default function ProfileScreen() {
       setIsEditing(false);
       Alert.alert(t('profileTitle'), t('profileUpdated'));
     } catch (error) {
-      Alert.alert(t('error'), error.message || t('profileUpdateFailed'));
+      Alert.alert(t('error'), localizedProfileError(error, t, 'profileUpdateFailed'));
     }
   };
 
@@ -188,7 +197,7 @@ export default function ProfileScreen() {
       setEmailForm({ currentPassword: '', nextEmail });
       Alert.alert(t('success'), t('profileUpdated'));
     } catch (error) {
-      setEmailError(/401|unauthorized|jwt|token/i.test(error.message || '') ? t('profileSessionExpired') : t('profileUpdateFailed'));
+      setEmailError(localizedProfileError(error, t, 'profileUpdateFailed'));
     }
   };
 
@@ -211,7 +220,7 @@ export default function ProfileScreen() {
       setPassForm({ current: '', next: '', confirm: '' });
       Alert.alert(t('success'), t('profilePasswordUpdated'));
     } catch (error) {
-      Alert.alert(t('error'), error.message || t('profilePasswordUpdateFailed'));
+      Alert.alert(t('error'), localizedProfileError(error, t, 'profilePasswordUpdateFailed'));
     }
   };
 
@@ -226,7 +235,7 @@ export default function ProfileScreen() {
     } catch (error) {
       const message = method === 'EMAIL' && /email delivery|mail|email/i.test(error.message || '')
         ? t('twoFAEmailUnavailable')
-        : t('twoFAActivateFailed');
+        : localizedProfileError(error, t, 'twoFAActivateFailed');
       Alert.alert(t('error'), message);
     } finally {
       setTwoFASubmitting(false);
@@ -256,7 +265,7 @@ export default function ProfileScreen() {
       setTwoFAModalVisible(false);
       Alert.alert(t('twoFAActivationTitle'), t('twoFAActivated'));
     } catch (error) {
-      Alert.alert(t('error'), error.message || t('twoFAActivateFailed'));
+      Alert.alert(t('error'), localizedProfileError(error, t, 'twoFAActivateFailed'));
     } finally {
       setTwoFASubmitting(false);
     }
@@ -276,7 +285,7 @@ export default function ProfileScreen() {
       setTwoFAPassword('');
       setTwoFAModalVisible(false);
     } catch (error) {
-      Alert.alert(t('error'), error.message || t('twoFADeactivateFailed'));
+      Alert.alert(t('error'), localizedProfileError(error, t, 'twoFADeactivateFailed'));
     } finally {
       setTwoFASubmitting(false);
     }
@@ -321,8 +330,8 @@ export default function ProfileScreen() {
           <View style={[styles.profileRow, !isWide && styles.profileRowMobile]}>
             <Avatar.Text size={60} label={form.name.substring(0, 2).toUpperCase()} style={{ backgroundColor: colors.primary }} color={colors.textOnPrimary} />
             <View style={styles.profileInputs}>
-              <ProfileField colors={colors} label={t('profileName')} value={form.name} editable={isEditing} onChangeText={name => setForm(current => ({ ...current, name }))} />
-              <ProfileField colors={colors} label={t('profilePhone')} value={form.phone} editable={isEditing} keyboardType="phone-pad" onChangeText={phone => setForm(current => ({ ...current, phone: normalizePhoneDigits(phone, 10) }))} />
+              <ProfileField colors={colors} label={t('profileName')} value={form.name} editable={isEditing} onChangeText={name => setForm(current => ({ ...current, name: sanitizePersonNameInput(name) }))} />
+              <ProfileField colors={colors} label={t('profilePhone')} value={form.phone} editable={isEditing} keyboardType="phone-pad" onChangeText={phone => setForm(current => ({ ...current, phone: normalizeColombianPhoneInput(phone) }))} />
               <View style={styles.inputWrap}>
                 <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{t('profileEmail')}</Text>
                 <View style={styles.emailRow}>
@@ -348,7 +357,7 @@ export default function ProfileScreen() {
           <Divider style={[styles.divider, { backgroundColor: colors.border }]} />
           <SettingItem label={t('profileDeviation')} subtitle={t('profileRequired')} value disabled />
           <Divider style={[styles.divider, { backgroundColor: colors.border }]} />
-          <SettingItem label={t('profileBattery')} value={notifBateria} onValueChange={value => updateNotificationPreferences({ alertaInactividad: value })} />
+          <SettingItem label={t('profileInactivity')} value={notifBateria} onValueChange={value => updateNotificationPreferences({ alertaInactividad: value })} />
           <Text style={[styles.cardTitle, { marginTop: 20, color: colors.text }]}>{t('profileNotificationChannels')}</Text>
           <SettingItem label={t('profileEmailNotif')} value={notifEmail} onValueChange={value => updateNotificationPreferences({ canalEmail: value })} />
           <SettingItem

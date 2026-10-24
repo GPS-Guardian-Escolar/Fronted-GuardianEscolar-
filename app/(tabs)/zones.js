@@ -59,6 +59,10 @@ function formatCoordinates(latitude, longitude) {
 function getRouteCoordinates(route) {
   return [
     { latitude: Number(route?.originLatitude), longitude: Number(route?.originLongitude) },
+    ...(route?.stops || [])
+      .slice()
+      .sort((a, b) => Number(a.stopOrder || 0) - Number(b.stopOrder || 0))
+      .map(stop => ({ latitude: Number(stop.latitude), longitude: Number(stop.longitude) })),
     { latitude: Number(route?.destinationLatitude), longitude: Number(route?.destinationLongitude) },
   ].filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude));
 }
@@ -104,6 +108,8 @@ export default function ZonesScreen() {
   const [routePoints, setRoutePoints] = useState([]);
   const [routePreview, setRoutePreview] = useState(null);
   const [routePreviewGeometry, setRoutePreviewGeometry] = useState([]);
+  const [routePreviewError, setRoutePreviewError] = useState('');
+  const [routePreviewLoading, setRoutePreviewLoading] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState(null);
 
   const [loading, setLoading] = useState(false);
@@ -196,10 +202,16 @@ export default function ZonesScreen() {
   async function openRoutePreview(route) {
     setRoutePreview(route);
     setRoutePreviewGeometry([]);
+    setRoutePreviewError('');
+    setRoutePreviewLoading(true);
     try {
-      setRoutePreviewGeometry(await calculateRouteGeometry(route));
+      const geometry = await calculateRouteGeometry(route);
+      if (geometry.length < 2) throw new Error('No route geometry');
+      setRoutePreviewGeometry(geometry);
     } catch {
-      setRoutePreviewGeometry([]);
+      setRoutePreviewError(t('zonesRouteUnavailable'));
+    } finally {
+      setRoutePreviewLoading(false);
     }
   }
 
@@ -605,7 +617,12 @@ export default function ZonesScreen() {
               <SafeMap
                 style={{ flex: 1 }}
                 initialRegion={{ latitude: 4.5709, longitude: -74.2973, latitudeDelta: 0.05, longitudeDelta: 0.05 }}
-                markers={getRouteCoordinates(routePreview).map((point, index) => ({ ...point, label: index === 0 ? 'I' : 'D', title: index === 0 ? 'Inicio' : 'Destino', color: index === 0 ? colors.accent : colors.error }))}
+                markers={getRouteCoordinates(routePreview).map((point, index, points) => ({
+                  ...point,
+                  label: index === 0 ? 'I' : index === points.length - 1 ? 'D' : `P${index}`,
+                  title: index === 0 ? t('zonesRouteStart') : index === points.length - 1 ? t('zonesRouteEnd') : `${t('zonesRouteStop')} ${index}`,
+                  color: index === 0 ? colors.accent : index === points.length - 1 ? colors.error : colors.primary,
+                }))}
                 coordinates={routePreviewGeometry}
                 showRoute={routePreviewGeometry.length >= 2}
               />
@@ -613,6 +630,11 @@ export default function ZonesScreen() {
             <View style={styles.routePreviewDetails}>
               <Text style={[styles.routePreviewPoint, themed.text]}>Inicio: {routePreview?.start || 'Sin dirección'}</Text>
               <Text style={[styles.routePreviewPoint, themed.text]}>Destino: {routePreview?.end || 'Sin dirección'}</Text>
+              {(routePreviewLoading || routePreviewError) && (
+                <Text style={[styles.routePreviewPoint, { color: routePreviewError ? colors.error : colors.textSecondary }]}>
+                  {routePreviewLoading ? t('zonesRouteLoading') : routePreviewError}
+                </Text>
+              )}
             </View>
           </Surface>
         </View>

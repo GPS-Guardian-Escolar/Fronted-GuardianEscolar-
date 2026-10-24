@@ -10,7 +10,7 @@ import { authService } from '../../services/auth.service';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import LanguageSelector from '../../components/common/LanguageSelector';
-import { isValidEmail, isValidPersonName, isValidPhone, normalizePhoneDigits, passwordChecks } from '../../utils/validators';
+import { isValidEmail, isValidPersonName, isValidPhone, normalizeColombianPhoneInput, passwordChecks, sanitizePersonNameInput } from '../../utils/validators';
 
 const isWeb = Dimensions.get('window').width > 768;
 
@@ -82,7 +82,7 @@ export default function RegisterScreen() {
 
   const reqs = passwordChecks(password, confirmPassword);
   const allReqsMet = Object.values(reqs).every(Boolean);
-  const phoneDigits = normalizePhoneDigits(phone);
+  const phoneDigits = normalizeColombianPhoneInput(phone);
   const phoneValid = isValidPhone(phone);
 
   // Booleans explícitos para evitar string vacío en render
@@ -131,7 +131,7 @@ export default function RegisterScreen() {
               <View style={styles.inputGroup}>
                 <Text style={[styles.label, { color: colors.text }]}>{t('authGuardianName')}</Text>
                 <TextInput
-                  mode="outlined" value={name} onChangeText={setName}
+                  mode="outlined" value={name} onChangeText={value => setName(sanitizePersonNameInput(value))}
                   outlineColor={colors.border} activeOutlineColor={colors.primary}
                   style={[styles.input, { backgroundColor: colors.surfaceSecondary }]} textColor={colors.text} theme={{ roundness: 6 }}
                   placeholderTextColor={colors.textMuted}
@@ -145,7 +145,7 @@ export default function RegisterScreen() {
                 <TextInput
                   mode="outlined" value={phone}
                   onChangeText={(v) => {
-                    setPhone(normalizePhoneDigits(v, 10));
+                    setPhone(normalizeColombianPhoneInput(v));
                   }}
                   keyboardType="phone-pad"
                   outlineColor={phone.length > 0 && !phoneValid ? colors.error : colors.border} activeOutlineColor={colors.primary}

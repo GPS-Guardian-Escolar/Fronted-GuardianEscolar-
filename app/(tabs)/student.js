@@ -26,7 +26,7 @@ import StudentList from '../../features/students/components/StudentList';
 import { studentService } from '../../services/student.service';
 import { AppTouch, AppTypography } from '../../theme/tokens';
 import { addStudent, deleteStudent, getInitials, getStudents, normalizeGrade, updateStudent } from '../../utils/studentStorage';
-import { isValidPersonName } from '../../utils/validators';
+import { isValidPersonName, normalizeColombianPhoneInput, sanitizePersonNameInput } from '../../utils/validators';
 
 const { width } = Dimensions.get('window');
 const isWeb = width > 768;
@@ -87,7 +87,7 @@ function calculateAgeFromDate(date) {
 }
 
 function formatEmergencyPhoneInput(value) {
-  return value.replace(/\D/g, '').slice(0, 10);
+  return normalizeColombianPhoneInput(value);
 }
 
 export default function StudentScreen() {
@@ -212,7 +212,8 @@ export default function StudentScreen() {
         result?.emailSent ? t('studShareEmailSent') : t('studShareEmailNotSent'),
       );
     } catch (error) {
-      const message = /email does not belong to a registered user/i.test(error.message || '')
+      const apiMessage = error?.response?.data?.message || error?.response?.data?.error || error?.message || '';
+      const message = /email does not belong to a registered user/i.test(apiMessage)
         ? t('studShareEmailNotRegistered')
         : t('studShareError');
       Alert.alert(t('error'), message);
@@ -309,38 +310,31 @@ export default function StudentScreen() {
 
     if (!isValidPersonName(name, { min: 2, max: 80 })) errors.nombre = t('studNameInvalid');
     if (!form.grado.trim()) {
-      errors.grado = 'Selecciona o escribe el grado escolar.';
+      errors.grado = t('studGradeRequired');
     } else if (!normalizeGrade(form.grado)) {
-      errors.grado = 'Usa un grado válido, por ejemplo 4, Cuarto o Décimo.';
+      errors.grado = t('studGradeInvalid');
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(form.fechaNacimiento)) {
-      errors.fechaNacimiento = 'Selecciona una fecha válida.';
+      errors.fechaNacimiento = t('studBirthDateInvalid');
     } else if (!birthDate || birthDate >= today) {
-      errors.fechaNacimiento = 'La fecha de nacimiento debe ser anterior a hoy.';
+      errors.fechaNacimiento = t('studBirthDatePast');
     } else {
       const age = calculateAgeFromDate(birthDate);
       if (age < MIN_STUDENT_AGE || age > MAX_STUDENT_AGE) {
-        errors.fechaNacimiento = `La edad debe estar entre ${MIN_STUDENT_AGE} y ${MAX_STUDENT_AGE} años.`;
+        errors.fechaNacimiento = t('studAgeRange').replace('{min}', String(MIN_STUDENT_AGE)).replace('{max}', String(MAX_STUDENT_AGE));
       } else {
         const normalizedGrade = normalizeGrade(form.grado);
         const range = GRADE_AGE_RANGES[normalizedGrade];
         if (range && (age < range[0] || age > range[1])) {
-          errors.grado = `El grado seleccionado no corresponde a una edad de ${age} años.`;
+          errors.grado = t('studGradeAgeMismatch').replace('{age}', String(age));
         }
       }
     }
     const contactName = form.contacto_nombre.trim();
-    if (contactName.length < 2) {
-      errors.contacto_nombre = 'El contacto de emergencia debe tener al menos 2 caracteres.';
-    } else if (contactName.length > 80) {
-      errors.contacto_nombre = 'El nombre del contacto no puede superar 80 caracteres.';
-    } else if (!/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ ]+$/.test(contactName)) {
-      errors.contacto_nombre = 'El contacto solo debe tener letras y espacios.';
-    }
     if (!isValidPersonName(contactName, { min: 2, max: 80 })) errors.contacto_nombre = t('studContactNameInvalid');
     const phoneDigits = form.contacto_telefono.replace(/\D/g, '');
     if (!/^3\d{9}$/.test(phoneDigits)) {
-      errors.contacto_telefono = 'Ingresa un celular colombiano válido de 10 dígitos, inicia por 3.';
+      errors.contacto_telefono = t('studPhoneInvalid');
     }
 
     setFormErrors(errors);
@@ -365,7 +359,7 @@ export default function StudentScreen() {
 
   async function handleSave() {
     if (!validateForm()) {
-      Alert.alert(t('studRequiredField'), 'Revisa los campos marcados antes de guardar.');
+      Alert.alert(t('studRequiredField'), t('studReviewFields'));
       return;
     }
     setLoading(true);
@@ -380,8 +374,8 @@ export default function StudentScreen() {
       setStudents(updated);
       await loadStudents();
       setModalVisible(false);
-    } catch (error) {
-      Alert.alert(t('error'), error.message || 'No se pudo guardar el estudiante.');
+    } catch {
+      Alert.alert(t('error'), t('studSaveFailed'));
     } finally {
       setLoading(false);
     }
@@ -622,7 +616,7 @@ export default function StudentScreen() {
                 <TextInput
                   style={[styles.mockupInput, themed.input, formErrors.nombre && styles.inputError]}
                   value={form.nombre}
-                  onChangeText={v => setForm(f => ({ ...f, nombre: v }))}
+                      onChangeText={v => setForm(f => ({ ...f, nombre: sanitizePersonNameInput(v) }))}
                   placeholder="Nombre y apellido"
                   maxLength={100}
                   placeholderTextColor={colors.textMuted}
@@ -660,7 +654,7 @@ export default function StudentScreen() {
                 <TextInput
                   style={[styles.mockupInput, themed.input, formErrors.contacto_nombre && styles.inputError]}
                   value={form.contacto_nombre}
-                  onChangeText={v => setForm(f => ({ ...f, contacto_nombre: v }))}
+                  onChangeText={v => setForm(f => ({ ...f, contacto_nombre: sanitizePersonNameInput(v) }))}
                   placeholder="Nombre del acudiente o contacto"
                   maxLength={80}
                   placeholderTextColor={colors.textMuted}

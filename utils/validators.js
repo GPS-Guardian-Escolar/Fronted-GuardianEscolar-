@@ -11,8 +11,20 @@ export const isValidEmail = (email) => {
 
 export const normalizePhoneDigits = (phone, maxLength = 15) => String(phone || '').replace(/\D/g, '').slice(0, maxLength);
 
+export const normalizeColombianPhoneInput = (phone) => {
+  let digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('57')) digits = digits.slice(2);
+  return digits.slice(0, 10);
+};
+
+export const sanitizePersonNameInput = (name, maxLength = 80) => String(name || '')
+  .replace(/[^\p{L}\p{M} '\u2019-]/gu, '')
+  .slice(0, maxLength);
+
 export const isValidPhone = (phone) => {
-  return /^3\d{9}$/.test(normalizePhoneDigits(phone, 10));
+  const digits = String(phone || '').replace(/\D/g, '');
+  const nationalNumber = digits.length === 12 && digits.startsWith('57') ? digits.slice(2) : digits;
+  return /^3\d{9}$/.test(nationalNumber);
 };
 
 export const isValidPersonName = (name, { min = 2, max = 80 } = {}) => {
