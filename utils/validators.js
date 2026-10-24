@@ -24,7 +24,7 @@ export const sanitizePersonNameInput = (name, maxLength = 60) => String(name || 
 export const isValidPhone = (phone) => {
   const digits = String(phone || '').replace(/\D/g, '');
   const nationalNumber = digits.length === 12 && digits.startsWith('57') ? digits.slice(2) : digits;
-  return /^3\d{9}$/.test(nationalNumber) && !/^(\d)\1{9}$/.test(nationalNumber);
+  return /^3\d{9}$/.test(nationalNumber) && !/(\d)\1{5}/.test(nationalNumber);
 };
 
 export const isValidPersonName = (name, { min = 2, max = 60 } = {}) => {

@@ -66,7 +66,7 @@ function RootLayoutNav() {
     if (!onboardingSeen && !isWelcome && !inAuthGroup) {
       router.replace('/(auth)/welcome');
     } else if (!isAuthenticated && !inAuthGroup && !isStudentDashboard && !isScanQr) {
-      router.replace('/(auth)/welcome');
+      router.replace(onboardingSeen ? '/(auth)/login' : '/(auth)/welcome');
     } else if (isAuthenticated && !inTabsGroup && !isStudentDashboard && !isScanQr) {
       router.replace('/(tabs)');
     }

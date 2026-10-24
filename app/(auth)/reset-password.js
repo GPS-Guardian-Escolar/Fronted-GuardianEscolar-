@@ -63,7 +63,9 @@ export default function ResetPasswordScreen() {
       const message = String(error?.response?.data?.message || error?.message || '').toLowerCase();
       setErrorMsg(/diferente.*actual|different.*current|diff.rent.*actuel|diferente.*atual/.test(message)
         ? t('profilePasswordMustDiffer')
-        : error.message || t('authPasswordUpdateFailed'));
+        : /(expir|expired|invalid|inval|used|utilizad)/.test(message)
+          ? t('authResetLinkInvalid')
+          : t('authPasswordUpdateFailed'));
     } finally {
       setIsSubmitting(false);
     }
@@ -79,7 +81,7 @@ export default function ResetPasswordScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.topBar}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/(auth)/login')}>
           <MaterialCommunityIcons name="arrow-left" size={28} color={colors.primary} />
         </TouchableOpacity>
         <LanguageSelector />

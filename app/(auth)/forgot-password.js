@@ -9,6 +9,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import LanguageSelector from '../../components/common/LanguageSelector';
 import { authService } from '../../services/auth.service';
+import { isValidEmail } from '../../utils/validators';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -25,6 +26,10 @@ export default function ForgotPasswordScreen() {
     setSuccessMsg('');
     if (!contact.trim()) {
       setErrorMsg(t('invalidInput'));
+      return;
+    }
+    if (!isValidEmail(contact)) {
+      setErrorMsg(t('authInvalidEmail'));
       return;
     }
     try {

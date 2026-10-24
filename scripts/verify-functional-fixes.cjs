@@ -51,10 +51,16 @@ async function main() {
   assert.equal(validators.isValidPersonName('Ab', { min: 3, max: 60 }), false);
   assert.equal(validators.isValidPersonName('Ana', { min: 3, max: 60 }), true);
   assert.equal(validators.isValidPersonName('A'.repeat(61)), false);
+  assert.equal(validators.isValidPersonName('Ana123'), false);
+  assert.equal(validators.isValidPersonName('Anaaaaa'), false);
   assert.equal(validators.isValidPersonName('Annnna'), false);
   assert.equal(validators.isValidPhone('3001234567'), true);
   assert.equal(validators.isValidPhone('+573001234567'), true);
   assert.equal(validators.isValidPhone('3333333333'), false);
+  assert.equal(validators.isValidPhone('4444444444'), false);
+  assert.equal(validators.isValidPhone('3222222222'), false);
+  assert.equal(validators.isValidPhone('3777777777'), false);
+  assert.equal(validators.isValidPhone('3221234567'), true);
   assert.equal(validators.normalizeColombianPhoneInput('+57 300 123 4567'), '3001234567');
 
   const calls = [];

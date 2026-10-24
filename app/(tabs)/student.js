@@ -26,7 +26,7 @@ import StudentList from '../../features/students/components/StudentList';
 import { studentService } from '../../services/student.service';
 import { AppTouch, AppTypography } from '../../theme/tokens';
 import { addStudent, deleteStudent, getInitials, getStudents, normalizeGrade, updateStudent } from '../../utils/studentStorage';
-import { isValidPersonName, isValidPhone, normalizeColombianPhoneInput, sanitizePersonNameInput } from '../../utils/validators';
+import { isValidPersonName, isValidPhone, normalizeColombianPhoneInput } from '../../utils/validators';
 
 const { width } = Dimensions.get('window');
 const isWeb = width > 768;
@@ -621,9 +621,8 @@ export default function StudentScreen() {
                 <TextInput
                   style={[styles.mockupInput, themed.input, formErrors.nombre && styles.inputError]}
                   value={form.nombre}
-                      onChangeText={v => setForm(f => ({ ...f, nombre: sanitizePersonNameInput(v) }))}
+                      onChangeText={v => setForm(f => ({ ...f, nombre: v }))}
                   placeholder="Nombre y apellido"
-                  maxLength={60}
                   placeholderTextColor={colors.textMuted}
                 />
                 {!!formErrors.nombre && <Text style={styles.errorText}>{formErrors.nombre}</Text>}
@@ -659,9 +658,8 @@ export default function StudentScreen() {
                 <TextInput
                   style={[styles.mockupInput, themed.input, formErrors.contacto_nombre && styles.inputError]}
                   value={form.contacto_nombre}
-                  onChangeText={v => setForm(f => ({ ...f, contacto_nombre: sanitizePersonNameInput(v) }))}
+                  onChangeText={v => setForm(f => ({ ...f, contacto_nombre: v }))}
                   placeholder="Nombre del acudiente o contacto"
-                  maxLength={60}
                   placeholderTextColor={colors.textMuted}
                 />
                 {!!formErrors.contacto_nombre && <Text style={styles.errorText}>{formErrors.contacto_nombre}</Text>}

@@ -11,7 +11,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { authService } from '../../services/auth.service';
 import { notificationService } from '../../services/notification.service';
 import { SUPPORTED_LANGUAGES } from '../../translations';
-import { isValidEmail, isValidPersonName, isValidPhone, normalizeColombianPhoneInput, normalizePhoneDigits, passwordChecks, sanitizePersonNameInput } from '../../utils/validators';
+import { isValidEmail, isValidPersonName, isValidPhone, normalizeColombianPhoneInput, normalizePhoneDigits, passwordChecks } from '../../utils/validators';
 
 function showProfileAlert(title, message) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -209,6 +209,8 @@ export default function ProfileScreen() {
       setEmailModalVisible(false);
       setEmailForm({ currentPassword: '', nextEmail });
       showProfileAlert(t('success'), t('profileEmailVerificationSent'));
+      await logout();
+      router.replace('/(auth)/login');
     } catch (error) {
       setEmailError(localizedProfileError(error, t, 'profileUpdateFailed'));
     }
@@ -352,7 +354,7 @@ export default function ProfileScreen() {
           <View style={[styles.profileRow, !isWide && styles.profileRowMobile]}>
             <Avatar.Text size={60} label={form.name.substring(0, 2).toUpperCase()} style={{ backgroundColor: colors.primary }} color={colors.textOnPrimary} />
             <View style={styles.profileInputs}>
-              <ProfileField colors={colors} label={t('profileName')} value={form.name} editable={isEditing} onChangeText={name => setForm(current => ({ ...current, name: sanitizePersonNameInput(name) }))} />
+              <ProfileField colors={colors} label={t('profileName')} value={form.name} editable={isEditing} onChangeText={name => setForm(current => ({ ...current, name }))} />
               <ProfileField colors={colors} label={t('profilePhone')} value={form.phone} editable={isEditing} keyboardType="phone-pad" onChangeText={phone => setForm(current => ({ ...current, phone: normalizeColombianPhoneInput(phone) }))} />
               <View style={styles.inputWrap}>
                 <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{t('profileEmail')}</Text>

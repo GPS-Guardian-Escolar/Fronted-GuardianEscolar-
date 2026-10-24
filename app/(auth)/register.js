@@ -10,7 +10,7 @@ import { authService } from '../../services/auth.service';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import LanguageSelector from '../../components/common/LanguageSelector';
-import { isValidEmail, isValidPersonName, isValidPhone, normalizeColombianPhoneInput, passwordChecks, sanitizePersonNameInput } from '../../utils/validators';
+import { isValidEmail, isValidPersonName, isValidPhone, normalizeColombianPhoneInput, passwordChecks } from '../../utils/validators';
 
 const isWeb = Dimensions.get('window').width > 768;
 
@@ -109,9 +109,17 @@ export default function RegisterScreen() {
       }
       router.replace('/(auth)/login');
     } catch (error) {
-      setErrorMsg(/servicio de correo|email delivery|no se pudo enviar el correo/i.test(error.message || '')
-        ? t('authRecoveryUnavailable')
-        : error.message || t('authRegisterFailed'));
+      const message = String(error?.response?.data?.message || error?.message || '').toLowerCase();
+      const key = /email|correo|mail/.test(message) && /delivery|send|enviar|proveedor/.test(message)
+        ? 'authRecoveryUnavailable'
+        : /tel[eé]fono|celular|phone/.test(message)
+          ? 'authPhoneInvalid'
+          : /nombre|name/.test(message)
+            ? 'authNameLength'
+            : /correo electr[oó]nico|e-mail|email|ya existe una cuenta/.test(message)
+              ? 'authInvalidEmail'
+              : 'authRegisterFailed';
+      setErrorMsg(t(key));
     } finally {
       setIsSubmitting(false);
     }
@@ -134,7 +142,7 @@ export default function RegisterScreen() {
               <View style={styles.inputGroup}>
                 <Text style={[styles.label, { color: colors.text }]}>{t('authGuardianName')}</Text>
                 <TextInput
-                  mode="outlined" value={name} onChangeText={value => setName(sanitizePersonNameInput(value))}
+                  mode="outlined" value={name} onChangeText={setName}
                   outlineColor={colors.border} activeOutlineColor={colors.primary}
                   style={[styles.input, { backgroundColor: colors.surfaceSecondary }]} textColor={colors.text} theme={{ roundness: 6 }}
                   placeholderTextColor={colors.textMuted}
