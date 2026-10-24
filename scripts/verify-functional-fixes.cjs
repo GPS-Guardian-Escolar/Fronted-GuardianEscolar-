@@ -104,6 +104,14 @@ async function main() {
   segments = [[{ latitude: 5, longitude: -74 }, stop], [stop, destination]];
   await assert.rejects(calculateRouteGeometry(route), /ruta calculada/);
 
+  const history = loadModule('utils/tripHistory.js');
+  const date = new Date(2026, 9, 24, 12, 0, 0);
+  assert.equal(history.toLocalDateKey(date), '2026-10-24');
+  assert.equal(history.matchesHistoryStatus({ estado: 'En Proceso', alerta: false }, 'En Proceso'), true);
+  assert.equal(history.matchesHistoryStatus({ estado: 'En Proceso', alerta: true }, 'En Proceso'), false);
+  assert.equal(history.matchesHistoryStatus({ estado: 'En Proceso', alerta: true }, 'Con Incidente'), true);
+  assert.equal(history.getHistoryStatusKind({ estado: 'Completado' }), 'completed');
+
   console.log('Validación, preferencias y geometría: verificadas.');
 }
 

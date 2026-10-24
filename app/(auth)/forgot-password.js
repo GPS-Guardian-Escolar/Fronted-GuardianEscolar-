@@ -40,11 +40,11 @@ export default function ForgotPasswordScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
-       <LanguageSelector style={{ position: "absolute", top: 16, right: 16, zIndex: 10 }} />
        <View style={styles.topBar}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/(auth)/login')}>
           <MaterialCommunityIcons name="arrow-left" size={28} color={colors.primary} />
         </TouchableOpacity>
+        <LanguageSelector />
       </View>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
@@ -109,7 +109,8 @@ const styles = StyleSheet.create({
   topBar: {
     width: '100%',
     flexDirection: 'row',
-    justifyContent: 'flex-start',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 10,
     zIndex: 10,

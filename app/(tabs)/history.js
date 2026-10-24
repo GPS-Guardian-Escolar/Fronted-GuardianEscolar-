@@ -12,6 +12,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { deleteHistory, deleteNotification, getHistory } from '../../utils/studentStorage';
 import { trackingService } from '../../services/tracking.service';
 import { notificationService } from '../../services/notification.service';
+import { getHistoryStatusKind, matchesHistoryStatus, toLocalDateKey } from '../../utils/tripHistory';
 
 const DATE_LOCALES = { es: 'es-CO', en: 'en-US', fr: 'fr-FR', pt: 'pt-BR' };
 
@@ -38,6 +39,7 @@ function normalizeTrip(trip, notifications = [], lang = 'es') {
     backendId: trip.id,
     estudiante: trip.student || 'Estudiante',
     fecha: formatTripDate(trip.tripStartedAt, lang),
+    fechaKey: toLocalDateKey(trip.tripStartedAt),
     horaInicio: formatTripTime(trip.tripStartedAt, lang),
     horaFin: formatTripTime(trip.tripEndedAt, lang),
     ruta: trip.route || 'Ruta asignada',
@@ -110,22 +112,24 @@ export default function HistoryScreen() {
 
   const filteredHistory = history.filter((item) => {
     const matchesStudent = !filterStudent || item.estudiante.toLowerCase().includes(filterStudent.toLowerCase());
-    const matchesDate = !filterDate || String(item.fecha).toLowerCase().includes(filterDate.toLowerCase());
-    const matchesStatus = statusFilter === 'all'
-      || item.estado === statusFilter
-      || (statusFilter === 'Con Incidente' && item.alerta);
+    const matchesDate = !filterDate || item.fechaKey === filterDate;
+    const matchesStatus = matchesHistoryStatus(item, statusFilter);
     return matchesStudent && matchesDate && matchesStatus;
   });
 
-  const getDisplayedStatus = (item) => item.alerta && statusFilter === 'Con Incidente'
-    ? t('histIncident')
-    : item.estado === 'En Proceso' ? t('histInProcess') : item.estado === 'Completado' ? t('histCompleted') : item.estado;
+  const getDisplayedStatus = (item) => {
+    const kind = getHistoryStatusKind(item);
+    if (kind === 'incident') return t('histIncident');
+    if (kind === 'inProgress') return t('histInProcess');
+    if (kind === 'completed') return t('histCompleted');
+    return item.estado;
+  };
 
   const getStatusColor = (item) => {
-    const displayedStatus = getDisplayedStatus(item);
-    if (displayedStatus === t('histInProcess')) return colors.primary;
-    if (displayedStatus === t('histCompleted')) return colors.accent;
-    if (displayedStatus === t('histIncident')) return colors.error;
+    const kind = getHistoryStatusKind(item);
+    if (kind === 'inProgress') return colors.primary;
+    if (kind === 'completed') return colors.accent;
+    if (kind === 'incident') return colors.error;
     if (item.advertencia) return colors.warning;
     return colors.textSecondary;
   };
@@ -150,7 +154,7 @@ export default function HistoryScreen() {
         <td>${escapeHtml(item.fecha)}</td>
         <td>${escapeHtml(item.horaInicio)}${item.horaFin && item.horaFin !== '--' ? ` - ${escapeHtml(item.horaFin)}` : ''}</td>
         <td>${escapeHtml(item.ruta)}</td>
-        <td><span class="status">${escapeHtml(item.estado)}</span></td>
+        <td><span class="status">${escapeHtml(getDisplayedStatus(item))}</span></td>
         <td>${escapeHtml(item.alerta ? t('histObsAlert') : item.advertencia ? t('histObsInactivity') : t('histObsNormal'))}</td>
       </tr>
     `).join('');
