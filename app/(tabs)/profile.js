@@ -24,6 +24,8 @@ function showProfileAlert(title, message) {
 function localizedProfileError(error, t, fallbackKey) {
   const message = String(error?.message || '').toLowerCase();
   if (/401|unauthorized|jwt|token/.test(message)) return t('profileSessionExpired');
+  if (/phone|celular|teléfono|telefono|número|numero/.test(message)) return t('profilePhoneInvalid');
+  if (/full.?name|nombre/.test(message)) return t('profileNameInvalid');
   if (/servicio de correo|email delivery|mail provider|no se pudo enviar el correo/.test(message)) return t('authRecoveryUnavailable');
   if (/current password|contrase.*a actual/.test(message)) return t('profilePasswordIncorrect');
   if (/already registered|already exists|ya existe una cuenta/.test(message)) return t('profileEmailAlreadyUsed');
@@ -176,8 +178,12 @@ export default function ProfileScreen() {
   };
 
   const handleSaveProfile = async () => {
-    if (!isValidPersonName(form.name, { min: 3, max: 60 }) || !isValidPhone(form.phone)) {
-      showProfileAlert(t('error'), t('invalidInput'));
+    if (!isValidPersonName(form.name, { min: 3, max: 60 })) {
+      showProfileAlert(t('error'), t('profileNameInvalid'));
+      return;
+    }
+    if (!isValidPhone(form.phone)) {
+      showProfileAlert(t('error'), t('profilePhoneInvalid'));
       return;
     }
     try {

@@ -9,6 +9,7 @@ import LanguageSelector from '../../components/common/LanguageSelector';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { authService } from '../../services/auth.service';
+import { emitAuthExpired } from '../../utils/authEvents';
 
 export default function VerifyEmailScreen() {
   const router = useRouter();
@@ -38,6 +39,7 @@ export default function VerifyEmailScreen() {
 
     authService.verifyEmailWithToken(token)
       .then(result => {
+        emitAuthExpired();
         setStatus('success');
         setMessageKey('authVerifyEmailSuccess');
       })

@@ -33,6 +33,14 @@ const isWeb = width > 768;
 const isTablet = width > 600 && width <= 1024;
 const MIN_STUDENT_AGE = 3;
 const MAX_STUDENT_AGE = 21;
+function showStudentAlert(title, message) {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.alert([title, message].filter(Boolean).join('\n\n'));
+  } else {
+    Alert.alert(title, message);
+  }
+}
+
 const GRADE_AGE_RANGES = {
   PRE_KINDER: [3, 5],
   KINDER: [4, 6],
@@ -358,7 +366,7 @@ export default function StudentScreen() {
 
   async function handleSave() {
     if (!validateForm()) {
-      Alert.alert(t('studRequiredField'), t('studReviewFields'));
+      showStudentAlert(t('studRequiredField'), t('studReviewFields'));
       return;
     }
     setLoading(true);
@@ -374,12 +382,19 @@ export default function StudentScreen() {
       await loadStudents();
       setModalVisible(false);
       setNotice(t(editingStudent ? 'studUpdatedSuccess' : 'studAddedSuccess'));
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert(t(editingStudent ? 'studUpdatedSuccess' : 'studAddedSuccess'));
+      }
     } catch (error) {
       const message = String(error?.response?.data?.message || error?.message || '').toLowerCase();
       if (/already exists|duplicate|ya existe|duplicado/.test(message)) {
-        Alert.alert(t('error'), t('studDuplicateName'));
+        showStudentAlert(t('error'), t('studDuplicateName'));
+      } else if (/phone|celular|teléfono|telefono/.test(message)) {
+        showStudentAlert(t('error'), t('studPhoneInvalid'));
+      } else if (/contact|emergencia/.test(message)) {
+        showStudentAlert(t('error'), t('studContactNameInvalid'));
       } else {
-        Alert.alert(t('error'), t('studSaveFailed'));
+        showStudentAlert(t('error'), t('studSaveFailed'));
       }
     } finally {
       setLoading(false);

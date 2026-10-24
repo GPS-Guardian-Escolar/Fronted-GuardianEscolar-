@@ -60,6 +60,11 @@ async function main() {
   assert.equal(validators.isValidPhone('4444444444'), false);
   assert.equal(validators.isValidPhone('3222222222'), false);
   assert.equal(validators.isValidPhone('3777777777'), false);
+  assert.equal(validators.isValidPhone('3000000000'), false);
+  assert.equal(validators.isValidPhone('3999999999'), false);
+  assert.equal(validators.isValidPhone('3444444444'), false);
+  assert.equal(validators.isValidPhone('3455555555'), false);
+  assert.equal(validators.isValidPhone('3111111111'), false);
   assert.equal(validators.isValidPhone('3221234567'), true);
   assert.equal(validators.normalizeColombianPhoneInput('+57 300 123 4567'), '3001234567');
 
