@@ -6,6 +6,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacit
 import { Button, Text, TextInput } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
+import LanguageSelector from '../../components/common/LanguageSelector';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { authService } from '../../services/auth.service';
@@ -22,7 +23,7 @@ const rulesFor = (password, confirmPassword) => ({
 export default function ResetPasswordScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, logout } = useAuth();
   const { t } = useLanguage();
   const { theme } = useTheme();
   const colors = theme.colors;
@@ -56,11 +57,13 @@ export default function ResetPasswordScreen() {
       }
       await authService.resetPasswordWithToken(token, password);
       setSuccessMsg(t('authPasswordChanged'));
-      setTimeout(() => {
-        router.replace(isAuthenticated ? '/(tabs)' : '/(auth)/login');
-      }, 900);
+      if (isAuthenticated) await logout();
+      setTimeout(() => router.replace('/(auth)/login'), 900);
     } catch (error) {
-      setErrorMsg(error.message || t('authPasswordUpdateFailed'));
+      const message = String(error?.response?.data?.message || error?.message || '').toLowerCase();
+      setErrorMsg(/diferente.*actual|different.*current|diff.rent.*actuel|diferente.*atual/.test(message)
+        ? t('profilePasswordMustDiffer')
+        : error.message || t('authPasswordUpdateFailed'));
     } finally {
       setIsSubmitting(false);
     }
@@ -79,6 +82,7 @@ export default function ResetPasswordScreen() {
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <MaterialCommunityIcons name="arrow-left" size={28} color={colors.primary} />
         </TouchableOpacity>
+        <LanguageSelector />
       </View>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
@@ -181,7 +185,7 @@ export default function ResetPasswordScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   safeArea: { flex: 1 },
-  topBar: { width: '100%', flexDirection: 'row', justifyContent: 'flex-start', paddingHorizontal: 20, paddingTop: 10, zIndex: 10 },
+  topBar: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10, zIndex: 10 },
   backButton: { padding: 8 },
   scrollContent: { flexGrow: 1, justifyContent: 'center' },
   cardWrapper: { width: '100%', alignItems: 'center', padding: 20, alignSelf: 'center' },

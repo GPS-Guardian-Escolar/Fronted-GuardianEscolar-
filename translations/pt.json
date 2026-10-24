@@ -111,8 +111,8 @@
   "studShareLoadError": "Nao foi possivel carregar os acessos.",
   "studShareError": "Nao foi possivel compartilhar o acesso.",
   "studShareEmailNotRegistered": "Este e-mail não está cadastrado. Verifique o endereço ou peça à pessoa para criar uma conta.",
-  "studNameInvalid": "Digite um nome de 2 a 60 letras. Espaços, acentos e hífens são permitidos.",
-  "studContactNameInvalid": "Digite um contato de emergencia com 2 a 60 letras, sem numeros.",
+  "studNameInvalid": "Digite um nome com 3 a 60 letras. Espacos, acentos e hifens sao permitidos.",
+  "studContactNameInvalid": "Digite um contato de emergencia com 3 a 60 letras, sem numeros.",
   "studReviewFields": "Revise os campos marcados antes de salvar.",
   "studSaveFailed": "Nao foi possivel salvar o estudante e o contato. Confira os dados e tente novamente.",
   "studPhoneInvalid": "Digite um celular colombiano valido de 10 digitos com inicio em 3.",
@@ -543,7 +543,7 @@
   "qrScanDescription": "Posicione o QR code dentro da moldura. A vinculacao comecara automaticamente.",
   "qrManualCodeHelp": "Digite o codigo de vinculacao se nao puder escanear o QR code.",
   "qrCodeLabel": "Codigo de vinculacao",
-  "authNameLength": "O nome deve ter de 2 a 60 letras.",
+  "authNameLength": "O nome deve ter de 3 a 60 letras.",
   "authPhoneInvalid": "Digite um celular colombiano de 10 digitos com inicio em 3.",
   "authRegisterSuccess": "Sua conta foi criada. Enviamos um e-mail de verificacao. Confira sua caixa de entrada e confirme o endereco antes de entrar.",
   "authRegisterFailed": "Nao foi possivel criar a conta.",
@@ -569,5 +569,8 @@
   "authRecoverySent": "Se o e-mail estiver cadastrado, você receberá um link para redefinir a senha.",
   "authRecoveryUnavailable": "O serviço de e-mail está indisponível. Tente novamente mais tarde.",
   "profileLoginAgain": "Ir para entrar",
-  "profileEmailVerificationSent": "Enviamos um link para o novo e-mail. Abra-o para confirmar a alteração."
+  "profileEmailVerificationSent": "Enviamos um link para o novo e-mail. Abra-o para confirmar a alteração.",
+  "studAddedSuccess": "Estudante e contato de emergencia cadastrados com sucesso.",
+  "studUpdatedSuccess": "Dados do estudante atualizados com sucesso.",
+  "studDuplicateName": "Ja existe um estudante com esse nome na sua conta."
 }

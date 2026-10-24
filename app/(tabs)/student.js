@@ -26,7 +26,7 @@ import StudentList from '../../features/students/components/StudentList';
 import { studentService } from '../../services/student.service';
 import { AppTouch, AppTypography } from '../../theme/tokens';
 import { addStudent, deleteStudent, getInitials, getStudents, normalizeGrade, updateStudent } from '../../utils/studentStorage';
-import { isValidPersonName, normalizeColombianPhoneInput, sanitizePersonNameInput } from '../../utils/validators';
+import { isValidPersonName, isValidPhone, normalizeColombianPhoneInput, sanitizePersonNameInput } from '../../utils/validators';
 
 const { width } = Dimensions.get('window');
 const isWeb = width > 768;
@@ -308,7 +308,7 @@ export default function StudentScreen() {
     today.setHours(0, 0, 0, 0);
     const birthDate = parseValidBirthDate(form.fechaNacimiento);
 
-    if (!isValidPersonName(name, { min: 2, max: 60 })) errors.nombre = t('studNameInvalid');
+    if (!isValidPersonName(name, { min: 3, max: 60 })) errors.nombre = t('studNameInvalid');
     if (!form.grado.trim()) {
       errors.grado = t('studGradeRequired');
     } else if (!normalizeGrade(form.grado)) {
@@ -331,9 +331,8 @@ export default function StudentScreen() {
       }
     }
     const contactName = form.contacto_nombre.trim();
-    if (!isValidPersonName(contactName, { min: 2, max: 60 })) errors.contacto_nombre = t('studContactNameInvalid');
-    const phoneDigits = form.contacto_telefono.replace(/\D/g, '');
-    if (!/^3\d{9}$/.test(phoneDigits)) {
+    if (!isValidPersonName(contactName, { min: 3, max: 60 })) errors.contacto_nombre = t('studContactNameInvalid');
+    if (!isValidPhone(form.contacto_telefono)) {
       errors.contacto_telefono = t('studPhoneInvalid');
     }
 
@@ -374,8 +373,14 @@ export default function StudentScreen() {
       setStudents(updated);
       await loadStudents();
       setModalVisible(false);
-    } catch {
-      Alert.alert(t('error'), t('studSaveFailed'));
+      setNotice(t(editingStudent ? 'studUpdatedSuccess' : 'studAddedSuccess'));
+    } catch (error) {
+      const message = String(error?.response?.data?.message || error?.message || '').toLowerCase();
+      if (/already exists|duplicate|ya existe|duplicado/.test(message)) {
+        Alert.alert(t('error'), t('studDuplicateName'));
+      } else {
+        Alert.alert(t('error'), t('studSaveFailed'));
+      }
     } finally {
       setLoading(false);
     }
@@ -916,8 +921,8 @@ export default function StudentScreen() {
         </View>
       </Modal>
 
-      <Snackbar visible={!!notice} onDismiss={() => setNotice('')}>
-        {notice}
+      <Snackbar visible={!!notice} onDismiss={() => setNotice('')} style={{ backgroundColor: colors.success }}>
+        <Text style={{ color: colors.textOnPrimary }}>{notice}</Text>
       </Snackbar>
     </View>
   );

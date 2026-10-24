@@ -111,8 +111,8 @@
   "studShareLoadError": "Impossible de charger les acces.",
   "studShareError": "Impossible de partager l'acces.",
   "studShareEmailNotRegistered": "Cette adresse e-mail n'est pas inscrite. Vérifiez-la ou demandez à la personne de créer un compte.",
-  "studNameInvalid": "Saisissez un nom de 2 à 60 lettres. Espaces, accents et traits d'union autorisés.",
-  "studContactNameInvalid": "Saisissez un contact de 2 a 60 lettres, sans chiffres.",
+  "studNameInvalid": "Saisissez un nom de 3 a 60 lettres. Espaces, accents et traits d union autorises.",
+  "studContactNameInvalid": "Saisissez un contact d urgence de 3 a 60 lettres, sans chiffres.",
   "studReviewFields": "V?rifiez les champs signal?s avant d?enregistrer.",
   "studSaveFailed": "Impossible d enregistrer l eleve et son contact. Verifiez les informations puis reessayez.",
   "studPhoneInvalid": "Saisissez un mobile colombien valide de 10 chiffres commencant par 3.",
@@ -543,7 +543,7 @@
   "qrScanDescription": "Placez le QR code dans le cadre. L?association demarrera automatiquement.",
   "qrManualCodeHelp": "Saisissez le code d?association si vous ne pouvez pas scanner le QR code.",
   "qrCodeLabel": "Code d?association",
-  "authNameLength": "Le nom doit contenir de 2 a 60 lettres.",
+  "authNameLength": "Le nom doit contenir de 3 a 60 lettres.",
   "authPhoneInvalid": "Saisissez un mobile colombien de 10 chiffres commencant par 3.",
   "authRegisterSuccess": "Votre compte a ete cree. Un e-mail de verification vous a ete envoye. Consultez votre boite de reception et confirmez votre adresse avant de vous connecter.",
   "authRegisterFailed": "Impossible de creer le compte.",
@@ -569,5 +569,8 @@
   "authRecoverySent": "Si cette adresse est enregistrée, vous recevrez un lien de réinitialisation.",
   "authRecoveryUnavailable": "Le service de courriel est indisponible. Réessayez plus tard.",
   "profileLoginAgain": "Aller à la connexion",
-  "profileEmailVerificationSent": "Un lien a été envoyé à la nouvelle adresse. Ouvrez-le pour vérifier le changement."
+  "profileEmailVerificationSent": "Un lien a été envoyé à la nouvelle adresse. Ouvrez-le pour vérifier le changement.",
+  "studAddedSuccess": "Eleve et contact d urgence enregistres.",
+  "studUpdatedSuccess": "Informations de l eleve mises a jour.",
+  "studDuplicateName": "Un eleve portant ce nom existe deja dans votre compte."
 }

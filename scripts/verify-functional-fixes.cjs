@@ -48,6 +48,8 @@ async function main() {
   const validators = loadModule('utils/validators.js');
   assert.equal(validators.isValidPersonName('Ana María'), true);
   assert.equal(validators.isValidPersonName('A'), false);
+  assert.equal(validators.isValidPersonName('Ab', { min: 3, max: 60 }), false);
+  assert.equal(validators.isValidPersonName('Ana', { min: 3, max: 60 }), true);
   assert.equal(validators.isValidPersonName('A'.repeat(61)), false);
   assert.equal(validators.isValidPersonName('Annnna'), false);
   assert.equal(validators.isValidPhone('3001234567'), true);

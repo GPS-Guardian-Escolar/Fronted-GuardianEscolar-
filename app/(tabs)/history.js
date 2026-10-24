@@ -13,19 +13,21 @@ import { deleteHistory, deleteNotification, getHistory } from '../../utils/stude
 import { trackingService } from '../../services/tracking.service';
 import { notificationService } from '../../services/notification.service';
 
-function formatTripDate(value) {
+const DATE_LOCALES = { es: 'es-CO', en: 'en-US', fr: 'fr-FR', pt: 'pt-BR' };
+
+function formatTripDate(value, lang = 'es') {
   if (!value) return '--';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' });
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString(DATE_LOCALES[lang] || DATE_LOCALES.es, { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-function formatTripTime(value) {
+function formatTripTime(value, lang = 'es') {
   if (!value) return '--';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '--' : date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  return Number.isNaN(date.getTime()) ? '--' : date.toLocaleTimeString(DATE_LOCALES[lang] || DATE_LOCALES.es, { hour: '2-digit', minute: '2-digit' });
 }
 
-function normalizeTrip(trip, notifications = []) {
+function normalizeTrip(trip, notifications = [], lang = 'es') {
   const status = String(trip.status || '').toUpperCase();
   const tripEvents = notifications.filter(notification => String(notification.tripId) === String(trip.id));
   const alerta = Boolean(trip.hadDeviation)
@@ -35,9 +37,9 @@ function normalizeTrip(trip, notifications = []) {
     id: `trip-${trip.id}`,
     backendId: trip.id,
     estudiante: trip.student || 'Estudiante',
-    fecha: formatTripDate(trip.tripStartedAt),
-    horaInicio: formatTripTime(trip.tripStartedAt),
-    horaFin: formatTripTime(trip.tripEndedAt),
+    fecha: formatTripDate(trip.tripStartedAt, lang),
+    horaInicio: formatTripTime(trip.tripStartedAt, lang),
+    horaFin: formatTripTime(trip.tripEndedAt, lang),
     ruta: trip.route || 'Ruta asignada',
     estado: status === 'IN_PROGRESS' ? 'En Proceso' : status === 'COMPLETED' ? 'Completado' : status === 'CANCELED' ? 'Cancelado' : 'Pendiente',
     alerta,
@@ -67,7 +69,7 @@ export default function HistoryScreen() {
         trackingService.listTrips().catch(() => []),
         notificationService.listNotifications().catch(() => []),
       ]);
-      const remoteHistory = (trips || []).map(trip => normalizeTrip(trip, notifications || []));
+      const remoteHistory = (trips || []).map(trip => normalizeTrip(trip, notifications || [], lang));
       const remoteIds = new Set(remoteHistory.map(item => item.backendId));
       const localOnly = storedHistory.filter(item => !item.backendId && !remoteIds.has(item.id));
       setHistory([...remoteHistory, ...localOnly]);
@@ -76,7 +78,7 @@ export default function HistoryScreen() {
     } finally {
       setRefreshing(false);
     }
-  }, [t]);
+  }, [t, lang]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
@@ -115,13 +117,17 @@ export default function HistoryScreen() {
     return matchesStudent && matchesDate && matchesStatus;
   });
 
+  const getDisplayedStatus = (item) => item.alerta && statusFilter === 'Con Incidente'
+    ? t('histIncident')
+    : item.estado === 'En Proceso' ? t('histInProcess') : item.estado === 'Completado' ? t('histCompleted') : item.estado;
+
   const getStatusColor = (item) => {
-    if (statusFilter === 'En Proceso') return colors.primary;
-    if (statusFilter === 'Completado') return colors.accent;
-    if (item.alerta || item.estado === 'Con Incidente') return colors.error;
-    if (item.estado === 'En Proceso') return colors.primary;
+    const displayedStatus = getDisplayedStatus(item);
+    if (displayedStatus === t('histInProcess')) return colors.primary;
+    if (displayedStatus === t('histCompleted')) return colors.accent;
+    if (displayedStatus === t('histIncident')) return colors.error;
     if (item.advertencia) return colors.warning;
-    return colors.accent;
+    return colors.textSecondary;
   };
 
   const escapeHtml = (value) => String(value ?? '')
@@ -132,11 +138,11 @@ export default function HistoryScreen() {
     .replace(/'/g, '&#39;');
 
   const buildReportHtml = () => {
-    const generatedAt = new Date().toLocaleString('es-CO');
+    const generatedAt = new Date().toLocaleString(DATE_LOCALES[lang] || DATE_LOCALES.es);
     const activeFilters = [
-      ['Estudiante', filterStudent || 'Todos'],
-      ['Fecha', filterDate || 'Todas'],
-      ['Estado', statusFilter === 'all' ? 'Todos' : statusFilter],
+      [t('tabStudent'), filterStudent || t('histFilterAll')],
+      [t('histDate'), filterDate || t('histFilterAll')],
+      [t('histStatus'), statusFilter === 'all' ? t('histFilterAll') : statusFilter === 'En Proceso' ? t('histInProcess') : statusFilter === 'Completado' ? t('histCompleted') : t('histIncident')],
     ];
     const rows = filteredHistory.map((item) => `
       <tr>
@@ -297,7 +303,7 @@ export default function HistoryScreen() {
           <View style={styles.detailItem}>
             <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>{t('histStatus')}</Text>
             <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
-              <Text style={[styles.statusBadgeText, { color: statusColor }]}>{item.estado}</Text>
+              <Text style={[styles.statusBadgeText, { color: statusColor }]}>{getDisplayedStatus(item)}</Text>
             </View>
           </View>
           <Detail

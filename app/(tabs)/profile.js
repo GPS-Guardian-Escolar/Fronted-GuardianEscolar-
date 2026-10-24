@@ -176,7 +176,7 @@ export default function ProfileScreen() {
   };
 
   const handleSaveProfile = async () => {
-    if (!isValidPersonName(form.name, { min: 2, max: 60 }) || !isValidPhone(form.phone)) {
+    if (!isValidPersonName(form.name, { min: 3, max: 60 }) || !isValidPhone(form.phone)) {
       showProfileAlert(t('error'), t('invalidInput'));
       return;
     }
@@ -231,7 +231,16 @@ export default function ProfileScreen() {
       await authService.updatePassword(form.email, passForm.current, passForm.next);
       setPassModalVisible(false);
       setPassForm({ current: '', next: '', confirm: '' });
-      showProfileAlert(t('success'), t('profilePasswordUpdated'));
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        showProfileAlert(t('success'), t('profilePasswordUpdated'));
+        await logout();
+        router.replace('/(auth)/login');
+      } else {
+        Alert.alert(t('success'), t('profilePasswordUpdated'), [{ text: t('accept'), onPress: async () => {
+          await logout();
+          router.replace('/(auth)/login');
+        } }]);
+      }
     } catch (error) {
       showProfileAlert(t('error'), localizedProfileError(error, t, 'profilePasswordUpdateFailed'));
     }

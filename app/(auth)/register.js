@@ -93,7 +93,7 @@ export default function RegisterScreen() {
   const handleRegister = async () => {
     setErrorMsg('');
 
-    if (!isValidPersonName(name, { min: 2, max: 60 })) { setErrorMsg(t('authNameLength')); return; }
+    if (!isValidPersonName(name, { min: 3, max: 60 })) { setErrorMsg(t('authNameLength')); return; }
     if (!phoneValid) { setErrorMsg(t('authPhoneInvalid')); return; }
     if (!isValidEmail(email)) { setErrorMsg(t('authInvalidEmail')); return; }
     if (!allReqsMet) { setErrorMsg(t('authPasswordRulesFailed')); return; }
