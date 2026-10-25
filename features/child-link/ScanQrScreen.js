@@ -16,7 +16,7 @@ import { saveChildSession as persistChildSession } from '../../services/backgrou
 import { useTheme } from '../../theme/useTheme';
 import { AppRadius, AppSpacing, AppTouch, AppTypography } from '../../theme/tokens';
 import { getDeviceId, getDeviceName, getPlatform } from './deviceHelpers';
-import { parseQrValue } from './qrPayload';
+import { encodeAppQrValue, parseQrValue } from './qrPayload';
 
 function errorMessage(reason, t) {
   const messages = {
@@ -84,33 +84,45 @@ export default function ScanQrScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const isMobile = Platform.OS !== 'web';
   const scanSize = Math.min(Math.max(windowWidth * 0.72, 240), 340);
+  const linkedStudentId = params?.studentId;
+  const linkedCode = params?.code;
+
+  const linkedPayload = useMemo(() => {
+    if (!linkedStudentId || !linkedCode) return null;
+    return {
+      studentId: String(linkedStudentId),
+      code: String(linkedCode),
+    };
+  }, [linkedStudentId, linkedCode]);
+  const [linkedStudentName, setLinkedStudentName] = useState('');
 
   useEffect(() => {
+    if (!linkedPayload) return undefined;
+    let mounted = true;
+    studentService.linkedProfile(linkedPayload.studentId, linkedPayload.code)
+      .then(profile => { if (mounted) setLinkedStudentName(profile.fullName || ''); })
+      .catch(error => { if (mounted) setNotice(linkErrorMessage(error, t)); });
+    return () => { mounted = false; };
+  }, [linkedPayload, t]);
+
+  useEffect(() => {
+    if (linkedPayload) return;
     if (permission && !permission.granted && permission.canAskAgain) {
       requestPermission().catch(() => {
         setNotice(t('qrCameraPermissionFailed'));
       });
     }
-  }, [permission, requestPermission, t]);
+  }, [linkedPayload, permission, requestPermission, t]);
 
   useEffect(() => {
-    if (!permission?.granted || cameraReady || cameraError) return undefined;
+    if (linkedPayload || !permission?.granted || cameraReady || cameraError) return undefined;
 
     const timeout = setTimeout(() => {
       setCameraError(t('qrCameraSlow'));
     }, 12000);
 
     return () => clearTimeout(timeout);
-  }, [cameraError, cameraReady, permission?.granted, t]);
-
-  const linkedPayload = useMemo(() => {
-    if (Platform.OS !== 'web' || !params?.studentId || !params?.code) return null;
-    return {
-      studentId: String(params.studentId),
-      code: String(params.code),
-      name: String(params.name || t('studentLabel')),
-    };
-  }, [params, t]);
+  }, [cameraError, cameraReady, linkedPayload, permission?.granted, t]);
 
   const linkDevice = useCallback(async (payload) => {
     if (scanLock.current) return;
@@ -158,7 +170,7 @@ export default function ScanQrScreen() {
   }, [isProcessing, linkDevice, success, t]);
 
   useEffect(() => {
-    if (Platform.OS !== 'web' || !cameraReady || !permission?.granted || !isFocused || cameraError) return undefined;
+    if (linkedPayload || Platform.OS !== 'web' || !cameraReady || !permission?.granted || !isFocused || cameraError) return undefined;
 
     // Safari can render the camera but does not always expose BarcodeDetector,
     // so decode frames directly from the video as a web fallback.
@@ -194,7 +206,7 @@ export default function ScanQrScreen() {
       clearInterval(webScanTimer.current);
       webScanTimer.current = null;
     };
-  }, [cameraError, cameraReady, handleQrValue, isFocused, permission?.granted]);
+  }, [cameraError, cameraReady, handleQrValue, isFocused, linkedPayload, permission?.granted]);
 
   const submitManualCode = useCallback(() => {
     const code = manualCode.trim();
@@ -215,13 +227,23 @@ export default function ScanQrScreen() {
           <MaterialCommunityIcons name="qrcode-check" size={72} color={colors.primary} />
           <Text style={styles.title}>{t('qrLinkTitle')}</Text>
           <Text style={styles.description}>
-            {t('qrLinkConfirmPrefix')} {linkedPayload.name}. {t('qrLinkConfirmSuffix')}
+            {t('qrLinkConfirmPrefix')} {linkedStudentName || t('studentLabel')}. {t('qrLinkConfirmSuffix')}
           </Text>
+          {Platform.OS === 'web' && (
+            <>
+              <Text style={styles.description}>{t('qrOpenAppHint')}</Text>
+              <AppButton
+                title={t('qrOpenApp')}
+                onPress={() => Linking.openURL(encodeAppQrValue(linkedPayload))
+                  .catch(() => setNotice(t('qrAppUnavailable')))}
+              />
+            </>
+          )}
           <AppButton
-            title={t('qrLinkStudent')}
+            title={t(Platform.OS === 'web' ? 'qrContinueBrowser' : 'qrLinkStudent')}
             onPress={() => linkDevice(linkedPayload)}
             loading={isProcessing}
-            accessibilityLabel={t('qrLinkStudent')}
+            accessibilityLabel={t(Platform.OS === 'web' ? 'qrContinueBrowser' : 'qrLinkStudent')}
           />
           <AppButton title={t('cancel')} variant="ghost" onPress={() => router.back()} />
         </View>

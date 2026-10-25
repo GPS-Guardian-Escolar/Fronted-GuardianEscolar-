@@ -1,4 +1,4 @@
-import { Slot, useRouter, useSegments } from 'expo-router';
+import { Slot, useGlobalSearchParams, useRouter, useSegments } from 'expo-router';
 import * as TaskManager from 'expo-task-manager';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
@@ -19,13 +19,15 @@ if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
 function RootLayoutNav() {
   const { isAuthenticated, loading } = useAuth();
   const segments = useSegments();
+  const params = useGlobalSearchParams();
   const router = useRouter();
   const { theme: themeData } = useTheme();
   const [onboardingSeen, setOnboardingSeen] = useState(null);
 
   useEffect(() => {
     let mounted = true;
-    if (loading || onboardingSeen === null || segments[0] !== 'scan-qr') return undefined;
+    if (loading || onboardingSeen === null || segments[0] !== 'scan-qr'
+      || (params.studentId && params.code) || params.relink) return undefined;
 
     getChildSession().then((session) => {
       if (!mounted || !session.childToken || !session.studentId) return;
@@ -38,7 +40,7 @@ function RootLayoutNav() {
     return () => {
       mounted = false;
     };
-  }, [loading, onboardingSeen, router, segments]);
+  }, [loading, onboardingSeen, params.code, params.relink, params.studentId, router, segments]);
 
   useEffect(() => {
     let mounted = true;
@@ -63,7 +65,7 @@ function RootLayoutNav() {
     const isStudentDashboard = segments[0] === 'student-dashboard';
     const isScanQr = segments[0] === 'scan-qr';
 
-    if (!onboardingSeen && !isWelcome && !inAuthGroup) {
+    if (!onboardingSeen && !isWelcome && !inAuthGroup && !isScanQr && !isStudentDashboard) {
       router.replace('/(auth)/welcome');
     } else if (!isAuthenticated && !inAuthGroup && !isStudentDashboard && !isScanQr) {
       router.replace(onboardingSeen ? '/(auth)/login' : '/(auth)/welcome');

@@ -16,6 +16,7 @@ function loadModule(relativePath, dependencies = {}) {
   vm.runInNewContext(code, {
     module,
     exports: module.exports,
+    URL,
     setTimeout,
     console,
     require: name => {
@@ -127,9 +128,17 @@ async function main() {
   assert.equal(calls[1][2].emailChannel, false);
   assert.equal('alertaInactividad' in calls[1][2], false);
 
-  const qr = loadModule('features/child-link/qrPayload.js');
+  const qr = loadModule('features/child-link/qrPayload.js', {
+    '../../config/endpoints': { STUDENT_LINK_BASE_URL: 'https://gps-guardian-escolar-frontend.onrender.com' },
+  });
   const payload = qr.buildQrPayload({ studentId: 'student-1', code: 'link-code' });
-  assert.equal(qr.parseQrValue(qr.encodeQrValue(payload)).payload.code, 'link-code');
+  const qrLink = qr.encodeQrValue(payload);
+  assert.equal(new URL(qrLink).pathname, '/scan-qr');
+  assert.equal(new URL(qrLink).searchParams.get('studentId'), 'student-1');
+  assert.equal(new URL(qrLink).searchParams.get('code'), 'link-code');
+  assert.equal(qr.parseQrValue(qrLink).payload.code, 'link-code');
+  assert.match(qr.encodeAppQrValue(payload), /^gpsguardianescolar:\/\/scan-qr\?/);
+  assert.equal(qr.parseQrValue('{"v":1,"s":"student-1","c":"link-code"}').payload.code, 'link-code');
   assert.equal(qr.parseQrValue('{"v":1,"s":"student-1"}').ok, false);
 
   const trackingCalls = [];
