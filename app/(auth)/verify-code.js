@@ -36,8 +36,8 @@ export default function VerifyCodeScreen() {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const inputs = useRef([]);
-  const method = String(params.method || 'EMAIL');
-  const destination = method === 'SMS' ? 'teléfono' : 'correo';
+  const method = 'EMAIL';
+  const destination = t('twoFAEmail');
 
   const handleInputChange = (text, index) => {
     const cleaned = text.replace(/[^0-9]/g, '').slice(0, 6);

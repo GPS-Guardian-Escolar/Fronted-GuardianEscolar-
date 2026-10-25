@@ -274,9 +274,6 @@
   "profileDeparture": "Departure from zone",
   "profileDeviation": "Route deviation",
   "profileEmailNotif": "Email notifications",
-  "profileSMSNotif": "SMS notifications",
-  "profileSmsProviderRequired": "Requires an SMS provider in production",
-  "profileSmsSavedNoProvider": "SMS was saved as a preference, but an SMS provider must be configured to send real messages.",
   "profileNotificationChannels": "Notification channels",
   "profileChangePass": "Change password",
   "profile2FA": "Two-factor authentication",
@@ -323,7 +320,6 @@
   "twoFAMethodActive": "Active verification method:",
   "twoFAChooseMethod": "Choose how to receive your code:",
   "twoFAEmail": "Email",
-  "twoFASMS": "SMS to phone",
   "twoFADisable": "Disable 2FA",
   "twoFASendCode": "Send verification code",
   "twoFACodeSent": "Code sent",
@@ -592,7 +588,7 @@
   "authTerms4Title": "4. Privacy and personal data",
   "authTerms4Body": "The service processes names, email addresses, phone numbers, student details, emergency contacts, notification settings, routes, safe zones, and reported locations to operate the system. This information must not be shared with unauthorized third parties.",
   "authTerms5Title": "5. Notifications",
-  "authTerms5Body": "The system may send email, push alerts, or SMS when enabled. Delivery depends on external services, internet access, device permissions, and provider availability.",
+  "authTerms5Body": "The system may send email and push alerts when enabled. Delivery depends on external services, internet access, device permissions, and provider availability.",
   "authTerms6Title": "6. Account security",
   "authTerms6Body": "Users are responsible for protecting their password and signing out on shared devices. Guardian Escolar may block actions or request email verification to reduce unauthorized access.",
   "authTerms7Title": "7. Limitations",
@@ -618,5 +614,8 @@
   "zonesTypeHome": "Home",
   "zonesTypeSchool": "School",
   "zonesTypeCustom": "Custom",
-  "zonesNoAddress": "No address"
+  "zonesNoAddress": "No address",
+  "inputNameBlocked": "Enter a name of 3 to 60 characters, without numbers or three identical consecutive letters. The invalid text was not added.",
+  "inputPhoneBlocked": "Enter a 10-digit mobile number starting with 3, without five identical consecutive digits. The invalid text was not added.",
+  "trackingPendingLocations": "Some locations have not been sent. Check your connection and finish the trip again."
 }

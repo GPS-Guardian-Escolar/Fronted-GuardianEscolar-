@@ -10,7 +10,7 @@ import { authService } from '../../services/auth.service';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import LanguageSelector from '../../components/common/LanguageSelector';
-import { isValidEmail, isValidPersonName, isValidPhone, normalizeColombianPhoneInput, passwordChecks } from '../../utils/validators';
+import { validateInputEdit, isValidEmail, isValidPersonName, isValidPhone, normalizeColombianPhoneInput, passwordChecks } from '../../utils/validators';
 
 const isWeb = Dimensions.get('window').width > 768;
 
@@ -62,6 +62,15 @@ const FieldSvgIcon = ({ type, color, size = 22 }) => {
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const [inputNotice, setInputNotice] = useState('');
+  function changeInput(value, kind, setter) {
+    if (!validateInputEdit(value, kind)) {
+      setInputNotice(kind === 'name' ? 'inputNameBlocked' : 'inputPhoneBlocked');
+      return;
+    }
+    setInputNotice('');
+    setter(value);
+  }
   const { t } = useLanguage();
   const { theme } = useTheme();
   const colors = theme.colors;
@@ -138,11 +147,12 @@ export default function RegisterScreen() {
               <Text style={[styles.cardTitle, { color: colors.text }]}>{t('authRegister')}</Text>
               <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>{t('authEnterEmail')}</Text>
 
+              {inputNotice ? <Text accessibilityRole="alert" style={{ color: colors.error }}>{t(inputNotice)}</Text> : null}
               {/* Nombre */}
               <View style={styles.inputGroup}>
                 <Text style={[styles.label, { color: colors.text }]}>{t('authGuardianName')}</Text>
                 <TextInput
-                  mode="outlined" value={name} onChangeText={setName}
+                  mode="outlined" value={name} onChangeText={value => changeInput(value, 'name', setName)}
                   outlineColor={colors.border} activeOutlineColor={colors.primary}
                   style={[styles.input, { backgroundColor: colors.surfaceSecondary }]} textColor={colors.text} theme={{ roundness: 6 }}
                   placeholderTextColor={colors.textMuted}
@@ -156,9 +166,9 @@ export default function RegisterScreen() {
                 <TextInput
                   mode="outlined" value={phone}
                   onChangeText={(v) => {
-                    setPhone(normalizeColombianPhoneInput(v));
+                    changeInput(v, 'phone', setPhone);
                   }}
-                  keyboardType="phone-pad" maxLength={10}
+                  keyboardType="phone-pad"
                   outlineColor={phone.length > 0 && !phoneValid ? colors.error : colors.border} activeOutlineColor={colors.primary}
                   style={[styles.input, { backgroundColor: colors.surfaceSecondary }]} textColor={colors.text} theme={{ roundness: 6 }}
                   left={<TextInput.Affix text="+57" />}

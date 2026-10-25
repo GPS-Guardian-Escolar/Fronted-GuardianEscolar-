@@ -215,7 +215,7 @@ export default function StudentDashboardScreen() {
             await trackingService.updateStatus(tripId, {
               status: 'CANCELED',
               tripEndedAt: new Date().toISOString(),
-            });
+            }, { childToken: (await getChildSession()).childToken });
           } catch (statusError) {
             console.warn('No se pudo cancelar el trayecto tras fallar el rastreo:', statusError?.message || statusError);
           }
@@ -306,7 +306,7 @@ export default function StudentDashboardScreen() {
           await trackingService.updateStatus(tripId, {
             status: 'CANCELED',
             tripEndedAt: new Date().toISOString(),
-          });
+          }, { childToken: session.childToken });
         } catch (statusError) {
           console.warn('No se pudo cancelar el trayecto tras rechazar la ubicación:', statusError?.message || statusError);
         }
@@ -331,14 +331,16 @@ export default function StudentDashboardScreen() {
   const finishTracking = async () => {
     setTrackingLoading(true);
     try {
-      await stopBackgroundUpdates();
+      await stopBackgroundUpdates({ preserveTrip: true });
       const result = await flushQueue();
+      if (result.remaining > 0) throw new Error(t('trackingPendingLocations'));
       if (activeTripId) {
         await trackingService.updateStatus(activeTripId, {
           status: 'COMPLETED',
           tripEndedAt: new Date().toISOString(),
-        });
+        }, { childToken: (await getChildSession()).childToken });
       }
+      await stopBackgroundUpdates();
       setSentCount(count => count + result.sent);
       setQueueSize(result.remaining);
       setActiveTripId('');

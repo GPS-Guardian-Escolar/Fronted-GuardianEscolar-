@@ -55,7 +55,8 @@ async function persistLinkedChildSession(response, payload) {
   const childToken = response?.childToken || response?.token || response?.studentToken || '';
   const studentId = String(response?.studentId || payload?.studentId || '');
 
-  await persistChildSession({ childToken, studentId });
+  if (!childToken || !studentId) throw new Error('Invalid device session');
+  await persistChildSession({ childToken, studentId, code: payload.code });
 }
 
 export default function ScanQrScreen() {

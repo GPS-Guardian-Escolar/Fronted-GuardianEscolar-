@@ -274,9 +274,6 @@
   "profileDeparture": "Sortie de zone",
   "profileDeviation": "Déviation de l’itinéraire",
   "profileEmailNotif": "Notifications par e-mail",
-  "profileSMSNotif": "Notifications par SMS",
-  "profileSmsProviderRequired": "Nécessite un fournisseur SMS en production",
-  "profileSmsSavedNoProvider": "Le SMS a été enregistré comme préférence, mais un fournisseur SMS doit être configuré pour envoyer de vrais messages.",
   "profileNotificationChannels": "Canaux de notification",
   "profileChangePass": "Changer le mot de passe",
   "profile2FA": "Authentification à deux facteurs",
@@ -323,7 +320,6 @@
   "twoFAMethodActive": "Méthode de vérification active :",
   "twoFAChooseMethod": "Choisissez comment recevoir votre code :",
   "twoFAEmail": "E-mail",
-  "twoFASMS": "SMS sur le téléphone",
   "twoFADisable": "Désactiver la 2FA",
   "twoFASendCode": "Envoyer le code de vérification",
   "twoFACodeSent": "Code envoyé",
@@ -592,7 +588,7 @@
   "authTerms4Title": "4. Vie privee et donnees personnelles",
   "authTerms4Body": "Le service traite les noms, e-mails, numéros de téléphone, données des élèves, contacts d’urgence, paramètres de notification, itinéraires, zones et positions pour faire fonctionner le système. Ces données ne doivent pas être partagées avec des tiers non autorisés.",
   "authTerms5Title": "5. Notifications",
-  "authTerms5Body": "Le système peut envoyer des e-mails, notifications push ou SMS si ces options sont activées. Leur livraison dépend des services externes, d’Internet, des autorisations et du fournisseur.",
+  "authTerms5Body": "Le système peut envoyer des e-mails et des notifications push si ces options sont activées. Leur livraison dépend des services externes, d’Internet, des autorisations et du fournisseur.",
   "authTerms6Title": "6. Securite du compte",
   "authTerms6Body": "L’utilisateur doit protéger son mot de passe et se déconnecter sur les appareils partagés. Guardian Escolar peut demander une vérification par e-mail pour limiter les accès non autorisés.",
   "authTerms7Title": "7. Limites",
@@ -616,5 +612,8 @@
   "zonesTypeHome": "Maison",
   "zonesTypeSchool": "École",
   "zonesTypeCustom": "Personnalisée",
-  "zonesNoAddress": "Aucune adresse"
+  "zonesNoAddress": "Aucune adresse",
+  "inputNameBlocked": "Saisissez un nom de 3 à 60 caractères, sans chiffres ni trois lettres identiques consécutives. Le texte incorrect n’a pas été ajouté.",
+  "inputPhoneBlocked": "Saisissez un numéro mobile à 10 chiffres commençant par 3, sans cinq chiffres identiques consécutifs. Le texte incorrect n’a pas été ajouté.",
+  "trackingPendingLocations": "Certaines positions n’ont pas été envoyées. Vérifiez votre connexion et terminez à nouveau le trajet."
 }

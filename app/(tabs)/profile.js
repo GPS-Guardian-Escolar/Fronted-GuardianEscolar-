@@ -11,7 +11,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { authService } from '../../services/auth.service';
 import { notificationService } from '../../services/notification.service';
 import { SUPPORTED_LANGUAGES } from '../../translations';
-import { isValidEmail, isValidPersonName, isValidPhone, normalizeColombianPhoneInput, normalizePhoneDigits, passwordChecks } from '../../utils/validators';
+import { validateInputEdit, isValidEmail, isValidPersonName, isValidPhone, normalizePhoneDigits, passwordChecks } from '../../utils/validators';
 
 function showProfileAlert(title, message) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -66,7 +66,6 @@ function ProfileField({ colors, label, value, onChangeText, editable = true, key
         onChangeText={onChangeText}
         editable={editable}
         keyboardType={keyboardType}
-        maxLength={keyboardType === "phone-pad" ? 10 : undefined}
         left={keyboardType === "phone-pad" ? <TextInput.Affix text="+57" /> : undefined}
         secureTextEntry={hidden}
         autoCapitalize="none"
@@ -110,8 +109,8 @@ export default function ProfileScreen() {
 
   const [notifBateria, setNotifBateria] = useState(true);
   const [notifEmail, setNotifEmail] = useState(true);
-  const [notifSMS, setNotifSMS] = useState(false);
-  const [smsDisponible, setSmsDisponible] = useState(false);
+
+
   const [isEditing, setIsEditing] = useState(false);
   const [passModalVisible, setPassModalVisible] = useState(false);
   const [emailModalVisible, setEmailModalVisible] = useState(false);
@@ -138,8 +137,6 @@ export default function ProfileScreen() {
   const applyNotificationPreferences = useCallback((config) => {
     setNotifBateria(config.alertaInactividad ?? true);
     setNotifEmail(config.canalEmail ?? true);
-    setNotifSMS(config.canalSms ?? false);
-    setSmsDisponible(config.smsDisponible ?? false);
   }, []);
 
   useEffect(() => {
@@ -157,22 +154,16 @@ export default function ProfileScreen() {
     const previous = {
       alertaInactividad: notifBateria,
       canalEmail: notifEmail,
-      canalSms: notifSMS,
     };
     const next = { ...previous, ...changes };
     setNotifBateria(next.alertaInactividad);
     setNotifEmail(next.canalEmail);
-    setNotifSMS(next.canalSms);
     try {
       const saved = await notificationService.updatePreferences(next);
       applyNotificationPreferences(saved);
-      if (changes.canalSms && !saved.smsDisponible) {
-        showProfileAlert(t('profileNotifications'), t('profileSmsSavedNoProvider'));
-      }
     } catch (error) {
       setNotifBateria(previous.alertaInactividad);
       setNotifEmail(previous.canalEmail);
-      setNotifSMS(previous.canalSms);
       showProfileAlert(t('error'), localizedProfileError(error, t, 'someError'));
     }
   };
@@ -260,7 +251,7 @@ export default function ProfileScreen() {
       setTwoFACode('');
       const challenge = await authService.request2FACode(method);
       setTwoFAMethod(method);
-      showProfileAlert(t('twoFACodeSent'), `${t('twoFACodeSentTo')} ${method === 'SMS' ? t('twoFASMS') : t('twoFAEmail')}.`);
+      showProfileAlert(t('twoFACodeSent'), `${t('twoFACodeSentTo')} ${t('twoFAEmail')}.`);
       setTwoFAToken(challenge.twoFAToken || '');
     } catch (error) {
       const message = method === 'EMAIL' && /email delivery|mail|email/i.test(error.message || '')
@@ -360,8 +351,14 @@ export default function ProfileScreen() {
           <View style={[styles.profileRow, !isWide && styles.profileRowMobile]}>
             <Avatar.Text size={60} label={form.name.substring(0, 2).toUpperCase()} style={{ backgroundColor: colors.primary }} color={colors.textOnPrimary} />
             <View style={styles.profileInputs}>
-              <ProfileField colors={colors} label={t('profileName')} value={form.name} editable={isEditing} onChangeText={name => setForm(current => ({ ...current, name }))} />
-              <ProfileField colors={colors} label={t('profilePhone')} value={form.phone} editable={isEditing} keyboardType="phone-pad" onChangeText={phone => setForm(current => ({ ...current, phone: normalizeColombianPhoneInput(phone) }))} />
+              <ProfileField colors={colors} label={t('profileName')} value={form.name} editable={isEditing} onChangeText={name => {
+                if (!validateInputEdit(name, 'name', form.name)) { showProfileAlert(t('error'), t('inputNameBlocked')); return; }
+                setForm(current => ({ ...current, name }));
+              }} />
+              <ProfileField colors={colors} label={t('profilePhone')} value={form.phone} editable={isEditing} keyboardType="phone-pad" onChangeText={phone => {
+                if (!validateInputEdit(phone, 'phone', form.phone)) { showProfileAlert(t('error'), t('inputPhoneBlocked')); return; }
+                setForm(current => ({ ...current, phone }));
+              }} />
               <View style={styles.inputWrap}>
                 <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{t('profileEmail')}</Text>
                 <View style={styles.emailRow}>
@@ -390,13 +387,6 @@ export default function ProfileScreen() {
           <SettingItem label={t('profileInactivity')} value={notifBateria} onValueChange={value => updateNotificationPreferences({ alertaInactividad: value })} />
           <Text style={[styles.cardTitle, { marginTop: 20, color: colors.text }]}>{t('profileNotificationChannels')}</Text>
           <SettingItem label={t('profileEmailNotif')} value={notifEmail} onValueChange={value => updateNotificationPreferences({ canalEmail: value })} />
-          <SettingItem
-            label={t('profileSMSNotif')}
-            subtitle={smsDisponible ? undefined : t('profileSmsProviderRequired')}
-            value={notifSMS}
-            onValueChange={value => updateNotificationPreferences({ canalSms: value })}
-            disabled={!smsDisponible && !notifSMS}
-          />
         </Surface>
 
         <Surface style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]} elevation={1}>
@@ -517,10 +507,6 @@ export default function ProfileScreen() {
                   <TouchableOpacity style={[styles.twoFAMethodBtn, { borderColor: twoFAMethod === 'EMAIL' ? colors.primary : colors.border, backgroundColor: colors.surfaceSecondary }]} onPress={() => handleRequest2FA('EMAIL')}>
                     <MaterialCommunityIcons name="email-outline" size={20} color={colors.primary} />
                     <Text style={[styles.twoFAMethodText, { color: colors.text }]}>{t('twoFAEmail')}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity disabled={!smsDisponible || twoFASubmitting} style={[styles.twoFAMethodBtn, { borderColor: twoFAMethod === 'SMS' ? colors.primary : colors.border, backgroundColor: colors.surfaceSecondary, opacity: smsDisponible ? 1 : 0.5 }]} onPress={() => handleRequest2FA('SMS')}>
-                    <MaterialCommunityIcons name="cellphone-message" size={20} color={colors.primary} />
-                    <Text style={[styles.twoFAMethodText, { color: colors.text }]}>{t('twoFASMS')}</Text>
                   </TouchableOpacity>
                   {twoFAToken ? (
                     <>

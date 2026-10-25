@@ -23,6 +23,13 @@ const MAX_SINGLE_JUMP_METERS = 1000;
 let webWatchId = null;
 let webTracking = false;
 let nativeStartPromise = null;
+let queueOperation = Promise.resolve();
+
+function withQueueLock(operation) {
+  const result = queueOperation.then(operation);
+  queueOperation = result.catch(() => undefined);
+  return result;
+}
 
 function canUseSecureStore() {
   return Platform.OS !== 'web';
@@ -65,7 +72,8 @@ function normalizeCoordinate(location) {
 }
 
 function isValidCoordinate(coord) {
-  return Number.isFinite(coord.latitude) && Number.isFinite(coord.longitude);
+  return Number.isFinite(coord.latitude) && Math.abs(coord.latitude) <= 90
+    && Number.isFinite(coord.longitude) && Math.abs(coord.longitude) <= 180;
 }
 
 function isReliableCoordinate(coord, previous) {
@@ -293,7 +301,7 @@ export async function startBackgroundUpdates(tripId) {
   }
 }
 
-export async function stopBackgroundUpdates() {
+export async function stopBackgroundUpdates({ preserveTrip = false } = {}) {
   if (Platform.OS === 'web') {
     if (webWatchId !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
       navigator.geolocation.clearWatch(webWatchId);
@@ -306,10 +314,14 @@ export async function stopBackgroundUpdates() {
       await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
     }
   }
-  await removeStoredValue(ACTIVE_TRIP_ID_KEY);
+  if (!preserveTrip) await removeStoredValue(ACTIVE_TRIP_ID_KEY);
 }
 
-export async function enqueueCoordinate(coord) {
+export function enqueueCoordinate(coord) {
+  return withQueueLock(() => enqueueCoordinateUnlocked(coord));
+}
+
+async function enqueueCoordinateUnlocked(coord) {
   if (!isValidCoordinate(coord)) return;
   const last = await getLastCoordinate();
   if (!isReliableCoordinate(coord, last)) return;
@@ -321,7 +333,11 @@ export async function enqueueCoordinate(coord) {
   await writeQueue(queue.slice(-500));
 }
 
-export async function flushQueue() {
+export function flushQueue() {
+  return withQueueLock(flushQueueUnlocked);
+}
+
+async function flushQueueUnlocked() {
   let queue = await readQueue();
   if (queue.length === 0) return { sent: 0, remaining: 0 };
 

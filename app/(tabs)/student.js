@@ -26,7 +26,7 @@ import StudentList from '../../features/students/components/StudentList';
 import { studentService } from '../../services/student.service';
 import { AppTouch, AppTypography } from '../../theme/tokens';
 import { addStudent, deleteStudent, getInitials, getStudents, normalizeGrade, updateStudent } from '../../utils/studentStorage';
-import { isValidPersonName, isValidPhone, normalizeColombianPhoneInput } from '../../utils/validators';
+import { validateInputEdit, isValidPersonName, isValidPhone } from '../../utils/validators';
 
 const { width } = Dimensions.get('window');
 const isWeb = width > 768;
@@ -113,9 +113,6 @@ function calculateAgeFromDate(date) {
   return age;
 }
 
-function formatEmergencyPhoneInput(value) {
-  return normalizeColombianPhoneInput(value);
-}
 
 export default function StudentScreen() {
   const [students, setStudents] = useState([]);
@@ -140,6 +137,7 @@ export default function StudentScreen() {
   const [unlinkCandidate, setUnlinkCandidate] = useState(null);
   const [unlinkLoading, setUnlinkLoading] = useState(false);
   const [notice, setNotice] = useState('');
+  const [inputNotice, setInputNotice] = useState('');
   const router = useRouter();
   const { user } = useAuth();
   const { t } = useLanguage();
@@ -368,6 +366,13 @@ export default function StudentScreen() {
   }
 
   function updateFormField(field, value) {
+    const kind = ['nombre', 'contacto_nombre'].includes(field) ? 'name' : field === 'contacto_telefono' ? 'phone' : null;
+    if (kind && !validateInputEdit(value, kind, form[field])) {
+      const message = t(kind === 'name' ? 'inputNameBlocked' : 'inputPhoneBlocked');
+      setInputNotice(message);
+      setFormErrors(current => ({ ...current, [field]: message }));
+      return;
+    }
     setForm(current => ({ ...current, [field]: value }));
     setFormErrors(current => ({ ...current, [field]: undefined }));
   }
@@ -699,11 +704,10 @@ export default function StudentScreen() {
                 <TextInput
                   style={[styles.mockupInput, themed.input, { flex: 1 }, formErrors.contacto_telefono && styles.inputError]}
                   value={form.contacto_telefono}
-                  onChangeText={v => updateFormField('contacto_telefono', formatEmergencyPhoneInput(v))}
+                  onChangeText={v => updateFormField('contacto_telefono', v)}
                   placeholder={t('studPhonePlaceholder')}
                   placeholderTextColor={colors.textMuted}
                   keyboardType="number-pad"
-                  maxLength={10}
                 />
                 </View>
                 {!!formErrors.contacto_telefono && <Text style={styles.errorText}>{formErrors.contacto_telefono}</Text>}
@@ -948,6 +952,9 @@ export default function StudentScreen() {
 
       <Snackbar visible={!!notice} onDismiss={() => setNotice('')} style={{ backgroundColor: colors.success }}>
         <Text style={{ color: colors.textOnPrimary }}>{notice}</Text>
+      </Snackbar>
+      <Snackbar visible={!!inputNotice} onDismiss={() => setInputNotice('')} duration={3500}>
+        <Text>{inputNotice}</Text>
       </Snackbar>
     </View>
   );

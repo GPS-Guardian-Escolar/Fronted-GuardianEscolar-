@@ -272,9 +272,6 @@
   "profileDeparture": "Salida de zona",
   "profileDeviation": "Desvío de ruta",
   "profileEmailNotif": "Notificaciones por email",
-  "profileSMSNotif": "Notificaciones por SMS",
-  "profileSmsProviderRequired": "Requiere proveedor SMS en producción",
-  "profileSmsSavedNoProvider": "SMS quedó guardado como preferencia, pero falta configurar un proveedor SMS para enviar mensajes reales.",
   "profileNotificationChannels": "Canales de notificación",
   "profileChangePass": "Cambiar contraseña",
   "profile2FA": "Autenticación de dos factores",
@@ -321,7 +318,6 @@
   "twoFAMethodActive": "Método de verificación activo:",
   "twoFAChooseMethod": "Elige cómo recibir tu código:",
   "twoFAEmail": "Correo electrónico",
-  "twoFASMS": "SMS al teléfono",
   "twoFADisable": "Desactivar 2FA",
   "twoFASendCode": "Enviar código de verificación",
   "twoFACodeSent": "Código enviado",
@@ -590,7 +586,7 @@
   "authTerms4Title": "4. Privacidad y datos personales",
   "authTerms4Body": "Se tratan nombres, correos, telefonos, datos del estudiante, contactos de emergencia, notificaciones, rutas, zonas y ubicaciones para operar el sistema. No deben compartirse con terceros no autorizados.",
   "authTerms5Title": "5. Notificaciones",
-  "authTerms5Body": "El sistema puede enviar correos, alertas push o SMS si estan habilitados. La entrega depende de servicios externos, internet, permisos y disponibilidad del proveedor.",
+  "authTerms5Body": "El sistema puede enviar correos y alertas push si están habilitados. La entrega depende de servicios externos, internet, permisos y disponibilidad del proveedor.",
   "authTerms6Title": "6. Seguridad de la cuenta",
   "authTerms6Body": "El usuario debe proteger su contrasena y cerrar sesion en dispositivos compartidos. Guardian Escolar puede solicitar verificacion de correo para reducir accesos no autorizados.",
   "authTerms7Title": "7. Limitaciones",
@@ -618,5 +614,8 @@
   "zonesTypeHome": "Casa",
   "zonesTypeSchool": "Escuela",
   "zonesTypeCustom": "Personalizada",
-  "zonesNoAddress": "Sin dirección"
+  "zonesNoAddress": "Sin dirección",
+  "inputNameBlocked": "Escribe un nombre de 3 a 60 caracteres, sin números ni tres letras iguales seguidas. No se añadió el texto inválido.",
+  "inputPhoneBlocked": "Escribe un celular de 10 dígitos que comience por 3, sin cinco dígitos iguales seguidos. No se añadió el texto inválido.",
+  "trackingPendingLocations": "Quedan ubicaciones sin enviar. Comprueba la conexión y vuelve a finalizar el trayecto."
 }

@@ -21,6 +21,26 @@ export const sanitizePersonNameInput = (name, maxLength = 60) => String(name || 
   .replace(/[^\p{L}\p{M} '\u2019-]/gu, '')
   .slice(0, maxLength);
 
+// Reject the edit rather than silently changing the identity or phone entered.
+// Incomplete values are allowed while typing; submit validation remains required.
+export function validateInputEdit(value, kind, previous = '') {
+  const text = String(value || '');
+  // Let users delete invalid legacy data instead of trapping them in the field.
+  if (text.length < previous.length) {
+    let index = 0;
+    for (const character of previous) if (text[index] === character) index++;
+    if (index === text.length) return true;
+  }
+  if (kind === 'name') {
+    return text.length <= 60
+      && /^[\p{L}\p{M} '\u2019-]*$/u.test(text)
+      && !/(\p{L})\1{2}/iu.test(text);
+  }
+  return /^3?\d{0,9}$/.test(text)
+    && (!text || text.startsWith('3'))
+    && text.length <= 10 && !/(\d)\1{4}/.test(text);
+}
+
 export const isValidPhone = (phone) => {
   const digits = String(phone || '').replace(/\D/g, '');
   const nationalNumber = digits.length === 12 && digits.startsWith('57') ? digits.slice(2) : digits;

@@ -81,8 +81,6 @@ export const notificationService = {
     return {
       alertaInactividad: response.data.inactivityAlert,
       canalEmail: response.data.emailChannel,
-      canalSms: response.data.smsChannel,
-      smsDisponible: response.data.smsAvailable,
     };
   },
 
@@ -90,13 +88,10 @@ export const notificationService = {
     const response = await api.put('/notifications/settings', {
       inactivityAlert: preferences.alertaInactividad,
       emailChannel: preferences.canalEmail,
-      smsChannel: preferences.canalSms,
     });
     return {
       alertaInactividad: response.data.inactivityAlert,
       canalEmail: response.data.emailChannel,
-      canalSms: response.data.smsChannel,
-      smsDisponible: response.data.smsAvailable,
     };
   },
 };
