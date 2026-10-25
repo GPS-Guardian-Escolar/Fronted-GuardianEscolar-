@@ -350,8 +350,10 @@ export async function addRoute(studentId, routeData) {
     description: `Origen: ${routeData.start}. Destino: ${routeData.end}.`,
     originLatitude: origin.latitude,
     originLongitude: origin.longitude,
+    originAddress: routeData.start,
     destinationLatitude: destination.latitude,
     destinationLongitude: destination.longitude,
+    destinationAddress: routeData.end,
      stops: (routeData.routePoints || []).slice(1, -1).map((point, index) => ({
        stopOrder: index + 1,
        stopName: 'Punto intermedio ' + (index + 1),
@@ -373,8 +375,10 @@ export async function updateRoute(studentId, routeId, routeData) {
     description: `Origen: ${routeData.start}. Destino: ${routeData.end}.`,
     originLatitude: origin.latitude,
     originLongitude: origin.longitude,
+    originAddress: routeData.start,
     destinationLatitude: destination.latitude,
     destinationLongitude: destination.longitude,
+    destinationAddress: routeData.end,
      stops: (routeData.routePoints || []).slice(1, -1).map((point, index) => ({
        stopOrder: index + 1,
        stopName: 'Punto intermedio ' + (index + 1),
