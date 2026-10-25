@@ -227,53 +227,37 @@ export async function getStudents() {
 }
 
 export async function addStudent(studentData) {
-  const created = await studentService.create({
+  await studentService.create({
     fullName: studentData.nombre.trim(),
     schoolGrade: normalizeGrade(studentData.grado),
     birthDate: studentData.fechaNacimiento || null,
     photoData: studentData.foto || null,
-  });
-
-  if (studentData.contacto_nombre?.trim() && studentData.contacto_telefono?.trim()) {
-    await studentService.createEmergencyContact(created.id, {
-      fullName: studentData.contacto_nombre.trim(),
-      phone: studentData.contacto_telefono.trim(),
+    emergencyContact: {
+      fullName: (studentData.contacto_nombre || '').trim(),
+      phone: (studentData.contacto_telefono || '').trim(),
       relationship: studentData.contacto_parentesco?.trim() || 'Guardian',
       isPrimary: true,
-    });
-  }
+    },
+  });
 
   return refreshStudents();
 }
 
 export async function updateStudent(id, studentData) {
-  const updated = await studentService.update(id, {
+  await studentService.update(id, {
     fullName: studentData.nombre.trim(),
     schoolGrade: normalizeGrade(studentData.grado),
     birthDate: studentData.fechaNacimiento || null,
     photoData: studentData.foto || null,
-  });
-
-  if (studentData.contacto_nombre?.trim() && studentData.contacto_telefono?.trim()) {
-    const contactPayload = {
-      fullName: studentData.contacto_nombre.trim(),
-      phone: studentData.contacto_telefono.trim(),
+    emergencyContact: {
+      fullName: (studentData.contacto_nombre || '').trim(),
+      phone: (studentData.contacto_telefono || '').trim(),
       relationship: studentData.contacto_parentesco?.trim() || 'Guardian',
       isPrimary: true,
-    };
-    const contacts = await studentService.listEmergencyContacts(id).catch(() => []);
-    const existing = studentData.contacto_id
-      ? contacts.find(contact => contact.id === studentData.contacto_id)
-      : contacts.find(contact => contact.isPrimary || contact.esPrincipal) || contacts[0];
+    },
+  });
 
-    if (existing) {
-      await studentService.updateEmergencyContact(id, existing.id, contactPayload);
-    } else {
-      await studentService.createEmergencyContact(id, contactPayload);
-    }
-  }
-
-  return refreshStudents(updated);
+  return refreshStudents();
 }
 
 export async function deleteStudent(id) {
@@ -437,9 +421,11 @@ export async function getHistory() {
 
 export async function addHistory(entry) {
   const current = await getHistory();
+  const now = new Date();
   const newEntry = {
     id: `history-${Date.now()}`,
-    fecha: new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long' }),
+    fecha: now.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }),
+    fechaKey: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
     ...entry,
   };
   const updated = [newEntry, ...current].slice(0, 50);
