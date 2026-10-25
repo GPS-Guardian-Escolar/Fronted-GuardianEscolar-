@@ -2,6 +2,7 @@ import api from './api';
 import { storage } from '../utils/storage';
 import { getAuthDeviceInfo } from '../utils/deviceIdentity';
 import { isValidEmail } from '../utils/validators';
+import { ENDPOINTS } from '../config/endpoints';
 
 const RECOVERY_GENERIC_MESSAGE = 'If an account exists, we sent password recovery instructions.';
 const DEVICE_CONFIRMATION_REQUIRED = 'DEVICE_CONFIRMATION_REQUIRED';
@@ -105,7 +106,7 @@ export const authService = {
   login: async (email, password) => {
     try {
       const deviceInfo = await getAuthDeviceInfo();
-      const response = await api.post('/auth/login', {
+      const response = await api.post(ENDPOINTS.LOGIN, {
         email: email.trim().toLowerCase(),
         password,
         ...deviceInfo,
@@ -135,7 +136,7 @@ export const authService = {
 
   register: async ({ name, email, password, phone, acceptedTerms, termsVersion }) => {
     try {
-      const response = await api.post('/auth/register', {
+      const response = await api.post(ENDPOINTS.REGISTER, {
         fullName: name.trim(),
         email: email.trim().toLowerCase(),
         phone: phone?.trim() || '',
@@ -157,7 +158,7 @@ export const authService = {
     }
 
     try {
-      const response = await api.post('/auth/password/forgot', { email });
+      const response = await api.post(ENDPOINTS.FORGOT_PASSWORD, { email });
       return { success: true, message: response.data?.message || response.data?.mensaje || RECOVERY_GENERIC_MESSAGE };
     } catch (error) {
       throw new Error(getApiErrorMessage(error, RECOVERY_GENERIC_MESSAGE));
@@ -166,7 +167,7 @@ export const authService = {
 
   resetPasswordWithToken: async (token, newPassword) => {
     try {
-      const response = await api.post('/auth/password/reset', {
+      const response = await api.post(ENDPOINTS.RESET_PASSWORD, {
         token,
         newPassword,
       });
