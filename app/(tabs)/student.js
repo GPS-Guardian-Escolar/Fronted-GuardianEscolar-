@@ -276,7 +276,7 @@ export default function StudentScreen() {
       t('studDelete'),
       `${t('studDeleteConfirm')} ${student.nombre}? ${t('studDeleteWarning')}`,
       [
-        { text: t('cncel'), style: 'cncel' },
+        { text: t('cancel'), style: 'cancel' },
         {
           text: t('delete'),
           style: 'destructive',
