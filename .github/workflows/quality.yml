@@ -1,0 +1,23 @@
+name: Frontend quality
+
+on:
+  pull_request:
+  push:
+    branches: [develop, qa, main]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_API_URL: https://ci.invalid/api
+      EXPO_PUBLIC_WS_URL: wss://ci.invalid/ws
+      EXPO_PUBLIC_STUDENT_LINK_BASE_URL: https://ci.invalid
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx expo export --platform web
