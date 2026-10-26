@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Dimensions, ScrollView } from 'react-native';
-import { Avatar, Text, Surface, IconButton, Button } from 'react-native-paper';
+import { View, StyleSheet, ActivityIndicator, Dimensions, ScrollView } from 'react-native';
+import { Text, Surface, IconButton, Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { COLORS } from '../../constants/colors';
