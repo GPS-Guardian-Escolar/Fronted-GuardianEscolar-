@@ -6,12 +6,19 @@ const TOKEN_KEY = 'gps_guardian_token';
 const USER_KEY = 'gps_guardian_user';
 const REMEMBERED_EMAIL_KEY = 'gps_guardian_remembered_email';
 
+const webTokenStorage = () => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+  return window.sessionStorage;
+};
+
 export const storage = {
-  // Token (seguro en móviles, AsyncStorage en web por compatibilidad)
+  // Token en SecureStore móvil y sessionStorage web para evitar persistencia entre sesiones.
   setToken: async (token) => {
     try {
       if (Platform.OS === 'web') {
-        await AsyncStorage.setItem(TOKEN_KEY, token);
+        const target = webTokenStorage();
+        if (target) target.setItem(TOKEN_KEY, token);
+        else await AsyncStorage.setItem(TOKEN_KEY, token);
       } else {
         await SecureStore.setItemAsync(TOKEN_KEY, token);
       }
@@ -23,7 +30,8 @@ export const storage = {
   getToken: async () => {
     try {
       if (Platform.OS === 'web') {
-        return await AsyncStorage.getItem(TOKEN_KEY);
+        const target = webTokenStorage();
+        return target ? target.getItem(TOKEN_KEY) : await AsyncStorage.getItem(TOKEN_KEY);
       } else {
         return await SecureStore.getItemAsync(TOKEN_KEY);
       }
@@ -36,7 +44,9 @@ export const storage = {
   removeToken: async () => {
     try {
       if (Platform.OS === 'web') {
-        await AsyncStorage.removeItem(TOKEN_KEY);
+        const target = webTokenStorage();
+        if (target) target.removeItem(TOKEN_KEY);
+        else await AsyncStorage.removeItem(TOKEN_KEY);
       } else {
         await SecureStore.deleteItemAsync(TOKEN_KEY);
       }
