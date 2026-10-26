@@ -1,7 +1,7 @@
 import { create } from 'axios'
 
 import { BASE_URL } from '../config/endpoints'
-import { emitAuthExpired } from '../utils/authEvents'
+import { emitAuthExpired, emitPermissionDenied } from '../utils/authEvents'
 import { storage } from '../utils/storage'
 
 const api = create({
@@ -44,16 +44,29 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// Si el servidor rechaza la sesion, cierra la sesion automaticamente
+export const handleResponseError = async (error) => {
+  const status = error.response?.status
+  const isProtectedRequest = !error.config?.skipAuth
+    && !isPublicEndpoint(error.config?.url)
+    && !isReauthenticationEndpoint(error.config?.url)
+
+  if (status === 401 && isProtectedRequest) {
+    await storage.clearAll()
+    emitAuthExpired()
+  } else if (status === 403 && isProtectedRequest) {
+    emitPermissionDenied({
+      message: error.response?.data?.message || error.response?.data?.mensaje,
+      url: error.config?.url,
+    })
+  }
+
+  return Promise.reject(error)
+}
+
+// Solo 401 invalida la sesion; 403 conserva la sesion y muestra permisos insuficientes.
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    if (error.response?.status === 401 && !error.config?.skipAuth && !isPublicEndpoint(error.config?.url) && !isReauthenticationEndpoint(error.config?.url)) {
-      await storage.clearAll()
-      emitAuthExpired()
-    }
-    return Promise.reject(error)
-  }
+  handleResponseError
 )
 
 export default api
