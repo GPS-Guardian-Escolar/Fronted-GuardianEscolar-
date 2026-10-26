@@ -10,6 +10,8 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { trackingService } from '../../services/tracking.service';
 import { useTrackingRealtime } from '../../hooks/useTrackingRealtime';
+import TrackingHeader from '../../features/tracking/components/TrackingHeader';
+import TrackingStudentSelector from '../../features/tracking/components/TrackingStudentSelector';
 import { calculateRouteGeometry } from '../../utils/routeGeometry';
 
 const { width } = Dimensions.get('window');
@@ -230,59 +232,24 @@ export default function TrackingScreen() {
     <View style={[styles.container, themed.screen]}>
       <ScrollView contentContainerStyle={[styles.scrollContent, isWeb && styles.scrollContentWeb]}>
         
-        {/* Cabecera del Estudiante */}
-        <Surface style={[styles.headerCard, themed.surface]} elevation={1}>
-          <View style={styles.headerProfile}>
-            <Avatar.Text 
-              size={40} 
-              label={selectedStudent ? getInitials(selectedStudent.nombre) : '??'} 
-              backgroundColor={colors.primary} 
-              color={colors.textOnPrimary} 
-            />
-            <View style={styles.headerTextCol}>
-              <Text style={[styles.studentName, themed.text]}>{selectedStudent?.nombre || t('trackSelectStudent')}</Text>
-              <Text style={[styles.studentStatus, themed.textSecondary]}>
-                {Number(selectedStudent?.dispositivos_vinculados || 0) < 1
-                  ? t('trackNoDevice')
-                  : activeTrip ? t('trackOnline') : t('trackWaitingTrip')}
-              </Text>
-            </View>
-          </View>
-          <IconButton 
-            icon="refresh" 
-            size={20} 
-            style={[styles.refreshBtn, themed.surfaceSecondary]} 
-            iconColor={colors.textSecondary} 
-            onPress={() => refreshLocation(false)}
-          />
-        </Surface>
+        <TrackingHeader
+          student={selectedStudent}
+          status={
+            Number(selectedStudent?.dispositivos_vinculados || 0) < 1
+              ? t('trackNoDevice')
+              : activeTrip ? t('trackOnline') : t('trackWaitingTrip')
+          }
+          onRefresh={() => refreshLocation(false)}
+          colors={colors}
+          t={t}
+        />
 
-        {/* Selector de Estudiantes Horizontal */}
-        <View style={styles.selectorContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectorScroll}>
-            {students.map(student => (
-              <TouchableOpacity 
-                key={student.id} 
-                onPress={() => handleSelectStudent(student)}
-                style={[
-                  styles.selectorItem, 
-                  themed.surface,
-                  selectedStudent?.id === student.id && { borderColor: colors.primary, borderWidth: 2 }
-                ]}
-              >
-                <Avatar.Text 
-                  size={42} 
-                  label={getInitials(student.nombre)} 
-                  backgroundColor={colors.primary} 
-                  color={colors.textOnPrimary} 
-                />
-                <Text style={[styles.selectorLabel, themed.textSecondary, selectedStudent?.id === student.id && { color: colors.primary, fontWeight: 'bold' }]} numberOfLines={1}>
-                  {student.nombre.split(' ')[0]}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+        <TrackingStudentSelector
+          students={students}
+          selectedStudent={selectedStudent}
+          onSelect={handleSelectStudent}
+          colors={colors}
+        />
 
         {/* Tarjeta del Mapa */}
         <Surface style={[styles.mapCard, themed.surface]} elevation={1}>
