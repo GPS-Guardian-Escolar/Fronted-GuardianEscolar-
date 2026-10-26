@@ -163,7 +163,20 @@ export default function StudentScreen() {
     setRefreshing(true);
     try {
       const data = await getStudents();
-      setStudents(data);
+      const studentsWithCodes = await Promise.all(data.map(async (student) => {
+        if (!canManageStudent(student)) return student;
+        try {
+          const issued = await studentService.issueLinkCode(student.id);
+          return {
+            ...student,
+            codigo_vinculacion: issued.code,
+            codigo_expira_en: issued.expiresAt,
+          };
+        } catch {
+          return student;
+        }
+      }));
+      setStudents(studentsWithCodes);
     } catch (error) {
       Alert.alert(t('error'), error.message || 'No se pudieron cargar los estudiantes.');
     } finally {
@@ -225,12 +238,9 @@ export default function StudentScreen() {
     setShareLoading(true);
     try {
       const result = await studentService.shareWithGuardian(sharingStudent.id, { email, relationshipRole: 'VIEWER' });
-      const [guardianData, updatedStudents] = await Promise.all([
-        studentService.listGuardians(sharingStudent.id),
-        getStudents(),
-      ]);
+      const guardianData = await studentService.listGuardians(sharingStudent.id);
+      await loadStudents();
       setGuardians(guardianData);
-      setStudents(updatedStudents);
       setShareEmail('');
       Alert.alert(
         t('studShareSuccessTitle'),
@@ -252,12 +262,9 @@ export default function StudentScreen() {
     setGuardianLoading(true);
     try {
       await studentService.revokeGuardian(sharingStudent.id, guardian.userId);
-      const [guardianData, updatedStudents] = await Promise.all([
-        studentService.listGuardians(sharingStudent.id),
-        getStudents(),
-      ]);
+      const guardianData = await studentService.listGuardians(sharingStudent.id);
+      await loadStudents();
       setGuardians(guardianData);
-      setStudents(updatedStudents);
       setGuardianCandidate(null);
     } catch (error) {
       Alert.alert(t('error'), error.message || t('studShareRemoveError'));
