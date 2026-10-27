@@ -342,7 +342,13 @@ export const authService = {
   getRecoverySession: async () => null,
 
   logout: async () => {
-    await storage.clearAll();
+    try {
+      await api.post('/auth/logout');
+    } catch (error) {
+      console.warn('No se pudo revocar la sesion en el servidor:', error?.message || error);
+    } finally {
+      await storage.clearAll();
+    }
   },
 
   refreshToken: async () => {
