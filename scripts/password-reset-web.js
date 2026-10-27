@@ -123,8 +123,8 @@ function readBody(request) {
   });
 }
 
-function resetPassword(token, nuevaContrasena) {
-  const payload = JSON.stringify({ token, nuevaContrasena });
+function resetPassword(token, newPassword) {
+  const payload = JSON.stringify({ token, newPassword });
 
   return new Promise((resolve, reject) => {
     const request = http.request(
