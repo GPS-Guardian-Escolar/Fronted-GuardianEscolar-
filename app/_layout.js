@@ -9,6 +9,7 @@ import { LanguageProvider } from '../contexts/LanguageContext';
 import { createPaperTheme, ThemeProvider, useTheme } from '../contexts/ThemeContext';
 import { hasSeenOnboarding } from '../features/onboarding/onboardingStorage';
 import { getChildSession, handleLocationTask, LOCATION_TASK_NAME } from '../services/background/locationTracking';
+import { subscribePermissionDenied } from '../utils/authEvents';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -23,6 +24,18 @@ function RootLayoutNav() {
   const router = useRouter();
   const { theme: themeData } = useTheme();
   const [onboardingSeen, setOnboardingSeen] = useState(null);
+  const [permissionDenied, setPermissionDenied] = useState(false);
+
+  useEffect(() => subscribePermissionDenied(() => setPermissionDenied(true)), []);
+
+  useEffect(() => {
+    if (!permissionDenied) return;
+    if (segments[0] === 'forbidden') {
+      setPermissionDenied(false);
+      return;
+    }
+    router.replace('/forbidden');
+  }, [permissionDenied, router, segments]);
 
   useEffect(() => {
     let mounted = true;
@@ -64,6 +77,9 @@ function RootLayoutNav() {
     const isWelcome = inAuthGroup && segments[1] === 'welcome';
     const isStudentDashboard = segments[0] === 'student-dashboard';
     const isScanQr = segments[0] === 'scan-qr';
+    const isForbidden = segments[0] === 'forbidden';
+
+    if (isForbidden) return;
 
     if (!onboardingSeen && !isWelcome && !inAuthGroup && !isScanQr && !isStudentDashboard) {
       router.replace('/(auth)/welcome');

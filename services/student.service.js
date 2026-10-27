@@ -27,6 +27,10 @@ export const studentService = {
     await api.delete(`/students/${id}`);
   },
 
+  issueLinkCode: async (studentId) => {
+    const response = await api.post('/students/' + studentId + '/link-code');
+    return response.data;
+  },
   unlinkDevice: async (studentId) => {
     await api.delete(`/students/${studentId}/device`);
   },
