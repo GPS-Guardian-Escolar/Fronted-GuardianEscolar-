@@ -124,6 +124,7 @@ export default function StudentScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [fotoCargada, setFotoCargada] = useState(null); // guardara la URI de la imagen
   const [codigoGenerado, setCodigoGenerado] = useState(null);
+  const [generatingLinkCode, setGeneratingLinkCode] = useState(false);
   const [formErrors, setFormErrors] = useState({});
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [sharingStudent, setSharingStudent] = useState(null);
@@ -163,20 +164,7 @@ export default function StudentScreen() {
     setRefreshing(true);
     try {
       const data = await getStudents();
-      const studentsWithCodes = await Promise.all(data.map(async (student) => {
-        if (!canManageStudent(student)) return student;
-        try {
-          const issued = await studentService.issueLinkCode(student.id);
-          return {
-            ...student,
-            codigo_vinculacion: issued.code,
-            codigo_expira_en: issued.expiresAt,
-          };
-        } catch {
-          return student;
-        }
-      }));
-      setStudents(studentsWithCodes);
+      setStudents(data);
     } catch (error) {
       Alert.alert(t('error'), error.message || 'No se pudieron cargar los estudiantes.');
     } finally {
@@ -214,6 +202,40 @@ export default function StudentScreen() {
     setCodigoGenerado(student.codigo_vinculacion || null);
     setFormErrors({});
     setModalVisible(true);
+  }
+
+  async function issueStudentLinkCode() {
+    if (!editingStudent?.id || !canManageStudent(editingStudent)) return;
+    setGeneratingLinkCode(true);
+    try {
+      const issued = await studentService.issueLinkCode(editingStudent.id);
+      const updatedStudent = {
+        ...editingStudent,
+        codigo_vinculacion: issued.code,
+        codigo_expira_en: issued.expiresAt,
+      };
+      setEditingStudent(updatedStudent);
+      setCodigoGenerado(issued.code);
+      setStudents(current => current.map(student => student.id === updatedStudent.id ? updatedStudent : student));
+    } catch (error) {
+      Alert.alert(t('error'), error.message || t('studLinkCodeIssueFailed'));
+    } finally {
+      setGeneratingLinkCode(false);
+    }
+  }
+
+  function requestStudentLinkCode() {
+    if (!editingStudent?.id) return;
+    const expiresAt = Date.parse(editingStudent.codigo_expira_en || '');
+    const hasActiveCode = codigoGenerado && Number.isFinite(expiresAt) && expiresAt > Date.now();
+    if (!hasActiveCode) {
+      issueStudentLinkCode();
+      return;
+    }
+    Alert.alert(t('studLinkCode'), t('studReplaceLinkCodeConfirm'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('studGenerateLinkCode'), onPress: issueStudentLinkCode },
+    ]);
   }
 
   async function openShare(student) {
@@ -778,6 +800,19 @@ export default function StudentScreen() {
                     <View style={[styles.codigoBox, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
                       <Text style={[styles.codigoHint, themed.textSecondary]}>{t('studQrAfterSave')}</Text>
                     </View>
+                  )}
+                  {editingStudent && (
+                    <TouchableOpacity
+                      style={[styles.mockupUploadBtn, { borderColor: colors.primary }]}
+                      onPress={requestStudentLinkCode}
+                      disabled={generatingLinkCode}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('studGenerateLinkCode')}
+                    >
+                      <Text style={[styles.mockupUploadText, { color: colors.primary }]}>
+                        {generatingLinkCode ? t('studGeneratingLinkCode') : t('studGenerateLinkCode')}
+                      </Text>
+                    </TouchableOpacity>
                   )}
                 </View>
               </ScrollView>
