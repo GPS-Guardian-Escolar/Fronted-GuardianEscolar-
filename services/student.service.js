@@ -28,6 +28,11 @@ export const studentService = {
     await api.delete(ENDPOINTS.STUDENT_BY_ID(id));
   },
 
+  issueLinkCode: async (studentId) => {
+    const response = await api.post(ENDPOINTS.STUDENT_LINK_CODE(studentId));
+    return response.data;
+  },
+
   unlinkDevice: async (studentId) => {
     await api.delete(ENDPOINTS.STUDENT_DEVICE(studentId));
   },

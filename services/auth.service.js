@@ -179,7 +179,7 @@ export const authService = {
 
   verifyEmailWithToken: async (token) => {
     try {
-      const response = await api.get('/auth/verify-email', {
+      const response = await api.get(ENDPOINTS.VERIFY_EMAIL, {
         params: { token },
         skipAuth: true,
       });
@@ -191,7 +191,7 @@ export const authService = {
 
   confirmLoginWithToken: async (token) => {
     try {
-      const response = await api.get('/auth/confirm-login', {
+      const response = await api.get(ENDPOINTS.CONFIRM_LOGIN, {
         params: { token },
         skipAuth: true,
       });
@@ -203,7 +203,7 @@ export const authService = {
 
   getCurrentUser: async () => {
     try {
-      const response = await api.get('/auth/me');
+      const response = await api.get(ENDPOINTS.ME);
       const user = normalizeBackendUser(response.data);
       await storage.setUser(user);
       return user;
@@ -214,7 +214,7 @@ export const authService = {
 
   updatePassword: async (_email, currentPassword, newPassword) => {
     try {
-      const response = await api.put('/auth/password', {
+      const response = await api.put(ENDPOINTS.PASSWORD, {
         currentPassword,
         newPassword,
       });
@@ -233,7 +233,7 @@ export const authService = {
 
   updateEmail: async (_email, currentPassword, newEmail) => {
     try {
-      const response = await api.put('/auth/email', {
+      const response = await api.put(ENDPOINTS.EMAIL, {
         currentPassword,
         newEmail: newEmail.trim().toLowerCase(),
       });
@@ -247,7 +247,7 @@ export const authService = {
 
   updateProfile: async (_email, newName, newPhone) => {
     try {
-      const response = await api.put('/auth/profile', {
+      const response = await api.put(ENDPOINTS.PROFILE, {
         fullName: newName.trim(),
         phone: newPhone?.trim() || '',
       });
@@ -265,7 +265,7 @@ export const authService = {
 
   request2FACode: async (method) => {
     try {
-      const response = await api.post('/auth/2fa/request', { method });
+      const response = await api.post(ENDPOINTS.TWO_FACTOR_REQUEST, { method });
       return {
         success: true,
         message: response.data?.message || response.data?.mensaje || 'Code sent.',
@@ -280,7 +280,7 @@ export const authService = {
   verify2FA: async (token, code, method) => {
     try {
       const deviceInfo = await getAuthDeviceInfo();
-      const response = await api.post('/auth/2fa/verify', {
+      const response = await api.post(ENDPOINTS.TWO_FACTOR_VERIFY, {
         token,
         code,
         method,
@@ -301,7 +301,7 @@ export const authService = {
 
   resend2FA: async (token) => {
     try {
-      const response = await api.post('/auth/2fa/resend', { token });
+      const response = await api.post(ENDPOINTS.TWO_FACTOR_RESEND, { token });
       return {
         success: true,
         message: response.data?.message || response.data?.mensaje || 'Código reenviado.',
@@ -315,7 +315,7 @@ export const authService = {
 
   disable2FA: async (currentPassword) => {
     try {
-      const response = await api.post('/auth/2fa/disable', {
+      const response = await api.post(ENDPOINTS.TWO_FACTOR_DISABLE, {
         currentPassword,
       });
       return normalizeBackendUser(response.data);
@@ -343,7 +343,13 @@ export const authService = {
   getRecoverySession: async () => null,
 
   logout: async () => {
-    await storage.clearAll();
+    try {
+      await api.post(ENDPOINTS.LOGOUT);
+    } catch (error) {
+      console.warn('No se pudo revocar la sesion en el servidor:', error?.message || error);
+    } finally {
+      await storage.clearAll();
+    }
   },
 
   refreshToken: async () => {
