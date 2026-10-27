@@ -246,7 +246,7 @@ deleteStudent(id).catch(() => {
 });
 ```
 
-> Este patrón se usa implícitamente en las pantallas de Historial y Notificaciones cuando se elimina un registro de los datos mock — la eliminación es solo de la UI local, sin llamada a AsyncStorage.
+> Use this pattern only when the optimistic update has a persistent source and a defined rollback action. Check the module service before assuming data is mock-only.
 
 ---
 

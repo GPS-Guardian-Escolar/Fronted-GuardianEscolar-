@@ -143,7 +143,7 @@ Sistema de diseño de Google que define cómo deben verse y comportarse los elem
 El compilador (bundler) JavaScript que usa React Native/Expo. Convierte los archivos `.js`/`.ts` del proyecto en un bundle optimizado que el dispositivo puede ejecutar. Corre en segundo plano al ejecutar `npx expo start`.
 
 ### Mock / Mock Data
-Datos o servicios **simulados** usados durante el desarrollo cuando el sistema real (backend, base de datos) no está disponible. El `authService` del proyecto es un mock — simula un servidor de autenticación usando AsyncStorage local.
+Datos o servicios simulados usados para ejemplos o desarrollo aislado. La autenticacion actual usa `authService` contra la API Spring Boot; algunas vistas aun pueden conservar cache local o datos de demostracion.
 
 ---
 
@@ -209,7 +209,7 @@ API de React Native para definir estilos. Similar a CSS pero en JavaScript, con 
 ## T
 
 ### Token (JWT)
-Ver **JWT**. En el proyecto, el token es un string que el servidor genera al hacer login. El cliente lo guarda en SecureStore y lo envía en el header `Authorization: Bearer <token>` en cada petición HTTP para demostrar identidad.
+Ver **JWT**. El cliente recibe el token del servidor y lo envia como `Authorization: Bearer <token>`. Android e iOS lo guardan en SecureStore; el navegador lo conserva solo en memoria.
 
 ### TypeScript
 Superset de JavaScript que añade tipos estáticos. Permite detectar errores en tiempo de compilación en vez de en tiempo de ejecución. El proyecto usa `tsconfig.json` pero los archivos son `.js` — TypeScript se usa en modo laxo para compatibilidad.

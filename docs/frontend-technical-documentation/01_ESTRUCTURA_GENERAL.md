@@ -106,9 +106,9 @@ Login    Dashboard → Student → Tracking → History → Notifications → Zo
 
 | Tecnología | Versión | Uso |
 |---|---|---|
-| React Native | 0.83.4 | Framework base |
-| Expo | 55.x | Herramientas y APIs nativas |
-| Expo Router | 55.x | Navegación basada en archivos |
+| React Native | 0.86.3 | Framework base |
+| Expo | 57.x | Herramientas y APIs nativas |
+| Expo Router | 57.x | Navegación basada en archivos |
 | React Native Paper | ^5.15 | Componentes UI Material Design |
 | AsyncStorage | 2.2.0 | Almacenamiento local persistente |
 | Axios | ^1.14 | Peticiones HTTP al backend |

@@ -72,34 +72,13 @@
 
 ---
 
-## ADR-004: Mock Local para Autenticación en Desarrollo
+## ADR-004: Integracion de autenticacion con backend (estado actual)
 
-**Estado:** ✅ Adoptado (temporal)  
-**Fecha:** Fase de desarrollo paralelo backend/frontend  
-**Contexto:** El frontend y el backend se desarrollan en paralelo. Esperar al backend para implementar la UI de autenticación bloquearía el progreso.
+**Estado:** La decision historica de usar un mock quedo reemplazada.
 
-**Decisión:** Implementar un **servicio de autenticación mock** que almacena cuentas en AsyncStorage local, con la misma interfaz que tendrá el servicio real.
+La autenticacion vigente llama al backend Spring Boot desde `services/auth.service.js`. El cliente no guarda contrasenas ni genera JWT simulados. Los tokens se guardan en SecureStore en Android/iOS y en memoria del modulo en web; el backend revoca la sesion cuando se llama `POST /auth/logout`.
 
-```javascript
-// La interfaz es idéntica entre mock y producción:
-authService.login(email, password)     → Promise<{ token, user }>
-authService.register(userData)         → Promise<{ success, user }>
-authService.logout()                   → Promise<void>
-```
-
-**Consecuencias positivas:** Frontend completamente funcional sin backend. La migración al servicio real solo requiere cambiar la implementación interna del servicio — la UI no cambia.  
-**Consecuencias negativas:** Contraseñas almacenadas en texto plano en AsyncStorage (solo válido en desarrollo). Las cuentas no persisten entre dispositivos.
-
-**Plan de migración a producción:**
-```javascript
-// Cambiar en auth.service.js:
-// DE: lógica con AsyncStorage local
-// A:  llamadas a la API REST del backend
-login: async (email, password) => {
-  const response = await api.post('/auth/login', { email, password });
-  return response.data;
-}
-```
+El detalle operativo esta en [Autenticacion y seguridad](./12_AUTENTICACION_Y_SEGURIDAD.md).
 
 ---
 

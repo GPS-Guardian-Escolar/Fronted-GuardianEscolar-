@@ -1,284 +1,44 @@
-# 🔄 Flujo de Datos y Estado de la Aplicación
-## GPS Guardian Escolar
+# Flujo de datos y estado
 
-> Cómo viajan los datos desde el almacenamiento hasta la pantalla, y cómo las acciones del usuario propagan cambios a través de toda la aplicación.
+## Datos del servidor
 
----
+Las pantallas llaman servicios de `services/` y no acceden directamente a Axios. `services/api.js` configura la URL base, adjunta el JWT a llamadas privadas y centraliza la reaccion a respuestas 401. Los servicios adaptan las respuestas de Spring Boot a los modelos que usa la UI.
 
-## Capas de Estado
-
-La aplicación maneja tres niveles de estado:
-
-```
-┌─────────────────────────────────────────────────────┐
-│  NIVEL 3: Estado de Servidor (futuro)                │
-│  Datos en tiempo real del backend GPS                │
-│  → TrackingContext, WebSocket (socket.js)            │
-├─────────────────────────────────────────────────────┤
-│  NIVEL 2: Estado Global (React Context)              │
-│  Sesión de usuario, idioma activo, rol               │
-│  → AuthContext, LanguageContext, UserRoleContext      │
-├─────────────────────────────────────────────────────┤
-│  NIVEL 1: Estado Local Persistente (AsyncStorage)    │
-│  Estudiantes, historial, notificaciones              │
-│  → studentStorage.js                                 │
-└─────────────────────────────────────────────────────┘
+```text
+Pantalla o hook -> servicio del dominio -> services/api.js -> API Spring Boot
 ```
 
----
+La informacion del servidor se vuelve a consultar cuando la pantalla o el flujo de negocio lo requiere. No todos los modulos usan una unica estrategia de cache; consulta el servicio correspondiente antes de asumir que AsyncStorage es la fuente principal.
 
-## Flujo Principal de Datos — Pantalla de Estudiantes
+## Flujo de autenticacion
 
-```
-Usuario toca "Guardar" en el formulario de nuevo hijo
-                ↓
-handleSave() en student.js
-                ↓
-addStudent(formData)     ← studentStorage.js
-                ↓
-AsyncStorage.setItem('@guardian_estudiantes', JSON)
-                ↓
-setStudents(updated)     ← useState local se actualiza
-                ↓
-React re-renderiza la lista de tarjetas
-                ↓
-Si tenía status, también llama:
-  addNotification({ studentId, type, message })
-  addHistory({ studentId, estado, horaInicio })
+```text
+Login -> POST /auth/login -> respuesta del backend
+                         -> 2FA requerido: verificar codigo y completar login
+                         -> token: guardar segun plataforma y actualizar AuthContext
+Peticion privada -> interceptor Axios -> Authorization: Bearer <token>
+Logout -> POST /auth/logout -> limpiar estado y almacenamiento local
 ```
 
----
+Los endpoints de autenticacion se implementan en `services/auth.service.js`. No hay un generador local de cuentas ni de tokens mock. El token nativo va a SecureStore; el token web vive solo en memoria. El perfil y preferencias no secretas pueden persistir con AsyncStorage.
 
-## Patrón `useFocusEffect` — Actualización al Volver a la Pantalla
+## Estado de interfaz
 
-Un problema común en apps de múltiples pantallas: si agregas un estudiante en `student.js` y luego vas a `history.js`, ¿cómo sabe history que hay datos nuevos?
+`contexts/AuthContext.js`, `contexts/LanguageContext.js` y `contexts/ThemeContext.js` comparten el estado necesario entre pantallas. Los hooks encapsulan flujos de funciones especificas, como la suscripcion de seguimiento en tiempo real. Mantener el estado de pantalla en el componente cuando no necesita compartirse evita acoplar modulos.
 
-**Solución adoptada:** `useFocusEffect` de Expo Router.
+## Seguimiento en tiempo real
 
-```javascript
-// history.js
-import { useFocusEffect } from 'expo-router';
-import { useCallback } from 'react';
+El seguimiento usa el cliente STOMP de `services/socket.js` y la API de coordenadas del backend. Los callbacks actualizan el estado de mapa; la interfaz no debe tratar el estado visual como almacenamiento historico permanente. Las coordenadas pendientes en dispositivo, cuando existan, pertenecen a las utilidades de tracking y tienen un ciclo independiente de la sesion del usuario.
 
-useFocusEffect(
-  useCallback(() => {
-    loadData();    // ← Se ejecuta CADA VEZ que el usuario navega a esta pantalla
-  }, [])
-);
-```
+## Estado local y persistencia
 
-Esto garantiza que los datos siempre estén actualizados sin necesidad de un store global complejo como Redux.
+- `utils/storage.js`: JWT segun plataforma, perfil no sensible y correo recordado.
+- `contexts/LanguageContext.js` y `contexts/ThemeContext.js`: preferencias locales.
+- `utils/studentStorage.js`: almacenamiento local empleado por algunas vistas y flujos concretos.
+- AsyncStorage no es almacenamiento seguro para JWT; en web no se usa para el token.
 
----
+Al agregar una persistencia, indica si representa cache, preferencia o fuente de verdad. Evita combinar datos de demostracion con respuestas del backend sin identificarlos en la interfaz.
 
-## Flujo de Autenticación
+## Recuperacion ante errores
 
-```
-Usuario ingresa email + password
-           ↓
-authService.login(email, password)
-           ↓
-   ┌────────────────────────────────┐
-   │ Busca cuenta en AsyncStorage   │
-   │ clave: 'gps_guardian_accounts' │
-   └────────────────────────────────┘
-           ↓
-  ¿Coincide email y password?
-     ↓ SÍ              ↓ NO
-  ¿Tiene 2FA?      throw Error
-   ↓ SÍ    ↓ NO
-  Pide    Genera token mock
-  código  Guarda en SecureStore
-           ↓
-  AuthContext.setUser(userData)
-           ↓
-  router.replace('/(tabs)')
-```
-
----
-
-## Flujo de Eliminación de Estudiante (con Cascada)
-
-Esta es la operación más crítica del sistema porque debe limpiar datos en 3 claves de AsyncStorage de forma atómica:
-
-```
-Usuario confirma eliminar a "María Pérez" (id: '1')
-                    ↓
-deleteStudent('1') — studentStorage.js
-                    ↓
-  1. Lee lista actual de estudiantes
-  2. Filtra: students.filter(s => s.id !== '1')
-  3. Guarda lista sin María en '@guardian_estudiantes'
-                    ↓
-  4. Normaliza el nombre: 'maria pérez' (lowercase, trim)
-                    ↓
-  5. Lee '@guardian_notificaciones'
-  6. Filtra: notifs donde
-     - notif.studentId === '1'  → eliminar
-     - notif.name.toLowerCase() === 'maria pérez'  → eliminar
-     - Cualquier otro → conservar
-  7. Guarda notificaciones limpias
-                    ↓
-  8. Lee '@guardian_historial'
-  9. Filtra igual que notificaciones (por ID y nombre)
-  10. Guarda historial limpio
-                    ↓
-  setStudents(updated) → Re-render de la lista
-```
-
-**¿Por qué doble filtro (ID y nombre)?** Para manejar datos creados antes de que se implementara el campo `studentId`. La coincidencia por nombre es el fallback de compatibilidad.
-
----
-
-## Flujo del Sistema de Idioma
-
-```
-App arranca → LanguageProvider monta
-                    ↓
-AsyncStorage.getItem('@guardian_language')
-                    ↓
-  ¿Hay valor guardado?
-   ↓ SÍ                    ↓ NO
-setLang(savedCode)       setLang('es')  (default)
-                    ↓
-          TODA la app usa t('clave')
-                    ↓
-Usuario cambia idioma en el header:
-setLanguage('en')
-  → setLang('en')  (estado React)
-  → AsyncStorage.setItem('@guardian_language', 'en')
-  → useCallback recalcula t()
-  → React notifica a TODOS los suscriptores del contexto
-  → TODA la UI se re-renderiza en inglés
-```
-
----
-
-## Estructura de los Datos en AsyncStorage
-
-### Estudiante (objeto)
-```json
-{
-  "id": "1234567890abc",
-  "nombre": "María Pérez",
-  "grado": "3ro Grado",
-  "colegio": "Colegio San Jose",
-  "edad": "9",
-  "label": "MP",
-  "color": "#1A4F8A",
-  "foto": "file:///path/to/photo.jpg",
-  "contacto_nombre": "Ana Pérez",
-  "contacto_telefono": "3001234567",
-  "status": "SAFE",
-  "zones": [
-    {
-      "id": "z_abc123",
-      "name": "Casa",
-      "type": "Casa",
-      "address": "Calle 45 #12-10",
-      "radius": "100 Metros"
-    }
-  ],
-  "routes": [
-    {
-      "id": "r_abc123",
-      "name": "Casa - Colegio",
-      "start": "Casa",
-      "end": "Colegio San Jose",
-      "isActive": true
-    }
-  ]
-}
-```
-
-### Notificación (objeto)
-```json
-{
-  "id": "1746220800000",
-  "studentId": "1234567890abc",
-  "type": "Exitosas",
-  "name": "María Pérez",
-  "message": "María Pérez llegó a zona segura",
-  "color": "#7BC74D",
-  "time": "Ahora"
-}
-```
-
-### Registro de Historial (objeto)
-```json
-{
-  "id": "1746220800001",
-  "studentId": "1234567890abc",
-  "estudiante": "María Pérez",
-  "fecha": "2 de mayo",
-  "horaInicio": "7:30 AM",
-  "horaFin": "--",
-  "duracion": "--",
-  "distancia": "--",
-  "estado": "Completado",
-  "alerta": false,
-  "ruta": "Actualización Manual",
-  "studentColor": "#7BC74D"
-}
-```
-
----
-
-## Patrón de Datos Mock vs. Datos Reales
-
-La app implementa un patrón híbrido:
-
-```javascript
-// En history.js — loadData()
-const [studentData, storedHistory] = await Promise.all([
-  getStudents(),      // ← Datos REALES de AsyncStorage
-  getHistory()        // ← Datos REALES de AsyncStorage
-]);
-
-// Combinar reales + mock de demostración
-let combined = [...storedHistory, ...MOCK_HISTORY];
-
-// Generar datos de muestra para estudiantes sin historial
-studentData.forEach(student => {
-  if (!combined.find(h => h.estudiante === student.nombre)) {
-    combined.push({
-      id: `gen-${student.id}`,     // Prefijo 'gen-' identifica datos generados
-      // ...datos placeholder
-    });
-  }
-});
-```
-
-**¿Por qué este patrón?** Garantiza que la pantalla nunca se vea vacía, incluso en un primer uso sin datos reales. Los registros con `id.startsWith('gen-')` se tratan diferente al eliminar (se elimina solo de la UI, no de AsyncStorage).
-
----
-
-## Diagrama de Dependencias entre Archivos
-
-```
-app/_layout.js
-  ├── contexts/AuthContext.js
-  ├── contexts/LanguageContext.js ── translations/index.js
-  └── contexts/UserRoleContext.js
-
-app/(tabs)/_layout.js
-  ├── contexts/LanguageContext.js
-  └── constants/colors.js
-
-app/(tabs)/student.js
-  ├── utils/studentStorage.js ── @react-native-async-storage
-  ├── contexts/LanguageContext.js
-  ├── constants/colors.js
-  └── expo-image-picker
-
-app/(tabs)/history.js
-  ├── utils/studentStorage.js
-  ├── components/SafeMap.js ── react-native-maps (móvil)
-  ├── contexts/LanguageContext.js
-  └── constants/colors.js
-
-app/(auth)/login.js
-  ├── services/auth.service.js ── utils/storage.js
-  ├── hooks/useAuth.js
-  └── contexts/AuthContext.js
-```
+Los servicios convierten errores de Axios en mensajes que la UI puede presentar. Una respuesta 401 provoca la limpieza de la sesion y notifica a AuthContext. Los errores de red deben conservarse como errores recuperables; no se deben reemplazar silenciosamente por datos ficticios.
