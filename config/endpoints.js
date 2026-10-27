@@ -5,17 +5,20 @@ const apiPort = process.env.EXPO_PUBLIC_API_PORT || '8080';
 const frontendPort = process.env.EXPO_PUBLIC_FRONTEND_PORT || '8081';
 const webProxyEnabled = String(process.env.EXPO_PUBLIC_WEB_PROXY || '').toLowerCase() === 'true';
 
-const requiredPublicEnv = (name) => {
-  const value = process.env[name]?.trim();
-  if (!value) {
+const requiredPublicEnv = (value, name) => {
+  const normalizedValue = value?.trim();
+  if (!normalizedValue) {
     throw new Error(`[config/endpoints] Falta la variable ${name}. Configúrala antes de compilar la aplicación.`);
   }
-  return value;
+  return normalizedValue;
 };
 
-const configuredApiUrl = requiredPublicEnv('EXPO_PUBLIC_API_URL');
-const configuredWsUrl = requiredPublicEnv('EXPO_PUBLIC_WS_URL');
-const configuredStudentLinkBaseUrl = requiredPublicEnv('EXPO_PUBLIC_STUDENT_LINK_BASE_URL');
+const configuredApiUrl = requiredPublicEnv(process.env.EXPO_PUBLIC_API_URL, 'EXPO_PUBLIC_API_URL');
+const configuredWsUrl = requiredPublicEnv(process.env.EXPO_PUBLIC_WS_URL, 'EXPO_PUBLIC_WS_URL');
+const configuredStudentLinkBaseUrl = requiredPublicEnv(
+  process.env.EXPO_PUBLIC_STUDENT_LINK_BASE_URL,
+  'EXPO_PUBLIC_STUDENT_LINK_BASE_URL',
+);
 
 function isLocalHost(host) {
   return !host || host === 'localhost' || host === '127.0.0.1' || host === '::1';
