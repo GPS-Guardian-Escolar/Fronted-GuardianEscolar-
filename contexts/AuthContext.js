@@ -42,9 +42,11 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     return subscribeAuthExpired(() => {
-      setToken(null);
-      setUser(null);
-      setIsAuthenticated(false);
+      storage.clearAll().finally(() => {
+        setToken(null);
+        setUser(null);
+        setIsAuthenticated(false);
+      });
     });
   }, []);
 

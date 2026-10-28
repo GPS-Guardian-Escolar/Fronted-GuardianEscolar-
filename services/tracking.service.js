@@ -15,8 +15,8 @@ export const trackingService = {
     return response.data;
   },
 
-  updateStatus: async (tripId, data) => {
-    const response = await api.patch(`/trips/${tripId}/status`, data);
+  updateStatus: async (tripId, data, options = {}) => {
+    const response = await api.patch(`/trips/${tripId}/status`, data, buildChildAuthConfig(options));
     return response.data;
   },
 

@@ -7,7 +7,9 @@ import { Button, Text, TextInput } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import LanguageSelector from '../../components/common/LanguageSelector';
 import { authService } from '../../services/auth.service';
+import { isValidEmail } from '../../utils/validators';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -16,20 +18,26 @@ export default function ForgotPasswordScreen() {
   const colors = theme.colors;
   const [contact, setContact] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleResetPassword = async () => {
     setErrorMsg('');
+    setSuccessMsg('');
     if (!contact.trim()) {
       setErrorMsg(t('invalidInput'));
+      return;
+    }
+    if (!isValidEmail(contact)) {
+      setErrorMsg(t('authInvalidEmail'));
       return;
     }
     try {
       setIsSubmitting(true);
       await authService.requestPasswordRecovery(contact);
-      router.replace('/(auth)/login');
+      setSuccessMsg(t('authRecoverySent'));
     } catch (error) {
-      setErrorMsg(error.message || t('someError'));
+      setErrorMsg(/mail|correo|email delivery/i.test(error.message || '') ? t('authRecoveryUnavailable') : t('someError'));
     } finally {
       setIsSubmitting(false);
     }
@@ -38,9 +46,10 @@ export default function ForgotPasswordScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
        <View style={styles.topBar}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/(auth)/login')}>
           <MaterialCommunityIcons name="arrow-left" size={28} color={colors.primary} />
         </TouchableOpacity>
+        <LanguageSelector />
       </View>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
@@ -77,6 +86,7 @@ export default function ForgotPasswordScreen() {
                   <Text style={[styles.errorText, { color: colors.error }]}>{errorMsg}</Text>
                 </View>
               ) : null}
+              {successMsg ? <Text style={{ color: colors.accent, marginBottom: 12 }}>{successMsg}</Text> : null}
 
               <Button
                 mode="contained"
@@ -88,7 +98,7 @@ export default function ForgotPasswordScreen() {
                 textColor={colors.textOnPrimary}
                 disabled={isSubmitting}
               >
-                Enviar enlace de recuperación
+                {t('authSendRecoveryLink')}
               </Button>
             </View>
           </View>
@@ -104,7 +114,8 @@ const styles = StyleSheet.create({
   topBar: {
     width: '100%',
     flexDirection: 'row',
-    justifyContent: 'flex-start',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 10,
     zIndex: 10,

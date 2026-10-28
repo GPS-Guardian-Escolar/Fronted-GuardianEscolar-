@@ -146,6 +146,15 @@ export default function NotificationsScreen() {
     ? notifications
     : notifications.filter(n => n.type === filter);
 
+  const markAllAsRead = async () => {
+    try {
+      await notificationService.markAllAsRead();
+      setNotifications(previous => previous.map(item => ({ ...item, read: true })));
+    } catch (error) {
+      Alert.alert(t('error'), error.message || 'No se pudieron marcar las notificaciones.');
+    }
+  };
+
   return (
     <View style={[styles.container, themed.screen]}>
       <ScrollView
@@ -163,7 +172,7 @@ export default function NotificationsScreen() {
           </View>
           <TouchableOpacity 
             style={[styles.markAllBtn, themed.surfaceSecondary]}
-            onPress={() => Alert.alert(t('notifTitle'), t('notifMarked'))}
+            onPress={markAllAsRead}
           >
             <RNText style={[styles.markAllText, themed.textSecondary]}>{t('notifMarkAll')}</RNText>
           </TouchableOpacity>
@@ -200,7 +209,21 @@ export default function NotificationsScreen() {
             <TouchableOpacity 
               key={item.id} 
               style={[styles.notifCard, themed.surface]}
-              onPress={() => Alert.alert(t('notifDetail'), item.message)}
+              onPress={async () => {
+                const isRemoteReceipt = item.id && !String(item.id).startsWith('notif-');
+                if (!item.read && isRemoteReceipt) {
+                  try {
+                    await notificationService.markAsRead(item.id);
+                    setNotifications(previous => previous.map(notification => notification.id === item.id
+                      ? { ...notification, read: true }
+                      : notification));
+                  } catch (error) {
+                    Alert.alert(t('error'), error.message || 'No se pudo marcar la notificación.');
+                    return;
+                  }
+                }
+                Alert.alert(t('notifDetail'), item.message);
+              }}
             >
               <View style={styles.notifRow}>
                 <View style={[styles.colorCircle, { backgroundColor: item.color }]} />

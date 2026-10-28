@@ -48,7 +48,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if ([401, 403].includes(error.response?.status) && !isReauthenticationEndpoint(error.config?.url)) {
+    if (error.response?.status === 401 && !error.config?.skipAuth && !isPublicEndpoint(error.config?.url) && !isReauthenticationEndpoint(error.config?.url)) {
       await storage.clearAll()
       emitAuthExpired()
     }
