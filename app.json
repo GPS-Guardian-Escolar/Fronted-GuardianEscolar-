@@ -3,6 +3,7 @@
     "name": "GPS-Guardian-Escolar",
     "slug": "GPS-Guardian-Escolar",
     "version": "1.0.0",
+    "owner": "gpsguardianescolar",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "gpsguardianescolar",
@@ -84,11 +85,7 @@
       "reactCompiler": true
     },
     "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "809bcc30-d6bf-4b63-bc60-1284f5fafbb7"
-      }
-    },
-    "owner": "nicolaskn2"
+      "router": {}
+    }
   }
 }
