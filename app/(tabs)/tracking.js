@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Dimensions, ScrollView } from 'react-native';
-import { Avatar, Text, Surface, IconButton, Button } from 'react-native-paper';
+import { View, StyleSheet, ActivityIndicator, Dimensions, ScrollView } from 'react-native';
+import { Text, Surface, IconButton, Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { COLORS } from '../../constants/colors';
@@ -9,7 +9,9 @@ import { getStudents, getInitials } from '../../utils/studentStorage';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { trackingService } from '../../services/tracking.service';
-import { createTrackingSocket } from '../../services/socket';
+import { useTrackingRealtime } from '../../hooks/useTrackingRealtime';
+import TrackingHeader from '../../features/tracking/components/TrackingHeader';
+import TrackingStudentSelector from '../../features/tracking/components/TrackingStudentSelector';
 import { calculateRouteGeometry } from '../../utils/routeGeometry';
 
 const { width } = Dimensions.get('window');
@@ -204,105 +206,50 @@ export default function TrackingScreen() {
     refreshLocation();
   }, [refreshLocation]);
 
-  useEffect(() => {
-    if (!activeTrip?.id) return undefined;
-
-    let disposed = false;
-    let client;
-    createTrackingSocket({
-      tripId: activeTrip.id,
-      onCoordinate: (point) => {
-        if (disposed) return;
-        const normalized = {
-          latitude: Number(point.latitude),
-          longitude: Number(point.longitude),
-          timestamp: new Date(point.recordedAt || point.createdAt || Date.now()).getTime(),
-          accuracy: point.accuracy,
-          recordedAt: point.recordedAt,
-        };
-        if (!Number.isFinite(normalized.latitude) || !Number.isFinite(normalized.longitude)) return;
-        setLocation(normalized);
-        setJourneyCoordinates(current => [
-          ...current,
-          normalized,
-        ].slice(-500).map(({ latitude, longitude }) => ({ latitude, longitude })));
-      },
-      onError: (error) => {
-        if (!disposed) console.warn('Seguimiento en tiempo real no disponible:', error?.message || error);
-      },
-    }).then((connectedClient) => {
-      if (disposed) {
-        connectedClient.deactivate();
-      } else {
-        client = connectedClient;
-      }
-    }).catch((error) => {
-      if (!disposed) console.warn('No se pudo conectar el seguimiento en tiempo real:', error?.message || error);
-    });
-
-    return () => {
-      disposed = true;
-      client?.deactivate();
-    };
-  }, [activeTrip?.id]);
+  useTrackingRealtime(activeTrip?.id, {
+    onCoordinate: (point) => {
+      const normalized = {
+        latitude: Number(point.latitude),
+        longitude: Number(point.longitude),
+        timestamp: new Date(point.recordedAt || point.createdAt || Date.now()).getTime(),
+        accuracy: point.accuracy,
+        recordedAt: point.recordedAt,
+      };
+      if (!Number.isFinite(normalized.latitude) || !Number.isFinite(normalized.longitude)) return;
+      setLocation(normalized);
+      setJourneyCoordinates(current => [
+        ...current,
+        normalized,
+      ].slice(-500).map(({ latitude, longitude }) => ({ latitude, longitude })));
+    },
+    onError: (error) => console.warn(
+      'Seguimiento en tiempo real no disponible:',
+      error?.message || error,
+    ),
+  });
 
   return (
     <View style={[styles.container, themed.screen]}>
       <ScrollView contentContainerStyle={[styles.scrollContent, isWeb && styles.scrollContentWeb]}>
         
-        {/* Cabecera del Estudiante */}
-        <Surface style={[styles.headerCard, themed.surface]} elevation={1}>
-          <View style={styles.headerProfile}>
-            <Avatar.Text 
-              size={40} 
-              label={selectedStudent ? getInitials(selectedStudent.nombre) : '??'} 
-              backgroundColor={colors.primary} 
-              color={colors.textOnPrimary} 
-            />
-            <View style={styles.headerTextCol}>
-              <Text style={[styles.studentName, themed.text]}>{selectedStudent?.nombre || t('trackSelectStudent')}</Text>
-              <Text style={[styles.studentStatus, themed.textSecondary]}>
-                {Number(selectedStudent?.dispositivos_vinculados || 0) < 1
-                  ? t('trackNoDevice')
-                  : activeTrip ? t('trackOnline') : t('trackWaitingTrip')}
-              </Text>
-            </View>
-          </View>
-          <IconButton 
-            icon="refresh" 
-            size={20} 
-            style={[styles.refreshBtn, themed.surfaceSecondary]} 
-            iconColor={colors.textSecondary} 
-            onPress={() => refreshLocation(false)}
-          />
-        </Surface>
+        <TrackingHeader
+          student={selectedStudent}
+          status={
+            Number(selectedStudent?.dispositivos_vinculados || 0) < 1
+              ? t('trackNoDevice')
+              : activeTrip ? t('trackOnline') : t('trackWaitingTrip')
+          }
+          onRefresh={() => refreshLocation(false)}
+          colors={colors}
+          t={t}
+        />
 
-        {/* Selector de Estudiantes Horizontal */}
-        <View style={styles.selectorContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectorScroll}>
-            {students.map(student => (
-              <TouchableOpacity 
-                key={student.id} 
-                onPress={() => handleSelectStudent(student)}
-                style={[
-                  styles.selectorItem, 
-                  themed.surface,
-                  selectedStudent?.id === student.id && { borderColor: colors.primary, borderWidth: 2 }
-                ]}
-              >
-                <Avatar.Text 
-                  size={42} 
-                  label={getInitials(student.nombre)} 
-                  backgroundColor={colors.primary} 
-                  color={colors.textOnPrimary} 
-                />
-                <Text style={[styles.selectorLabel, themed.textSecondary, selectedStudent?.id === student.id && { color: colors.primary, fontWeight: 'bold' }]} numberOfLines={1}>
-                  {student.nombre.split(' ')[0]}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+        <TrackingStudentSelector
+          students={students}
+          selectedStudent={selectedStudent}
+          onSelect={handleSelectStudent}
+          colors={colors}
+        />
 
         {/* Tarjeta del Mapa */}
         <Surface style={[styles.mapCard, themed.surface]} elevation={1}>

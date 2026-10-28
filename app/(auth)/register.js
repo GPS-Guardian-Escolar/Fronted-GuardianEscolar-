@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Dimensions, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Button, Checkbox, Text, TextInput } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
@@ -11,8 +11,6 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import LanguageSelector from '../../components/common/LanguageSelector';
 import { validateInputEdit, isValidEmail, isValidPersonName, isValidPhone, normalizeColombianPhoneInput, passwordChecks } from '../../utils/validators';
-
-const isWeb = Dimensions.get('window').width > 768;
 
 const TERMS_VERSION = '2026-08-20';
 const TERMS_SECTION_KEYS = Array.from({ length: 8 }, (_, index) => index + 1);
@@ -62,6 +60,8 @@ const FieldSvgIcon = ({ type, color, size = 22 }) => {
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isWeb = width > 768;
   const [inputNotice, setInputNotice] = useState('');
   function changeInput(value, kind, setter) {
     if (!validateInputEdit(value, kind)) {
@@ -141,10 +141,10 @@ export default function RegisterScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={styles.cardWrapper}>
             <Image source={require('../../assets/images/logo.png')} style={styles.headerLogo} contentFit="contain" />
-            <Text style={[styles.headerTitle, { color: colors.primary }]}>{t('appName')}</Text>
+            <Text style={[styles.headerTitle, { color: colors.primary, fontSize: isWeb ? 32 : 22 }]}>{t('appName')}</Text>
 
             <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>{t('authRegister')}</Text>
+              <Text style={[styles.cardTitle, { color: colors.text, fontSize: isWeb ? 24 : 20 }]}>{t('authRegister')}</Text>
               <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>{t('authEnterEmail')}</Text>
 
               {inputNotice ? <Text accessibilityRole="alert" style={{ color: colors.error }}>{t(inputNotice)}</Text> : null}
@@ -355,14 +355,14 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1, justifyContent: 'center' },
   cardWrapper: { width: '100%', alignItems: 'center', padding: 20, alignSelf: 'center' },
   headerLogo: { width: 120, height: 120, marginBottom: 6 },
-  headerTitle: { fontSize: isWeb ? 32 : 22, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
+  headerTitle: { fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
   card: {
     width: '100%', maxWidth: 430,
     padding: 18, borderRadius: 12, elevation: 3,
     shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6,
     borderWidth: 1,
   },
-  cardTitle: { fontSize: isWeb ? 24 : 20, fontWeight: '700', textAlign: 'center', marginBottom: 4 },
+  cardTitle: { fontWeight: '700', textAlign: 'center', marginBottom: 4 },
   cardSubtitle: { fontSize: 13, textAlign: 'center', marginBottom: 16 },
   inputGroup: { marginBottom: 12 },
   label: { fontSize: 13, fontWeight: '600', marginBottom: 4 },

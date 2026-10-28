@@ -17,6 +17,8 @@ import { notificationService } from '../../services/notification.service';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import AppError from '../../components/ui/AppError';
+import AppLoading from '../../components/ui/AppLoading';
 
 const isWeb = Dimensions.get('window').width > 768;
 
@@ -24,6 +26,8 @@ export default function NotificationsScreen() {
   const [filter, setFilter] = useState('all');
   const [notifications, setNotifications] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const { t } = useLanguage();
   const { theme } = useTheme();
   const colors = theme.colors;
@@ -72,37 +76,46 @@ export default function NotificationsScreen() {
     const mappedType = isWarning ? 'Advertencias'
       : tipo.includes('EXITO') || tipo.includes('SUCCESS') ? 'Exitosas'
         : 'Informativas';
+    const receiptId = item.receiptId || item.id;
     return {
-      id: item.id || item.reciboId,
+      id: receiptId,
+      receiptId,
+      notificationId: item.notificationId,
       type: mappedType,
       name: item.estudianteNombre || item.name || t('notifDetail'),
       message,
-      time: item.recibidoEn || item.creadoEn || item.time || '',
+      time: item.receivedAt || item.eventDateTime || item.recibidoEn || item.creadoEn || item.time || '',
       color: mappedType === 'Advertencias' ? colors.error : mappedType === 'Exitosas' ? colors.success : colors.primary,
-      read: item.leida || false,
+      read: Boolean(item.wasRead ?? item.leida ?? item.read),
     };
   }, [colors, t]);
 
   const loadNotifications = useCallback(async () => {
     setRefreshing(true);
+    setLoading(true);
+    setLoadError(null);
     try {
       const [backendNotifs, storedNotifs] = await Promise.all([
-        notificationService.listNotifications().catch(() => []),
+        notificationService.listNotifications(),
         getNotifications(),
       ]);
       setNotifications([...backendNotifs.map(normalizeNotification), ...storedNotifs.map(normalizeNotification)]);
     } catch (error) {
-      Alert.alert(t('error'), error.message || 'No se pudieron cargar las notificaciones.');
+      setLoadError(error);
     } finally {
       setRefreshing(false);
+      setLoading(false);
     }
-  }, [normalizeNotification, t]);
+  }, [normalizeNotification]);
 
   useFocusEffect(
     useCallback(() => {
       loadNotifications();
     }, [loadNotifications])
   );
+
+  if (loading) return <AppLoading message="Cargando notificaciones..." />;
+  if (loadError) return <AppError message="No se pudieron cargar las notificaciones." onRetry={loadNotifications} />;
 
   function confirmDeleteNotif(item) {
     if (Platform.OS === 'web') {
@@ -210,10 +223,10 @@ export default function NotificationsScreen() {
               key={item.id} 
               style={[styles.notifCard, themed.surface]}
               onPress={async () => {
-                const isRemoteReceipt = item.id && !String(item.id).startsWith('notif-');
+                const isRemoteReceipt = item.receiptId && !String(item.receiptId).startsWith('notif-');
                 if (!item.read && isRemoteReceipt) {
                   try {
-                    await notificationService.markAsRead(item.id);
+                    await notificationService.markAsRead(item.receiptId);
                     setNotifications(previous => previous.map(notification => notification.id === item.id
                       ? { ...notification, read: true }
                       : notification));

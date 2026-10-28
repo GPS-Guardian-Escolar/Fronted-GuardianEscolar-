@@ -13,6 +13,8 @@ import { deleteHistory, deleteNotification, getHistory } from '../../utils/stude
 import { trackingService } from '../../services/tracking.service';
 import { notificationService } from '../../services/notification.service';
 import { getHistoryStatusKind, matchesHistoryStatus, toLocalDateKey } from '../../utils/tripHistory';
+import AppError from '../../components/ui/AppError';
+import AppLoading from '../../components/ui/AppLoading';
 
 const DATE_LOCALES = { es: 'es-CO', en: 'en-US', fr: 'fr-FR', pt: 'pt-BR' };
 
@@ -62,27 +64,35 @@ export default function HistoryScreen() {
   const [filterStudent, setFilterStudent] = useState('');
   const [filterDate, setFilterDate] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   const loadData = useCallback(async () => {
     setRefreshing(true);
+    setLoading(true);
+    setLoadError(null);
     try {
       const [storedHistory, trips, notifications] = await Promise.all([
         getHistory(),
-        trackingService.listTrips().catch(() => []),
-        notificationService.listNotifications().catch(() => []),
+        trackingService.listTrips(),
+        notificationService.listNotifications(),
       ]);
       const remoteHistory = (trips || []).map(trip => normalizeTrip(trip, notifications || [], lang));
       const remoteIds = new Set(remoteHistory.map(item => item.backendId));
       const localOnly = storedHistory.filter(item => !item.backendId && !remoteIds.has(item.id));
       setHistory([...remoteHistory, ...localOnly]);
     } catch (error) {
-      Alert.alert(t('error'), error.message || 'No se pudo cargar el historial.');
+      setLoadError(error);
     } finally {
       setRefreshing(false);
+      setLoading(false);
     }
-  }, [t, lang]);
+  }, [lang]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
+
+  if (loading) return <AppLoading message="Cargando historial..." />;
+  if (loadError) return <AppError message="No se pudo cargar el historial." onRetry={loadData} />;
 
   function confirmDeleteHistory(item) {
     const removeItem = async () => {

@@ -116,6 +116,9 @@ async function main() {
     'expo-device': { isDevice: false },
     'expo-constants': { expoConfig: {} },
     './api': { __esModule: true, default: api },
+    '../config/endpoints': {
+      ENDPOINTS: { NOTIFICATION_SETTINGS: '/notifications/settings' },
+    },
   });
   const initial = await notificationService.getPreferences();
   assert.equal(initial.alertaInactividad, false);
@@ -147,6 +150,13 @@ async function main() {
       post: async (...args) => { trackingCalls.push(args); return { data: {} }; },
       patch: async (...args) => { trackingCalls.push(args); return { data: {} }; },
     } },
+    '../config/endpoints': {
+      ENDPOINTS: {
+        TRIPS: '/trips',
+        TRIP_STATUS: tripId => `/trips/${tripId}/status`,
+        TRIP_COORDINATES: tripId => `/trips/${tripId}/coordinates`,
+      },
+    },
   });
   await trackingService.startTrip({ studentId: 'student-1' }, { childToken: 'device-token' });
   await trackingService.addCoordinate('trip-1', { latitude: 4, longitude: -74 }, { childToken: 'device-token' });
