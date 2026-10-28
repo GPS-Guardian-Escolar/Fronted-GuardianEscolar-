@@ -110,6 +110,22 @@ export default function StudentDashboardScreen() {
           return;
         }
 
+        // The QR link code is single-use. Once this device already has a child
+        // token, do not validate the consumed code again after navigation.
+        if (existingSession.childToken && String(existingSession.studentId) === String(resolvedStudentId)) {
+          if (mounted) {
+            setStudentProfile({
+              id: resolvedStudentId,
+              fullName: params.nombre || '',
+              contactPhone: params.telefono || '',
+            });
+            setStoredSession(existingSession);
+            setActiveTripId(existingSession.activeTripId || '');
+            setLinkStatus('linked');
+          }
+          return;
+        }
+
         const profile = await studentService.linkedProfile(String(resolvedStudentId), String(resolvedCode));
         const linkedDevices = Number(profile?.linkedDevices);
         if (!Number.isFinite(linkedDevices) || linkedDevices < 1) {
@@ -121,15 +137,6 @@ export default function StudentDashboardScreen() {
         if (mounted) {
           setStudentProfile(profile);
           setLinkedCount(linkedDevices);
-        }
-
-        if (existingSession.childToken && String(existingSession.studentId) === String(resolvedStudentId)) {
-          if (mounted) {
-            setStoredSession(existingSession);
-            setActiveTripId(existingSession.activeTripId || '');
-            setLinkStatus('linked');
-          }
-          return;
         }
 
         const deviceIdentifier = await getStudentDeviceId();
