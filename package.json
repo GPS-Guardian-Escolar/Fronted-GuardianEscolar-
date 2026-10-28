@@ -8,11 +8,11 @@
     "start:tunnel": "set \"EXPO_UNSTABLE_TUNNEL_V2=1\" && expo start --tunnel --port 8082 --clear",
     "backend:proxy": "node scripts/backend-proxy.js",
     "password:web": "node scripts/password-reset-web.js",
-    "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
     "web:lan": "expo start --web --host lan --port 8081 --clear",
+    "test": "node scripts/verify-functional-fixes.cjs",
     "lint": "eslint --no-cache --ignore-pattern dist --ignore-pattern .expo ."
   },
   "dependencies": {
