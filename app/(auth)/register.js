@@ -11,6 +11,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import LanguageSelector from '../../components/common/LanguageSelector';
 import { validateInputEdit, isValidEmail, isValidPersonName, isValidPhone, normalizeColombianPhoneInput, passwordChecks } from '../../utils/validators';
+import { emitNotice } from '../../utils/noticeBus';
 
 const TERMS_VERSION = '2026-08-20';
 const TERMS_SECTION_KEYS = Array.from({ length: 9 }, (_, index) => index + 1);
@@ -112,7 +113,7 @@ export default function RegisterScreen() {
     try {
       await authService.register({ name: name.trim(), email: email.trim(), password, phone: phoneDigits, acceptedTerms: true, termsVersion: TERMS_VERSION });
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        window.alert(`${t('success')}\n\n${t('authRegisterSuccess')}`);
+        emitNotice(t('success'), t('authRegisterSuccess'), { tone: 'success' });
       } else {
         Alert.alert(t('success'), t('authRegisterSuccess'));
       }

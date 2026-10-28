@@ -23,6 +23,7 @@ import {
   stopBackgroundUpdates,
 } from '../services/background/locationTracking';
 import { BASE_URL } from '../config/endpoints';
+import { showPlatformNotice } from '../utils/noticeBus';
 import { AppTypography } from '../theme/tokens';
 import PermissionGate from '../features/child/components/PermissionGate';
 import SharingStatusCard from '../features/child/components/SharingStatusCard';
@@ -413,7 +414,7 @@ export default function StudentDashboardScreen() {
       setActiveTripId('');
       setTrackingStatus('paused');
     } catch (error) {
-      Alert.alert(t('error'), error.message || t('studentStopTrackingError'));
+      showPlatformNotice(t('error'), error.message || t('studentStopTrackingError'), { tone: 'error' });
     } finally {
       setTrackingLoading(false);
     }
@@ -433,14 +434,14 @@ export default function StudentDashboardScreen() {
   const callEmergencyContact = async () => {
     const phoneDigits = String(parentPhone).replace(/[^\d+]/g, '');
     if (!phoneDigits || phoneDigits === t('notRegistered')) {
-      Alert.alert(t('studentContactUnavailable'), t('studentQrNoEmergencyPhone'));
+      showPlatformNotice(t('studentContactUnavailable'), t('studentQrNoEmergencyPhone'), { tone: 'warning' });
       return;
     }
 
     const phoneUrl = `tel:${phoneDigits}`;
     const supported = await Linking.canOpenURL(phoneUrl);
     if (!supported) {
-      Alert.alert(t('studentCannotCall'), t('studentDeviceCannotCall'));
+      showPlatformNotice(t('studentCannotCall'), t('studentDeviceCannotCall'), { tone: 'error' });
       return;
     }
     await Linking.openURL(phoneUrl);

@@ -19,6 +19,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import AppError from '../../components/ui/AppError';
 import AppLoading from '../../components/ui/AppLoading';
+import { showPlatformNotice } from '../../utils/noticeBus';
 
 const isWeb = Dimensions.get('window').width > 768;
 
@@ -164,7 +165,7 @@ export default function NotificationsScreen() {
       await notificationService.markAllAsRead();
       setNotifications(previous => previous.map(item => ({ ...item, read: true })));
     } catch (error) {
-      Alert.alert(t('error'), error.message || 'No se pudieron marcar las notificaciones.');
+      showPlatformNotice(t('error'), error.message || 'No se pudieron marcar las notificaciones.', { tone: 'error' });
     }
   };
 
@@ -231,11 +232,11 @@ export default function NotificationsScreen() {
                       ? { ...notification, read: true }
                       : notification));
                   } catch (error) {
-                    Alert.alert(t('error'), error.message || 'No se pudo marcar la notificación.');
+                    showPlatformNotice(t('error'), error.message || 'No se pudo marcar la notificación.', { tone: 'error' });
                     return;
                   }
                 }
-                Alert.alert(t('notifDetail'), item.message);
+                showPlatformNotice(t('notifDetail'), item.message, { tone: 'info' });
               }}
             >
               <View style={styles.notifRow}>

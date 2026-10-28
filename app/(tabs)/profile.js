@@ -13,10 +13,11 @@ import { authService } from '../../services/auth.service';
 import { notificationService } from '../../services/notification.service';
 import { SUPPORTED_LANGUAGES } from '../../translations';
 import { validateInputEdit, isValidEmail, isValidPersonName, isValidPhone, normalizePhoneDigits, passwordChecks } from '../../utils/validators';
+import { emitNotice } from '../../utils/noticeBus';
 
 function showProfileAlert(title, message) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    window.alert([title, message].filter(Boolean).join('\n\n'));
+    emitNotice(title, message, { tone: 'error' });
   } else {
     Alert.alert(title, message);
   }

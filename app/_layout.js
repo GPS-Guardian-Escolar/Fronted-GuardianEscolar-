@@ -10,6 +10,7 @@ import { createPaperTheme, ThemeProvider, useTheme } from '../contexts/ThemeCont
 import { hasSeenOnboarding } from '../features/onboarding/onboardingStorage';
 import { getChildSession, handleLocationTask, LOCATION_TASK_NAME } from '../services/background/locationTracking';
 import { subscribePermissionDenied } from '../utils/authEvents';
+import FloatingNoticeHost from '../components/common/FloatingNoticeHost';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -172,6 +173,7 @@ function RootLayoutContent() {
       <AuthProvider>
         <LanguageProvider>
           <RootLayoutNav />
+          <FloatingNoticeHost />
         </LanguageProvider>
       </AuthProvider>
     </PaperProvider>

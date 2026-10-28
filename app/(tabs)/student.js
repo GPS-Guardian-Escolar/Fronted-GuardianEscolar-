@@ -27,15 +27,16 @@ import { studentService } from '../../services/student.service';
 import { AppTouch, AppTypography } from '../../theme/tokens';
 import { addStudent, deleteStudent, getInitials, getStudents, normalizeGrade, updateStudent } from '../../utils/studentStorage';
 import { validateInputEdit, isValidPersonName, isValidPhone } from '../../utils/validators';
+import { emitNotice, showPlatformNotice } from '../../utils/noticeBus';
 
 const { width } = Dimensions.get('window');
 const isWeb = width > 768;
 const isTablet = width > 600 && width <= 1024;
 const MIN_STUDENT_AGE = 5;
 const MAX_STUDENT_AGE = 18;
-function showStudentAlert(title, message) {
+function showStudentAlert(title, message, tone = 'error') {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    window.alert([title, message].filter(Boolean).join('\n\n'));
+    emitNotice(title, message, { tone });
   } else {
     Alert.alert(title, message);
   }
@@ -167,7 +168,7 @@ export default function StudentScreen() {
       const data = await getStudents();
       setStudents(data);
     } catch (error) {
-      Alert.alert(t('error'), error.message || 'No se pudieron cargar los estudiantes.');
+      showStudentAlert(t('error'), error.message || 'No se pudieron cargar los estudiantes.');
     } finally {
       setRefreshing(false);
     }
@@ -219,7 +220,7 @@ export default function StudentScreen() {
       setCodigoGenerado(issued.code);
       setStudents(current => current.map(student => student.id === updatedStudent.id ? updatedStudent : student));
     } catch (error) {
-      Alert.alert(t('error'), error.message || t('studLinkCodeIssueFailed'));
+      showStudentAlert(t('error'), error.message || t('studLinkCodeIssueFailed'));
     } finally {
       setGeneratingLinkCode(false);
     }
@@ -253,14 +254,14 @@ export default function StudentScreen() {
       const data = await studentService.listGuardians(student.id);
       setGuardians(data);
     } catch (error) {
-      Alert.alert(t('error'), error.message || t('studShareLoadError'));
+      showStudentAlert(t('error'), error.message || t('studShareLoadError'));
     }
   }
 
   async function handleShareAccess() {
     const email = shareEmail.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
-      Alert.alert(t('error'), t('studShareInvalidEmail'));
+      showStudentAlert(t('error'), t('studShareInvalidEmail'));
       return;
     }
     setShareLoading(true);
@@ -270,7 +271,7 @@ export default function StudentScreen() {
       await loadStudents();
       setGuardians(guardianData);
       setShareEmail('');
-      Alert.alert(
+      showStudentAlert(
         t('studShareSuccessTitle'),
         result?.emailSent ? t('studShareEmailSent') : t('studShareEmailNotSent'),
       );
@@ -279,7 +280,7 @@ export default function StudentScreen() {
       const message = /email does not belong to a registered user/i.test(apiMessage)
         ? t('studShareEmailNotRegistered')
         : t('studShareError');
-      Alert.alert(t('error'), message);
+      showStudentAlert(t('error'), message);
     } finally {
       setShareLoading(false);
     }
@@ -295,7 +296,7 @@ export default function StudentScreen() {
       setGuardians(guardianData);
       setGuardianCandidate(null);
     } catch (error) {
-      Alert.alert(t('error'), error.message || t('studShareRemoveError'));
+      showStudentAlert(t('error'), error.message || t('studShareRemoveError'));
     } finally {
       setGuardianLoading(false);
     }
@@ -341,7 +342,7 @@ export default function StudentScreen() {
     // Solicitar permisos
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(t('studPermDenied'), t('studPermMsg'));
+        showStudentAlert(t('studPermDenied'), t('studPermMsg'));
         return;
       }
 
