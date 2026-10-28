@@ -6,13 +6,14 @@ export const studentService = {
     return response.data;
   },
 
-  create: async ({ fullName, schoolGrade, birthDate, userId, photoData }) => {
+  create: async ({ fullName, schoolGrade, birthDate, userId, photoData, emergencyContact }) => {
     const response = await api.post('/students', {
       fullName,
       schoolGrade,
       birthDate,
       userId,
       photoData,
+      emergencyContact,
     });
     return response.data;
   },
@@ -86,5 +87,9 @@ export const studentService = {
       relationshipRole: data.relationshipRole,
     });
     return response.data;
+  },
+
+  revokeGuardian: async (studentId, guardianUserId) => {
+    await api.delete(`/students/${studentId}/guardians/${guardianUserId}`);
   },
 };

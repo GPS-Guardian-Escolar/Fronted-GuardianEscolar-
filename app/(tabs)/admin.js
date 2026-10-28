@@ -5,6 +5,7 @@ import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, TouchableOpa
 import { Surface, Text } from 'react-native-paper';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { adminService } from '../../services/admin.service';
 
 const EMPTY_DASHBOARD = {
@@ -24,6 +25,7 @@ export default function AdminScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const colors = theme.colors;
   const [dashboard, setDashboard] = useState(EMPTY_DASHBOARD);
   const [alerts, setAlerts] = useState([]);
@@ -69,10 +71,10 @@ export default function AdminScreen() {
     return (
       <View style={[styles.centerScreen, { backgroundColor: colors.background }]}>
         <MaterialCommunityIcons name="shield-lock-outline" size={42} color={colors.textMuted} />
-        <Text style={[styles.lockTitle, { color: colors.text }]}>Acceso administrativo</Text>
-        <Text style={[styles.lockText, { color: colors.textSecondary }]}>Esta seccion requiere rol ADMIN.</Text>
+        <Text style={[styles.lockTitle, { color: colors.text }]}>{t('adminAccess')}</Text>
+        <Text style={[styles.lockText, { color: colors.textSecondary }]}>{t('adminRoleRequired')}</Text>
         <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={() => router.replace('/(tabs)')}>
-          <Text style={[styles.primaryButtonText, { color: colors.textOnPrimary }]}>Volver</Text>
+          <Text style={[styles.primaryButtonText, { color: colors.textOnPrimary }]}>{t('back')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -94,7 +96,7 @@ export default function AdminScreen() {
       >
         <View style={styles.header}>
           <View>
-            <Text style={[styles.title, { color: colors.text }]}>Panel administrador</Text>
+            <Text style={[styles.title, { color: colors.text }]}>{t('adminPanel')}</Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{user?.email || user?.correo}</Text>
           </View>
           <TouchableOpacity style={[styles.refreshButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]} onPress={loadAdminData}>
@@ -116,19 +118,19 @@ export default function AdminScreen() {
           <StatCard label="Errores" value={dashboard.erroresRegistrados} icon="alert-circle" color={colors.error} colors={colors} />
         </View>
 
-        <AdminList title="Alertas recientes" icon="bell-ring-outline" items={alerts} colors={colors} renderItem={(item) => ({
+        <AdminList title={t('adminRecentAlerts')} emptyLabel={t('adminNoRecords')} icon="bell-ring-outline" items={alerts} colors={colors} renderItem={(item) => ({
           title: item.tipoEvento || 'Alerta',
           body: item.mensaje || 'Sin mensaje',
           meta: item.fechaHoraEvento || '',
         })} />
 
-        <AdminList title="Auditoria reciente" icon="clipboard-text-clock-outline" items={audit} colors={colors} renderItem={(item) => ({
+        <AdminList title={t('adminRecentAudit')} emptyLabel={t('adminNoRecords')} icon="clipboard-text-clock-outline" items={audit} colors={colors} renderItem={(item) => ({
           title: item.accion || 'Actividad',
           body: item.descripcion || item.usuarioCorreo || 'Sin descripcion',
           meta: item.creadoEn || item.ipOrigen || '',
         })} />
 
-        <AdminList title="Errores recientes" icon="bug-outline" items={errors} colors={colors} renderItem={(item) => ({
+        <AdminList title={t('adminRecentErrors')} emptyLabel={t('adminNoRecords')} icon="bug-outline" items={errors} colors={colors} renderItem={(item) => ({
           title: item.tipoError || 'Error',
           body: item.descripcion || item.usuarioCorreo || 'Sin descripcion',
           meta: item.creadoEn || item.ipOrigen || '',
@@ -150,7 +152,7 @@ function StatCard({ label, value, icon, color, colors }) {
   );
 }
 
-function AdminList({ title, icon, items, colors, renderItem }) {
+function AdminList({ title, emptyLabel, icon, items, colors, renderItem }) {
   return (
     <Surface style={[styles.listCard, { backgroundColor: colors.surface, borderColor: colors.border }]} elevation={1}>
       <View style={styles.listHeader}>
@@ -158,7 +160,7 @@ function AdminList({ title, icon, items, colors, renderItem }) {
         <Text style={[styles.listTitle, { color: colors.text }]}>{title}</Text>
       </View>
       {items.length === 0 ? (
-        <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Sin registros.</Text>
+        <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{emptyLabel}</Text>
       ) : (
         items.map((item, index) => {
           const normalized = renderItem(item);
