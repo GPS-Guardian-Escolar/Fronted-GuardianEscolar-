@@ -2,6 +2,7 @@ import React from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Avatar, Text } from 'react-native-paper';
 import { getInitials } from '../../../utils/studentStorage';
+import { COLORS } from '../../../constants/colors';
 
 export default function TrackingStudentSelector({ students, selectedStudent, onSelect, colors }) {
   return (
@@ -22,8 +23,8 @@ export default function TrackingStudentSelector({ students, selectedStudent, onS
               <Avatar.Text
                 size={42}
                 label={getInitials(student.nombre)}
-                backgroundColor={colors.primary}
-                color={colors.textOnPrimary}
+                backgroundColor={COLORS.PRIMARIO}
+                color={COLORS.TEXTO_CONTRASTE}
               />
               <Text
                 style={[

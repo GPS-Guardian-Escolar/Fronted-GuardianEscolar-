@@ -22,7 +22,8 @@ export const lightTheme = {
     error: lightColors.error,
     onError: lightColors.onError,
     errorLight: palette.red100,
-    warning: palette.amber500,
+    // Keep status colors within the documented blue/green/red semantic set.
+    warning: lightColors.primary,
     success: palette.green500,
     info: palette.blue800,
     border: lightColors.border,

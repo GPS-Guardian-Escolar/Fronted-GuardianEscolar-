@@ -6,6 +6,7 @@ import { Alert, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, useWi
 import { Avatar, Button, Divider, IconButton, Surface, Switch, Text, TextInput } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
+import { COLORS } from '../../constants/colors';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { authService } from '../../services/auth.service';
@@ -349,7 +350,7 @@ export default function ProfileScreen() {
             </Button>
           </View>
           <View style={[styles.profileRow, !isWide && styles.profileRowMobile]}>
-            <Avatar.Text size={60} label={form.name.substring(0, 2).toUpperCase()} style={{ backgroundColor: colors.primary }} color={colors.textOnPrimary} />
+            <Avatar.Text size={60} label={form.name.substring(0, 2).toUpperCase()} style={{ backgroundColor: COLORS.PRIMARIO }} color={COLORS.TEXTO_CONTRASTE} />
             <View style={styles.profileInputs}>
               <ProfileField colors={colors} label={t('profileName')} value={form.name} editable={isEditing} onChangeText={name => {
                 if (!validateInputEdit(name, 'name', form.name)) { showProfileAlert(t('error'), t('inputNameBlocked')); return; }

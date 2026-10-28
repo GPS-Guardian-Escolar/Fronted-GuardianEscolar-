@@ -31,8 +31,8 @@ import { validateInputEdit, isValidPersonName, isValidPhone } from '../../utils/
 const { width } = Dimensions.get('window');
 const isWeb = width > 768;
 const isTablet = width > 600 && width <= 1024;
-const MIN_STUDENT_AGE = 3;
-const MAX_STUDENT_AGE = 21;
+const MIN_STUDENT_AGE = 5;
+const MAX_STUDENT_AGE = 18;
 function showStudentAlert(title, message) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     window.alert([title, message].filter(Boolean).join('\n\n'));
@@ -51,6 +51,7 @@ function getStudentSaveErrorKey(error) {
       ? Object.entries(data.errors).map(([field, details]) => `${field} ${Array.isArray(details) ? details.join(' ') : details}`).join(' ')
       : '';
   const message = String([data?.message, data?.mensaje, validationDetails, error?.message].filter(Boolean).join(' ')).toLowerCase();
+  if (/limit of 20 active students|l[ií]mite de 20 estudiantes activos/.test(message)) return 'studChildLimitReached';
   if (error?.response?.status === 409 || /already exists|duplicate|ya existe|duplicado/.test(message)) return 'studDuplicateName';
   if (/phone|celular|teléfono|telefono|\bmobile\b/.test(message)) return 'studPhoneInvalid';
   if (/emergencycontact|contact|emergencia/.test(message)) return 'studContactNameInvalid';
@@ -61,8 +62,8 @@ function getStudentSaveErrorKey(error) {
 }
 
 const GRADE_AGE_RANGES = {
-  PRE_KINDER: [3, 5],
-  KINDER: [4, 6],
+  PRE_KINDER: [5, 5],
+  KINDER: [5, 6],
   TRANSITION: [5, 7],
   FIRST: [6, 8],
   SECOND: [7, 9],
@@ -74,7 +75,7 @@ const GRADE_AGE_RANGES = {
   EIGHTH: [13, 15],
   NINTH: [14, 16],
   TENTH: [15, 17],
-  ELEVENTH: [16, 21],
+  ELEVENTH: [16, 18],
 };
 const EMPTY_FORM = {
   nombre: '',
@@ -204,13 +205,13 @@ export default function StudentScreen() {
     setModalVisible(true);
   }
 
-  async function issueStudentLinkCode() {
-    if (!editingStudent?.id || !canManageStudent(editingStudent)) return;
+  async function issueStudentLinkCode(studentToLink = editingStudent) {
+    if (!studentToLink?.id || !canManageStudent(studentToLink)) return;
     setGeneratingLinkCode(true);
     try {
-      const issued = await studentService.issueLinkCode(editingStudent.id);
+      const issued = await studentService.issueLinkCode(studentToLink.id);
       const updatedStudent = {
-        ...editingStudent,
+        ...studentToLink,
         codigo_vinculacion: issued.code,
         codigo_expira_en: issued.expiresAt,
       };
@@ -224,18 +225,23 @@ export default function StudentScreen() {
     }
   }
 
-  function requestStudentLinkCode() {
-    if (!editingStudent?.id) return;
-    const expiresAt = Date.parse(editingStudent.codigo_expira_en || '');
-    const hasActiveCode = codigoGenerado && Number.isFinite(expiresAt) && expiresAt > Date.now();
+  function requestStudentLinkCode(studentToLink = editingStudent) {
+    if (!studentToLink?.id) return;
+    const expiresAt = Date.parse(studentToLink.codigo_expira_en || '');
+    const hasActiveCode = studentToLink.codigo_vinculacion && Number.isFinite(expiresAt) && expiresAt > Date.now();
     if (!hasActiveCode) {
-      issueStudentLinkCode();
+      issueStudentLinkCode(studentToLink);
       return;
     }
     Alert.alert(t('studLinkCode'), t('studReplaceLinkCodeConfirm'), [
       { text: t('cancel'), style: 'cancel' },
-      { text: t('studGenerateLinkCode'), onPress: issueStudentLinkCode },
+      { text: t('studGenerateLinkCode'), onPress: () => issueStudentLinkCode(studentToLink) },
     ]);
+  }
+
+  function hasActiveStudentQr(student) {
+    const expiresAt = Date.parse(student?.codigo_expira_en || '');
+    return Boolean(student?.codigo_vinculacion && Number.isFinite(expiresAt) && expiresAt > Date.now());
   }
 
   async function openShare(student) {
@@ -500,7 +506,7 @@ export default function StudentScreen() {
             size={80} 
             source={{ uri: item.foto }} 
             style={{
-              backgroundColor: getStatusColor(item.status)
+              backgroundColor: COLORS.PRIMARIO
             }}
           />
         ) : (
@@ -508,9 +514,9 @@ export default function StudentScreen() {
             size={80}
             label={getInitials(item.nombre)}
             style={{
-              backgroundColor: getStatusColor(item.status)
+              backgroundColor: COLORS.PRIMARIO
             }}
-            color={colors.textOnPrimary}
+            color={COLORS.TEXTO_CONTRASTE}
           />
         )}
       </View>
@@ -542,7 +548,7 @@ export default function StudentScreen() {
       <View style={[styles.linkedDevicesBox, themed.surfaceSecondary]}>
         <MaterialCommunityIcons name="cellphone-marker" size={18} color={colors.accent} />
         <Text style={[styles.linkedDevicesText, themed.text]}>
-          {item.dispositivos_vinculados || 0} {t('studPhonesSendingLocation')}
+          {item.dispositivos_vinculados || 0} {t('studPhonesLinked')}
         </Text>
       </View>
 
@@ -558,7 +564,7 @@ export default function StudentScreen() {
         </TouchableOpacity>
       )}
 
-      {canManage && (
+      {canManage && hasActiveStudentQr(item) ? (
         <QrSection
           value={getStudentQrValue(item)}
           code={item.codigo_vinculacion}
@@ -566,7 +572,19 @@ export default function StudentScreen() {
           hint={t('studScanQrStudentPhone')}
           colors={colors}
         />
-      )}
+      ) : canManage ? (
+        <Button
+          mode="outlined"
+          textColor={colors.primary}
+          onPress={() => issueStudentLinkCode(item)}
+          loading={generatingLinkCode}
+          disabled={generatingLinkCode}
+          accessibilityRole="button"
+          accessibilityLabel={t('studGenerateQrCard')}
+        >
+          {t('studGenerateQrCard')}
+        </Button>
+      ) : null}
 
       <Button 
         mode="contained" 
@@ -1021,14 +1039,14 @@ const styles = StyleSheet.create({
     paddingTop: 20 
   },
   listContainer: {
-    padding: 24,
+    padding: 20,
     paddingBottom: 100,
-    maxWidth: 1200,
+    maxWidth: 1120,
     alignSelf: 'center',
     width: '100%',
   },
   columnWrapper: {
-    gap: 20,
+    gap: 16,
     justifyContent: 'flex-start',
   },
   searchBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, marginTop: 14, minHeight: AppTouch.min },
@@ -1041,7 +1059,7 @@ const styles = StyleSheet.create({
   },
   noResultsText: { textAlign: 'center', marginTop: 18, fontSize: 13 },
   pageHeader: {
-    marginBottom: 24,
+    marginBottom: 18,
   },
   pageTitle: {
     fontSize: 24,
@@ -1059,10 +1077,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    padding: 20,
-    marginBottom: 20,
+    padding: 18,
+    marginBottom: 16,
     position: 'relative',
-    maxWidth: 350,
+    maxWidth: 360,
     shadowColor: COLORS.NEGRO,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
@@ -1071,8 +1089,8 @@ const styles = StyleSheet.create({
   },
   childAvatarWrap: {
     alignItems: 'center',
-    marginBottom: 12,
-    paddingTop: 42,
+    marginBottom: 10,
+    paddingTop: 34,
   },
   childName: {
     fontSize: 16,

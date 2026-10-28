@@ -28,6 +28,7 @@ import PermissionGate from '../features/child/components/PermissionGate';
 import SharingStatusCard from '../features/child/components/SharingStatusCard';
 import TripControls from '../features/child/components/TripControls';
 import TripMap from '../features/child/components/TripMap';
+import LanguageSelector from '../components/common/LanguageSelector';
 
 const DEVICE_ID_KEY = '@guardian_student_device_id';
 
@@ -64,6 +65,15 @@ function calculateAge(birthDate) {
   return age > 0 ? String(age) : '';
 }
 
+function distanceBetweenCoordinates(a, b) {
+  const radians = value => (value * Math.PI) / 180;
+  const latitudeDelta = radians(b.latitude - a.latitude);
+  const longitudeDelta = radians(b.longitude - a.longitude);
+  const haversine = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(radians(a.latitude)) * Math.cos(radians(b.latitude)) * Math.sin(longitudeDelta / 2) ** 2;
+  return 6371000 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
 export default function StudentDashboardScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
@@ -91,6 +101,7 @@ export default function StudentDashboardScreen() {
   const [activeTripId, setActiveTripId] = React.useState('');
   const [queueSize, setQueueSize] = React.useState(0);
   const [sentCount, setSentCount] = React.useState(0);
+  const [tripCoordinates, setTripCoordinates] = React.useState([]);
 
   // Datos del contacto de emergencia enviados por el QR.
   const parentName = studentProfile?.contactName || studentProfile?.contactoNombre || params.contacto || user?.name || t('notRegistered');
@@ -179,13 +190,18 @@ export default function StudentDashboardScreen() {
   }, [params.codigo, params.id, router]);
 
   React.useEffect(() => {
-    if (!params.id || !params.codigo) return undefined;
-
+    const resolvedStudentId = params.id || storedSession.studentId;
+    const resolvedCode = params.codigo || storedSession.studentCode;
+    if (!resolvedStudentId || !resolvedCode || linkStatus !== 'linked') return undefined;
     let mounted = true;
     const checkLinkStatus = async () => {
       try {
-        const profile = await studentService.linkedProfile(String(params.id), String(params.codigo));
+        const profile = await studentService.linkedProfile(String(resolvedStudentId), String(resolvedCode));
         const linkedDevices = Number(profile?.linkedDevices);
+        if (mounted) {
+          setStudentProfile(profile);
+          if (Number.isFinite(linkedDevices)) setLinkedCount(linkedDevices);
+        }
         if (mounted && Number.isFinite(linkedDevices) && linkedDevices < 1) {
           await clearChildSession();
           router.replace('/welcome');
@@ -200,7 +216,7 @@ export default function StudentDashboardScreen() {
       mounted = false;
       clearInterval(timer);
     };
-  }, [params.codigo, params.id, router]);
+  }, [linkStatus, params.codigo, params.id, router, storedSession.studentId, storedSession.studentCode]);
   React.useEffect(() => {
     let mounted = true;
     const restoreTracking = async () => {
@@ -254,6 +270,50 @@ export default function StudentDashboardScreen() {
       clearInterval(timer);
     };
   }, []);
+
+  React.useEffect(() => {
+    if (!activeTripId || !storedSession.childToken) {
+      setTripCoordinates([]);
+      return undefined;
+    }
+    let mounted = true;
+    const loadTripCoordinates = async () => {
+      try {
+        const points = await trackingService.listCoordinates(activeTripId, { childToken: storedSession.childToken });
+        if (!mounted || !Array.isArray(points)) return;
+        const ordered = points.map(point => ({
+          latitude: Number(point.latitude),
+          longitude: Number(point.longitude),
+          timestamp: new Date(point.recordedAt || point.createdAt || 0).getTime(),
+        }))
+          .filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude)
+            && point.latitude >= -90 && point.latitude <= 90
+            && point.longitude >= -180 && point.longitude <= 180
+            && Number.isFinite(point.timestamp))
+          .sort((a, b) => a.timestamp - b.timestamp);
+        const clean = [];
+        for (const point of ordered) {
+          const previous = clean[clean.length - 1];
+          if (!previous) {
+            clean.push(point);
+            continue;
+          }
+          const distance = distanceBetweenCoordinates(previous, point);
+          const elapsedSeconds = Math.max(1, (point.timestamp - previous.timestamp) / 1000);
+          if (point.timestamp !== previous.timestamp && distance <= 1000 && distance / elapsedSeconds <= 30) clean.push(point);
+        }
+        setTripCoordinates(clean.slice(-500).map(({ latitude, longitude }) => ({ latitude, longitude })));
+      } catch {
+        // Conserva el último recorrido cuando la conexión falla temporalmente.
+      }
+    };
+    loadTripCoordinates();
+    const timer = setInterval(loadTripCoordinates, 10000);
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
+  }, [activeTripId, storedSession.childToken]);
 
   const describeTrackingError = (error) => {
     const raw = String(
@@ -391,6 +451,7 @@ export default function StudentDashboardScreen() {
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top, backgroundColor: colors.primary }]}>
         <Text style={[styles.headerTitle, { color: colors.textOnPrimary }]}>GPS Guardian Escolar</Text>
+        <LanguageSelector style={styles.headerControls} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -437,7 +498,7 @@ export default function StudentDashboardScreen() {
             sentCount={sentCount}
             activeTripId={activeTripId}
           />
-          <TripMap coordinates={[]} />
+          <TripMap coordinates={tripCoordinates} />
           <PermissionGate message={permissionError} onRetry={handleStartTracking} />
           {!permissionError && (
             <TripControls
@@ -547,15 +608,20 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   header: {
     paddingBottom: 15,
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
+    justifyContent: 'space-between',
   },
   headerTitle: {
     color: '#FFF',
-    fontSize: 20,
+    flex: 1,
+    fontSize: 16,
     fontWeight: 'bold',
+    marginRight: 8,
+  },
+  headerControls: {
+    flexShrink: 0,
   },
   scrollContent: {
     flexGrow: 1,
