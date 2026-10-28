@@ -91,14 +91,6 @@ export default function WelcomeScreen() {
             accessibilityLabel={t('welcomeStudentScan')}
             accessibilityHint={t('welcomeStudentScanHint')}
           />
-          {Platform.OS === 'web' && /^https?:\/\//i.test(androidApkUrl) && (
-            <AppButton
-              title={t('welcomeDownloadApp')}
-              variant="ghost"
-              onPress={() => Linking.openURL(androidApkUrl)}
-              accessibilityLabel={t('welcomeDownloadApp')}
-            />
-          )}
         </View>
       )}
     </Animated.View>
@@ -194,6 +186,16 @@ export default function WelcomeScreen() {
       />
 
       <View style={styles.footer}>
+        {activeIndex === slides.length - 1 && Platform.OS === 'web' && /^https?:\/\//i.test(androidApkUrl) && (
+          <View style={styles.downloadButtonWrap}>
+            <AppButton
+              title={t('welcomeDownloadApp')}
+              variant="ghost"
+              onPress={() => Linking.openURL(androidApkUrl)}
+              accessibilityLabel={t('welcomeDownloadApp')}
+            />
+          </View>
+        )}
         <View style={styles.indicators} accessibilityRole="text" accessibilityLabel={t('welcomePage').replace('{current}', String(activeIndex + 1)).replace('{total}', String(slides.length))}>
           {slides.map((item, index) => (
             <View
@@ -315,6 +317,11 @@ const styles = StyleSheet.create({
   footer: {
     gap: AppSpacing.md,
     padding: AppSpacing.md,
+  },
+  downloadButtonWrap: {
+    alignSelf: 'center',
+    maxWidth: 360,
+    width: '100%',
   },
   indicators: {
     flexDirection: 'row',
