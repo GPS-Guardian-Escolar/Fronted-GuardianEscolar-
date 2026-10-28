@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
+import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Avatar, Button, Divider, IconButton, Surface, Switch, Text, TextInput } from 'react-native-paper';
@@ -10,7 +11,27 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { authService } from '../../services/auth.service';
 import { notificationService } from '../../services/notification.service';
 import { SUPPORTED_LANGUAGES } from '../../translations';
-import { isValidEmail, isValidPhone, passwordChecks } from '../../utils/validators';
+import { validateInputEdit, isValidEmail, isValidPersonName, isValidPhone, normalizePhoneDigits, passwordChecks } from '../../utils/validators';
+
+function showProfileAlert(title, message) {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.alert([title, message].filter(Boolean).join('\n\n'));
+  } else {
+    Alert.alert(title, message);
+  }
+}
+
+function localizedProfileError(error, t, fallbackKey) {
+  const message = String(error?.message || '').toLowerCase();
+  if (/401|unauthorized|jwt|token/.test(message)) return t('profileSessionExpired');
+  if (/phone|celular|teléfono|telefono|número|numero/.test(message)) return t('profilePhoneInvalid');
+  if (/full.?name|nombre/.test(message)) return t('profileNameInvalid');
+  if (/servicio de correo|email delivery|mail provider|no se pudo enviar el correo/.test(message)) return t('authRecoveryUnavailable');
+  if (/current password|contrase.*a actual/.test(message)) return t('profilePasswordIncorrect');
+  if (/already registered|already exists|ya existe una cuenta/.test(message)) return t('profileEmailAlreadyUsed');
+  if (/code.*(invalid|expired)|c.digo.*(incorrecto|expirado)/.test(message)) return t('twoFAInvalidCode');
+  return t(fallbackKey);
+}
 function ProfileField({ colors, label, value, onChangeText, editable = true, keyboardType = 'default', secureTextEntry = false }) {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const hidden = secureTextEntry && !passwordVisible;
@@ -45,6 +66,7 @@ function ProfileField({ colors, label, value, onChangeText, editable = true, key
         onChangeText={onChangeText}
         editable={editable}
         keyboardType={keyboardType}
+        left={keyboardType === "phone-pad" ? <TextInput.Affix text="+57" /> : undefined}
         secureTextEntry={hidden}
         autoCapitalize="none"
         autoCorrect={false}
@@ -68,6 +90,7 @@ function ProfileField({ colors, label, value, onChangeText, editable = true, key
 }
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const { user, logout, updateUserInSession } = useAuth();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -77,11 +100,17 @@ export default function ProfileScreen() {
   const isWide = width >= 769;
   const appVersion = Constants.expoConfig?.version || '1.0.0';
   const currentLanguage = SUPPORTED_LANGUAGES.find(item => item.code === lang) || SUPPORTED_LANGUAGES[0];
+  const accountRole = (user?.roles || [user?.role || 'PARENT']).map(role => String(role).toUpperCase());
+  const accountRoleLabel = accountRole.some(role => ['ADMIN', 'ADMINISTRADOR'].includes(role))
+    ? t('profileAdmin')
+    : accountRole.some(role => ['STUDENT', 'ESTUDIANTE'].includes(role))
+      ? t('profileStudent')
+      : t('profileParentGuardian');
 
   const [notifBateria, setNotifBateria] = useState(true);
   const [notifEmail, setNotifEmail] = useState(true);
-  const [notifSMS, setNotifSMS] = useState(false);
-  const [smsDisponible, setSmsDisponible] = useState(false);
+
+
   const [isEditing, setIsEditing] = useState(false);
   const [passModalVisible, setPassModalVisible] = useState(false);
   const [emailModalVisible, setEmailModalVisible] = useState(false);
@@ -97,7 +126,7 @@ export default function ProfileScreen() {
   const [form, setForm] = useState({
     name: user?.name || '',
     email: user?.email || '',
-    phone: user?.phone || '',
+    phone: (() => { const digits = normalizePhoneDigits(user?.phone, 12); return digits.startsWith('57') && digits.length === 12 ? digits.slice(2) : digits; })(),
   });
   const [emailForm, setEmailForm] = useState({ currentPassword: '', nextEmail: form.email });
   const [passForm, setPassForm] = useState({ current: '', next: '', confirm: '' });
@@ -108,8 +137,6 @@ export default function ProfileScreen() {
   const applyNotificationPreferences = useCallback((config) => {
     setNotifBateria(config.alertaInactividad ?? true);
     setNotifEmail(config.canalEmail ?? true);
-    setNotifSMS(config.canalSms ?? false);
-    setSmsDisponible(config.smsDisponible ?? false);
   }, []);
 
   useEffect(() => {
@@ -127,49 +154,48 @@ export default function ProfileScreen() {
     const previous = {
       alertaInactividad: notifBateria,
       canalEmail: notifEmail,
-      canalSms: notifSMS,
     };
     const next = { ...previous, ...changes };
     setNotifBateria(next.alertaInactividad);
     setNotifEmail(next.canalEmail);
-    setNotifSMS(next.canalSms);
     try {
       const saved = await notificationService.updatePreferences(next);
       applyNotificationPreferences(saved);
-      if (changes.canalSms && !saved.smsDisponible) {
-        Alert.alert(t('profileNotifications'), t('profileSmsSavedNoProvider'));
-      }
     } catch (error) {
       setNotifBateria(previous.alertaInactividad);
       setNotifEmail(previous.canalEmail);
-      setNotifSMS(previous.canalSms);
-      Alert.alert(t('error'), error.message || t('someError'));
+      showProfileAlert(t('error'), localizedProfileError(error, t, 'someError'));
     }
   };
 
   const handleSaveProfile = async () => {
-    if (form.name.trim().length < 2 || form.name.trim().length > 100 || !isValidPhone(form.phone)) {
-      Alert.alert(t('error'), t('invalidInput'));
+    if (!isValidPersonName(form.name, { min: 3, max: 60 })) {
+      showProfileAlert(t('error'), t('profileNameInvalid'));
+      return;
+    }
+    if (!isValidPhone(form.phone)) {
+      showProfileAlert(t('error'), t('profilePhoneInvalid'));
       return;
     }
     try {
-      await authService.updateProfile(user.email, form.name.trim(), form.phone.trim());
-      await updateUserInSession({ name: form.name.trim(), phone: form.phone.trim() });
+      const phone = normalizePhoneDigits(form.phone, 10);
+      await authService.updateProfile(user.email, form.name.trim(), phone);
+      await updateUserInSession({ name: form.name.trim(), phone });
       setIsEditing(false);
-      Alert.alert(t('profileTitle'), t('profileUpdated'));
+      showProfileAlert(t('profileTitle'), t('profileUpdated'));
     } catch (error) {
-      Alert.alert(t('error'), error.message || t('profileUpdateFailed'));
+      showProfileAlert(t('error'), localizedProfileError(error, t, 'profileUpdateFailed'));
     }
   };
 
   const handleChangeEmail = async () => {
     setEmailError('');
     if (!isValidEmail(emailForm.nextEmail)) {
-      Alert.alert(t('error'), t('authInvalidEmail'));
+      showProfileAlert(t('error'), t('authInvalidEmail'));
       return;
     }
     if (!emailForm.currentPassword) {
-      Alert.alert(t('error'), t('profilePasswordCurrentRequired'));
+      showProfileAlert(t('error'), t('profilePasswordCurrentRequired'));
       return;
     }
     try {
@@ -179,28 +205,43 @@ export default function ProfileScreen() {
       await updateUserInSession({ email: nextEmail });
       setEmailModalVisible(false);
       setEmailForm({ currentPassword: '', nextEmail });
-      Alert.alert(t('success'), t('profileUpdated'));
+      showProfileAlert(t('success'), t('profileEmailVerificationSent'));
+      await logout();
+      router.replace('/(auth)/login');
     } catch (error) {
-      setEmailError(error.message || t('profileUpdateFailed'));
+      setEmailError(localizedProfileError(error, t, 'profileUpdateFailed'));
     }
   };
 
   const handleChangePassword = async () => {
     if (!passForm.current) {
-      Alert.alert(t('error'), t('profilePasswordCurrentRequired'));
+      showProfileAlert(t('error'), t('profilePasswordCurrentRequired'));
       return;
     }
     if (!allPassReqsMet) {
-      Alert.alert(t('profileSecurity'), t('profilePasswordRulesFailed'));
+      showProfileAlert(t('profileSecurity'), t('profilePasswordRulesFailed'));
+      return;
+    }
+    if (passForm.next === passForm.current) {
+      showProfileAlert(t('error'), t('profilePasswordMustDiffer'));
       return;
     }
     try {
       await authService.updatePassword(form.email, passForm.current, passForm.next);
       setPassModalVisible(false);
       setPassForm({ current: '', next: '', confirm: '' });
-      Alert.alert(t('success'), t('profilePasswordUpdated'));
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        showProfileAlert(t('success'), t('profilePasswordUpdated'));
+        await logout();
+        router.replace('/(auth)/login');
+      } else {
+        Alert.alert(t('success'), t('profilePasswordUpdated'), [{ text: t('accept'), onPress: async () => {
+          await logout();
+          router.replace('/(auth)/login');
+        } }]);
+      }
     } catch (error) {
-      Alert.alert(t('error'), error.message || t('profilePasswordUpdateFailed'));
+      showProfileAlert(t('error'), localizedProfileError(error, t, 'profilePasswordUpdateFailed'));
     }
   };
 
@@ -210,10 +251,13 @@ export default function ProfileScreen() {
       setTwoFACode('');
       const challenge = await authService.request2FACode(method);
       setTwoFAMethod(method);
-      Alert.alert(t('twoFACodeSent'), `${t('twoFACodeSentTo')} ${method === 'SMS' ? t('twoFASMS') : t('twoFAEmail')}.`);
+      showProfileAlert(t('twoFACodeSent'), `${t('twoFACodeSentTo')} ${t('twoFAEmail')}.`);
       setTwoFAToken(challenge.twoFAToken || '');
     } catch (error) {
-      Alert.alert(t('error'), error.message || t('twoFAActivateFailed'));
+      const message = method === 'EMAIL' && /email delivery|mail|email/i.test(error.message || '')
+        ? t('twoFAEmailUnavailable')
+        : localizedProfileError(error, t, 'twoFAActivateFailed');
+      showProfileAlert(t('error'), message);
     } finally {
       setTwoFASubmitting(false);
     }
@@ -221,7 +265,7 @@ export default function ProfileScreen() {
 
   const handleVerify2FA = async () => {
     if (!/^\d{6}$/.test(twoFACode)) {
-      Alert.alert(t('error'), t('twoFAInvalidCode'));
+      showProfileAlert(t('error'), t('twoFAInvalidCode'));
       return;
     }
     try {
@@ -240,9 +284,9 @@ export default function ProfileScreen() {
       setTwoFAPassword('');
       setTwoFAToken('');
       setTwoFAModalVisible(false);
-      Alert.alert(t('twoFAActivationTitle'), t('twoFAActivated'));
+      showProfileAlert(t('twoFAActivationTitle'), t('twoFAActivated'));
     } catch (error) {
-      Alert.alert(t('error'), error.message || t('twoFAActivateFailed'));
+      showProfileAlert(t('error'), localizedProfileError(error, t, 'twoFAActivateFailed'));
     } finally {
       setTwoFASubmitting(false);
     }
@@ -250,7 +294,7 @@ export default function ProfileScreen() {
 
   const handleDisable2FA = async () => {
     if (!twoFAPassword) {
-      Alert.alert(t('error'), t('profilePasswordCurrentRequired'));
+      showProfileAlert(t('error'), t('profilePasswordCurrentRequired'));
       return;
     }
     try {
@@ -262,7 +306,7 @@ export default function ProfileScreen() {
       setTwoFAPassword('');
       setTwoFAModalVisible(false);
     } catch (error) {
-      Alert.alert(t('error'), error.message || t('twoFADeactivateFailed'));
+      showProfileAlert(t('error'), localizedProfileError(error, t, 'twoFADeactivateFailed'));
     } finally {
       setTwoFASubmitting(false);
     }
@@ -307,8 +351,14 @@ export default function ProfileScreen() {
           <View style={[styles.profileRow, !isWide && styles.profileRowMobile]}>
             <Avatar.Text size={60} label={form.name.substring(0, 2).toUpperCase()} style={{ backgroundColor: colors.primary }} color={colors.textOnPrimary} />
             <View style={styles.profileInputs}>
-              <ProfileField colors={colors} label={t('profileName')} value={form.name} editable={isEditing} onChangeText={name => setForm(current => ({ ...current, name }))} />
-              <ProfileField colors={colors} label={t('profilePhone')} value={form.phone} editable={isEditing} keyboardType="phone-pad" onChangeText={phone => setForm(current => ({ ...current, phone }))} />
+              <ProfileField colors={colors} label={t('profileName')} value={form.name} editable={isEditing} onChangeText={name => {
+                if (!validateInputEdit(name, 'name', form.name)) { showProfileAlert(t('error'), t('inputNameBlocked')); return; }
+                setForm(current => ({ ...current, name }));
+              }} />
+              <ProfileField colors={colors} label={t('profilePhone')} value={form.phone} editable={isEditing} keyboardType="phone-pad" onChangeText={phone => {
+                if (!validateInputEdit(phone, 'phone', form.phone)) { showProfileAlert(t('error'), t('inputPhoneBlocked')); return; }
+                setForm(current => ({ ...current, phone }));
+              }} />
               <View style={styles.inputWrap}>
                 <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{t('profileEmail')}</Text>
                 <View style={styles.emailRow}>
@@ -317,7 +367,7 @@ export default function ProfileScreen() {
                 </View>
               </View>
               {isEditing && (
-                <Button mode="text" textColor={colors.textSecondary} onPress={() => { setIsEditing(false); setForm({ name: user?.name || form.name, email: user?.email || form.email, phone: user?.phone || form.phone }); }}>
+                <Button mode="text" textColor={colors.textSecondary} onPress={() => { const digits = normalizePhoneDigits(user?.phone, 12); setIsEditing(false); setForm({ name: user?.name || form.name, email: user?.email || form.email, phone: digits.startsWith('57') && digits.length === 12 ? digits.slice(2) : digits }); }}>
                   {t('profileCancel')}
                 </Button>
               )}
@@ -334,15 +384,9 @@ export default function ProfileScreen() {
           <Divider style={[styles.divider, { backgroundColor: colors.border }]} />
           <SettingItem label={t('profileDeviation')} subtitle={t('profileRequired')} value disabled />
           <Divider style={[styles.divider, { backgroundColor: colors.border }]} />
-          <SettingItem label={t('profileBattery')} value={notifBateria} onValueChange={value => updateNotificationPreferences({ alertaInactividad: value })} />
+          <SettingItem label={t('profileInactivity')} value={notifBateria} onValueChange={value => updateNotificationPreferences({ alertaInactividad: value })} />
           <Text style={[styles.cardTitle, { marginTop: 20, color: colors.text }]}>{t('profileNotificationChannels')}</Text>
           <SettingItem label={t('profileEmailNotif')} value={notifEmail} onValueChange={value => updateNotificationPreferences({ canalEmail: value })} />
-          <SettingItem
-            label={t('profileSMSNotif')}
-            subtitle={smsDisponible ? undefined : t('profileSmsProviderRequired')}
-            value={notifSMS}
-            onValueChange={value => updateNotificationPreferences({ canalSms: value })}
-          />
         </Surface>
 
         <Surface style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]} elevation={1}>
@@ -382,7 +426,7 @@ export default function ProfileScreen() {
           <View style={[styles.infoRow, { backgroundColor: colors.surfaceSecondary }]}>
             <Text style={[styles.settingLabel, { color: colors.text }]}>{t('profileAccountType')}</Text>
             <View style={[styles.badgeGreen, { backgroundColor: colors.accentLight }]}>
-              <Text style={[styles.badgeGreenText, { color: colors.accent }]}>{t('profileParentGuardian')}</Text>
+              <Text style={[styles.badgeGreenText, { color: colors.accent }]}>{accountRoleLabel}</Text>
             </View>
           </View>
         </Surface>
@@ -402,6 +446,11 @@ export default function ProfileScreen() {
             <ProfileField colors={colors} label={t('profileEmail')} value={emailForm.nextEmail} keyboardType="email-address" onChangeText={nextEmail => setEmailForm(current => ({ ...current, nextEmail }))} />
             <ProfileField colors={colors} label={t('profileCurrentPass')} value={emailForm.currentPassword} secureTextEntry onChangeText={currentPassword => setEmailForm(current => ({ ...current, currentPassword }))} />
             {!!emailError && <Text style={[styles.modalError, { color: colors.error }]}>{emailError}</Text>}
+            {emailError === t('profileSessionExpired') && (
+              <Button onPress={async () => { await logout(); router.replace('/(auth)/login'); }} textColor={colors.primary}>
+                {t('profileLoginAgain')}
+              </Button>
+            )}
             <Button mode="contained" buttonColor={colors.primary} textColor={colors.textOnPrimary} style={styles.modalButton} onPress={handleChangeEmail}>
               {t('profileSave')}
             </Button>
@@ -458,10 +507,6 @@ export default function ProfileScreen() {
                   <TouchableOpacity style={[styles.twoFAMethodBtn, { borderColor: twoFAMethod === 'EMAIL' ? colors.primary : colors.border, backgroundColor: colors.surfaceSecondary }]} onPress={() => handleRequest2FA('EMAIL')}>
                     <MaterialCommunityIcons name="email-outline" size={20} color={colors.primary} />
                     <Text style={[styles.twoFAMethodText, { color: colors.text }]}>{t('twoFAEmail')}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.twoFAMethodBtn, { borderColor: twoFAMethod === 'SMS' ? colors.primary : colors.border, backgroundColor: colors.surfaceSecondary }]} onPress={() => handleRequest2FA('SMS')}>
-                    <MaterialCommunityIcons name="cellphone-message" size={20} color={colors.primary} />
-                    <Text style={[styles.twoFAMethodText, { color: colors.text }]}>{t('twoFASMS')}</Text>
                   </TouchableOpacity>
                   {twoFAToken ? (
                     <>

@@ -1,14 +1,16 @@
+import { STUDENT_LINK_BASE_URL } from '../../config/endpoints';
+
 function isPresent(value) {
   return value !== undefined && value !== null && String(value).trim().length > 0;
 }
 
 function buildStudentLink(payload) {
-  // Keep the value compact so phone and browser cameras can decode it reliably.
-  return JSON.stringify({
-    v: 1,
-    s: String(payload.studentId || ''),
-    c: String(payload.code || ''),
-  });
+  const baseUrl = String(STUDENT_LINK_BASE_URL || '').replace(/\/+$/, '');
+  return `${baseUrl}/scan-qr?${linkQuery(payload)}`;
+}
+
+function linkQuery(payload) {
+  return `studentId=${encodeURIComponent(String(payload.studentId || ''))}&code=${encodeURIComponent(String(payload.code || ''))}`;
 }
 
 function normalizePayload(payload) {
@@ -55,6 +57,10 @@ export function buildQrPayload({ studentId, code, name, contactPhone, exp }) {
 
 export function encodeQrValue(payload) {
   return buildStudentLink(payload);
+}
+
+export function encodeAppQrValue(payload) {
+  return `gpsguardianescolar://scan-qr?${linkQuery(payload)}`;
 }
 
 export function parseQrValue(value) {
