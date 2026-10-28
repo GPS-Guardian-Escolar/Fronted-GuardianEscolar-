@@ -5,17 +5,21 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import LanguageSelector from '../../components/common/LanguageSelector';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { authService } from '../../services/auth.service';
+import { emitAuthExpired } from '../../utils/authEvents';
 
 export default function VerifyEmailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { t } = useLanguage();
   const { theme } = useTheme();
   const colors = theme.colors;
   const token = params.token ? String(params.token) : '';
   const [status, setStatus] = useState('loading');
-  const [message, setMessage] = useState('Verificando correo...');
+  const [messageKey, setMessageKey] = useState('');
   const returnUrl = params.returnUrl ? String(params.returnUrl) : '';
 
   const goToReturnUrl = () => {
@@ -29,18 +33,19 @@ export default function VerifyEmailScreen() {
   useEffect(() => {
     if (!token) {
       setStatus('error');
-      setMessage('El enlace no incluye token de verificación.');
+      setMessageKey('authVerifyLinkMissing');
       return;
     }
 
     authService.verifyEmailWithToken(token)
       .then(result => {
+        emitAuthExpired();
         setStatus('success');
-        setMessage(result.message);
+        setMessageKey('authVerifyEmailSuccess');
       })
       .catch(error => {
         setStatus('error');
-        setMessage(error.message || 'No se pudo verificar el correo.');
+        setMessageKey('authVerifyEmailFailed');
       });
   }, [token]);
 
@@ -48,9 +53,12 @@ export default function VerifyEmailScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
-      <TouchableOpacity style={styles.backButton} onPress={goToReturnUrl}>
-        <MaterialCommunityIcons name="arrow-left" size={28} color={colors.primary} />
-      </TouchableOpacity>
+      <View style={styles.topBar}>
+        <TouchableOpacity style={styles.backButton} onPress={goToReturnUrl} accessibilityRole="button" accessibilityLabel={t('authBack')}>
+          <MaterialCommunityIcons name="arrow-left" size={28} color={colors.primary} />
+        </TouchableOpacity>
+        <LanguageSelector />
+      </View>
       <View style={styles.wrapper}>
         <Image source={require('../../assets/images/logo.png')} style={styles.logo} contentFit="contain" />
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -60,11 +68,11 @@ export default function VerifyEmailScreen() {
             color={isSuccess ? colors.success : status === 'loading' ? colors.primary : colors.error}
           />
           <Text style={[styles.title, { color: colors.text }]}>
-            {isSuccess ? 'Correo verificado' : status === 'loading' ? 'Verificando' : 'No se pudo verificar'}
+            {isSuccess ? t('authVerifyEmailTitle') : status === 'loading' ? t('authVerifyingEmail') : t('authVerifyEmailFailedTitle')}
           </Text>
-          <Text style={[styles.message, { color: colors.textSecondary }]}>{message}</Text>
+          <Text style={[styles.message, { color: colors.textSecondary }]}>{t(messageKey || 'authVerifyingEmail')}</Text>
           <Button mode="contained" onPress={goToReturnUrl} buttonColor={colors.primary} textColor={colors.textOnPrimary} style={styles.button}>
-            {isSuccess ? 'Aceptar' : 'Ir al login'}
+            {isSuccess ? t('authAccept') : t('authGoToLogin')}
           </Button>
         </View>
       </View>
@@ -74,7 +82,8 @@ export default function VerifyEmailScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  backButton: { padding: 24, alignSelf: 'flex-start' },
+  topBar: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10, zIndex: 10 },
+  backButton: { padding: 8 },
   wrapper: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   logo: { width: 110, height: 110, marginBottom: 14 },
   card: { width: '100%', maxWidth: 460, alignItems: 'center', borderWidth: 1, borderRadius: 10, padding: 24 },

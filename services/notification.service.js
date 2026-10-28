@@ -71,13 +71,27 @@ export const notificationService = {
     return response.data;
   },
 
-  getPreferences: async () => {
-    const response = await api.get('/notifications/settings');
+  markAllAsRead: async () => {
+    const response = await api.patch('/notifications/read-all');
     return response.data;
   },
 
+  getPreferences: async () => {
+    const response = await api.get('/notifications/settings');
+    return {
+      alertaInactividad: response.data.inactivityAlert,
+      canalEmail: response.data.emailChannel,
+    };
+  },
+
   updatePreferences: async (preferences) => {
-    const response = await api.put('/notifications/settings', preferences);
-    return response.data;
+    const response = await api.put('/notifications/settings', {
+      inactivityAlert: preferences.alertaInactividad,
+      emailChannel: preferences.canalEmail,
+    });
+    return {
+      alertaInactividad: response.data.inactivityAlert,
+      canalEmail: response.data.emailChannel,
+    };
   },
 };

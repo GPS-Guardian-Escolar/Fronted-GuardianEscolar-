@@ -11,9 +11,47 @@ export const isValidEmail = (email) => {
 
 export const normalizePhoneDigits = (phone, maxLength = 15) => String(phone || '').replace(/\D/g, '').slice(0, maxLength);
 
+export const normalizeColombianPhoneInput = (phone) => {
+  let digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('57')) digits = digits.slice(2);
+  return digits.slice(0, 10);
+};
+
+export const sanitizePersonNameInput = (name, maxLength = 60) => String(name || '')
+  .replace(/[^\p{L}\p{M} '\u2019-]/gu, '')
+  .slice(0, maxLength);
+
+// Reject the edit rather than silently changing the identity or phone entered.
+// Incomplete values are allowed while typing; submit validation remains required.
+export function validateInputEdit(value, kind, previous = '') {
+  const text = String(value || '');
+  // Let users delete invalid legacy data instead of trapping them in the field.
+  if (text.length < previous.length) {
+    let index = 0;
+    for (const character of previous) if (text[index] === character) index++;
+    if (index === text.length) return true;
+  }
+  if (kind === 'name') {
+    return text.length <= 60
+      && /^[\p{L}\p{M} '\u2019-]*$/u.test(text)
+      && !/(\p{L})\1{2}/iu.test(text);
+  }
+  return /^3?\d{0,9}$/.test(text)
+    && (!text || text.startsWith('3'))
+    && text.length <= 10 && !/(\d)\1{4}/.test(text);
+}
+
 export const isValidPhone = (phone) => {
-  const digits = normalizePhoneDigits(phone);
-  return digits.length >= 10 && digits.length <= 15;
+  const digits = String(phone || '').replace(/\D/g, '');
+  const nationalNumber = digits.length === 12 && digits.startsWith('57') ? digits.slice(2) : digits;
+  return /^3\d{9}$/.test(nationalNumber) && !/(\d)\1{4}/.test(nationalNumber);
+};
+
+export const isValidPersonName = (name, { min = 2, max = 60 } = {}) => {
+  const value = String(name || '').trim();
+  return value.length >= min && value.length <= max
+    && !/(\p{L})\1{2}/iu.test(value)
+    && /^\p{L}[\p{L}\p{M}]*(?:[ '\u2019-][\p{L}\p{M}]+)*$/u.test(value);
 };
 
 export const passwordChecks = (password, confirmation = password) => ({
