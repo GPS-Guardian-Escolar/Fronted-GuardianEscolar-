@@ -82,6 +82,14 @@ export const studentService = {
     return response.data;
   },
 
+  childProfile: async (childToken) => {
+    const response = await api.get(ENDPOINTS.CHILD_PROFILE, {
+      skipAuth: true,
+      headers: { Authorization: `Bearer ${childToken}` },
+    });
+    return response.data;
+  },
+
   listGuardians: async (studentId) => {
     const response = await api.get(ENDPOINTS.GUARDIANS(studentId));
     return response.data;

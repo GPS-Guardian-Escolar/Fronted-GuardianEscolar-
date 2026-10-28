@@ -224,6 +224,7 @@ export const ENDPOINTS = {
   EMERGENCY_CONTACT_BY_ID: (studentId, contactId) => `/students/${studentId}/emergency-contacts/${contactId}`,
   LINK_DEVICE: '/students/link-device',
   LINKED_PROFILE: (studentId) => `/students/${studentId}/linked-profile`,
+  CHILD_PROFILE: '/students/child-profile',
   GUARDIANS: (studentId) => `/students/${studentId}/guardians`,
   GUARDIAN_BY_ID: (studentId, guardianUserId) => `/students/${studentId}/guardians/${guardianUserId}`,
 
