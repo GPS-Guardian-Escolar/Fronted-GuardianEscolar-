@@ -1,6 +1,6 @@
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
-import { WS_URL } from '../config/endpoints';
+import { ENDPOINTS, WS_URL } from '../config/endpoints';
 import { storage } from '../utils/storage';
 
 const sockJsEndpoint = (url) => url
@@ -15,7 +15,7 @@ export const createTrackingSocket = async ({ tripId, onCoordinate, onError }) =>
     connectHeaders: token ? { Authorization: 'Bearer ' + token } : {},
     reconnectDelay: 5000,
     onConnect: () => {
-      client.subscribe('/topic/trips/' + tripId + '/coordinates', (message) => {
+      client.subscribe(ENDPOINTS.SOCKET_TOPIC(tripId), (message) => {
         if (!message.body) return;
         try {
           onCoordinate?.(JSON.parse(message.body));

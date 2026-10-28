@@ -1,6 +1,6 @@
 import { create } from 'axios'
 
-import { BASE_URL } from '../config/endpoints'
+import { BASE_URL, ENDPOINTS } from '../config/endpoints'
 import { emitAuthExpired, emitPermissionDenied } from '../utils/authEvents'
 import { storage } from '../utils/storage'
 
@@ -13,21 +13,21 @@ const api = create({
 })
 
 const PUBLIC_ENDPOINTS = [
-  '/auth/login',
-  '/auth/register',
-  '/auth/verify-email',
-  '/auth/confirm-login',
-  '/auth/password/forgot',
-  '/auth/password/reset',
-  '/auth/2fa/resend',
-  '/auth/2fa/verify',
+  ENDPOINTS.LOGIN,
+  ENDPOINTS.REGISTER,
+  ENDPOINTS.VERIFY_EMAIL,
+  ENDPOINTS.CONFIRM_LOGIN,
+  ENDPOINTS.FORGOT_PASSWORD,
+  ENDPOINTS.RESET_PASSWORD,
+  ENDPOINTS.TWO_FACTOR_RESEND,
+  ENDPOINTS.TWO_FACTOR_VERIFY,
 ]
 
 const isPublicEndpoint = (url = '') => {
   const path = url.split('?')[0]
   return PUBLIC_ENDPOINTS.some((endpoint) => path.endsWith(endpoint))
 }
-const REAUTH_ENDPOINTS = ['/auth/email', '/auth/password', '/auth/2fa/disable']
+const REAUTH_ENDPOINTS = [ENDPOINTS.EMAIL, ENDPOINTS.PASSWORD, ENDPOINTS.TWO_FACTOR_DISABLE]
 const isReauthenticationEndpoint = (url = '') => {
   const path = url.split('?')[0]
   return REAUTH_ENDPOINTS.some((endpoint) => path.endsWith(endpoint))
