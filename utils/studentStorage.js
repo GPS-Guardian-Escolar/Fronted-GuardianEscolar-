@@ -144,9 +144,6 @@ export function calculateAge(fechaNacimiento) {
   return age > 0 ? String(age) : '';
 }
 
-function buildLinkCode(id = '') {
-  return String(id).replace(/-/g, '').slice(0, 10).toUpperCase();
-}
 
 async function getStudentExtras(studentId, preloadedZones) {
   const [apiZones, localZones, localRoutes] = await Promise.all([
@@ -205,7 +202,8 @@ async function mapStudent(apiStudent, apiZones) {
     acudientes_vinculados: apiStudent.linkedGuardians || apiStudent.acudientesVinculados || 1,
     correo_acudiente: apiStudent.guardianEmail || apiStudent.correoAcudiente || '',
     foto: apiStudent.photoData || apiStudent.foto || '',
-    codigo_vinculacion: buildLinkCode(apiStudent.id),
+    codigo_vinculacion: null,
+    codigo_expira_en: null,
     label: getInitials(fullName),
     color: COLORS.PRIMARIO,
     status: (apiStudent.isActive ?? apiStudent.estaActivo) ? 'SAFE' : 'INFO',

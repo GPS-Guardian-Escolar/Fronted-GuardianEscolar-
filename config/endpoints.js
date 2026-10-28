@@ -5,9 +5,20 @@ const apiPort = process.env.EXPO_PUBLIC_API_PORT || '8080';
 const frontendPort = process.env.EXPO_PUBLIC_FRONTEND_PORT || '8081';
 const webProxyEnabled = String(process.env.EXPO_PUBLIC_WEB_PROXY || '').toLowerCase() === 'true';
 
-const DEFAULT_API_URL = 'http://localhost:8080/api';
-const DEFAULT_WS_URL = 'ws://localhost:8080/ws';
-const DEFAULT_STUDENT_LINK_BASE_URL = 'https://gps-guardian-escolar-frontend.onrender.com';
+const requiredPublicEnv = (value, name) => {
+  const normalizedValue = value?.trim();
+  if (!normalizedValue) {
+    throw new Error(`[config/endpoints] Falta la variable ${name}. Configúrala antes de compilar la aplicación.`);
+  }
+  return normalizedValue;
+};
+
+const configuredApiUrl = requiredPublicEnv(process.env.EXPO_PUBLIC_API_URL, 'EXPO_PUBLIC_API_URL');
+const configuredWsUrl = requiredPublicEnv(process.env.EXPO_PUBLIC_WS_URL, 'EXPO_PUBLIC_WS_URL');
+const configuredStudentLinkBaseUrl = requiredPublicEnv(
+  process.env.EXPO_PUBLIC_STUDENT_LINK_BASE_URL,
+  'EXPO_PUBLIC_STUDENT_LINK_BASE_URL',
+);
 
 function isLocalHost(host) {
   return !host || host === 'localhost' || host === '127.0.0.1' || host === '::1';
@@ -76,7 +87,7 @@ function isTunnelHost(host) {
 }
 
 function resolveApiUrl() {
-  const configuredUrl = process.env.EXPO_PUBLIC_API_URL || DEFAULT_API_URL;
+  const configuredUrl = configuredApiUrl;
   const currentBrowserHost = browserHost();
   if (configuredUrl?.startsWith('/')) {
     // Static web builds served by Nginx use the same-origin API proxy.
@@ -107,11 +118,11 @@ function resolveApiUrl() {
   if (isRemoteConfiguredUrl(configuredUrl)) {
     return normalizeApiUrl(configuredUrl);
   }
-  return normalizeApiUrl(configuredUrl || `http://localhost:${apiPort}`);
+  return normalizeApiUrl(configuredUrl);
 }
 
 function resolveWsUrl(apiUrl) {
-  const configuredUrl = process.env.EXPO_PUBLIC_WS_URL || DEFAULT_WS_URL;
+  const configuredUrl = configuredWsUrl;
   const origin = browserOrigin();
   const currentBrowserHost = browserHost();
   if (configuredUrl?.startsWith('/')) {
@@ -143,11 +154,11 @@ function resolveWsUrl(apiUrl) {
   if (host) {
     return `ws://${host}:${apiPort}/ws`;
   }
-  return configuredUrl || apiUrl.replace(/^http/, 'ws').replace(/\/api\/?$/, '/ws');
+  return configuredUrl;
 }
 
 function resolveStudentLinkBaseUrl(apiUrl) {
-  const configuredUrl = process.env.EXPO_PUBLIC_STUDENT_LINK_BASE_URL || DEFAULT_STUDENT_LINK_BASE_URL;
+  const configuredUrl = configuredStudentLinkBaseUrl;
   const origin = browserOrigin();
   const currentBrowserHost = browserHost();
   // QR links must point to the public frontend origin, never to the API
@@ -156,7 +167,7 @@ function resolveStudentLinkBaseUrl(apiUrl) {
     return origin;
   }
   if (configuredUrl?.startsWith('/')) {
-    return DEFAULT_STUDENT_LINK_BASE_URL;
+    return configuredUrl;
   }
   if (isRemoteConfiguredUrl(configuredUrl)) {
     return configuredUrl;
@@ -176,7 +187,7 @@ function resolveStudentLinkBaseUrl(apiUrl) {
   if (host && !isLocalHost(host)) {
     return `http://${host}:${frontendPort}`;
   }
-  return configuredUrl || `http://localhost:${frontendPort}`;
+  return configuredUrl;
 }
 
 const rawApiUrl = resolveApiUrl();
@@ -194,15 +205,27 @@ export const ENDPOINTS = {
   FORGOT_PASSWORD: '/auth/password/forgot',
   RESET_PASSWORD: '/auth/password/reset',
   ME: '/auth/me',
+  LOGOUT: '/auth/logout',
+  CONFIRM_LOGIN: '/auth/confirm-login',
+  TWO_FACTOR_REQUEST: '/auth/2fa/request',
+  TWO_FACTOR_RESEND: '/auth/2fa/resend',
+  TWO_FACTOR_VERIFY: '/auth/2fa/verify',
+  TWO_FACTOR_DISABLE: '/auth/2fa/disable',
   PROFILE: '/auth/profile',
   EMAIL: '/auth/email',
   PASSWORD: '/auth/password',
 
   STUDENTS: '/students',
   STUDENT_BY_ID: (id) => `/students/${id}`,
+  STUDENT_LINK_CODE: (studentId) => `/students/${studentId}/link-code`,
   STUDENT_ROUTES: (studentId, routeId) => `/students/${studentId}/routes/${routeId}`,
+  STUDENT_DEVICE: (studentId) => `/students/${studentId}/device`,
   EMERGENCY_CONTACTS: (studentId) => `/students/${studentId}/emergency-contacts`,
   EMERGENCY_CONTACT_BY_ID: (studentId, contactId) => `/students/${studentId}/emergency-contacts/${contactId}`,
+  LINK_DEVICE: '/students/link-device',
+  LINKED_PROFILE: (studentId) => `/students/${studentId}/linked-profile`,
+  GUARDIANS: (studentId) => `/students/${studentId}/guardians`,
+  GUARDIAN_BY_ID: (studentId, guardianUserId) => `/students/${studentId}/guardians/${guardianUserId}`,
 
   ROUTES: '/routes',
   ROUTE_BY_ID: (id) => `/routes/${id}`,
@@ -212,17 +235,24 @@ export const ENDPOINTS = {
   SAFE_ZONE_BY_ID: (id) => `/safe-zones/${id}`,
 
   TRIPS: '/trips',
-  TRIP_BY_ID: (id) => `/trips/${id}`,
   TRIP_STATUS: (id) => `/trips/${id}/status`,
   TRIP_COORDINATES: (id) => `/trips/${id}/coordinates`,
 
   NOTIFICATIONS: '/notifications',
   MARK_READ: (id) => `/notifications/${id}/read`,
+  MARK_ALL_READ: '/notifications/read-all',
+  NOTIFICATION_SETTINGS: '/notifications/settings',
 
   DEVICES: '/devices',
-  DEVICE_BY_ID: (id) => `/devices/${id}`,
 
-  SOCKET_URL: WS_URL,
+  ADMIN_DASHBOARD: '/admin/dashboard',
+  ADMIN_ALERTS: '/admin/alerts',
+  ADMIN_AUDIT: '/admin/audit',
+  ADMIN_ERRORS: '/admin/errors',
+
+  MAP_GEOCODE: '/maps/geocode',
+  MAP_DIRECTIONS: '/maps/directions',
+
   SOCKET_TOPIC: (tripId) => `/topic/trips/${tripId}/coordinates`,
 };
 
