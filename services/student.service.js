@@ -33,6 +33,10 @@ export const studentService = {
     return response.data;
   },
 
+  issueLinkCode: async (studentId) => {
+    const response = await api.post('/students/' + studentId + '/link-code');
+    return response.data;
+  },
   unlinkDevice: async (studentId) => {
     await api.delete(ENDPOINTS.STUDENT_DEVICE(studentId));
   },

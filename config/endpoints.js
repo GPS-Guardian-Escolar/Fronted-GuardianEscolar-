@@ -5,9 +5,20 @@ const apiPort = process.env.EXPO_PUBLIC_API_PORT || '8080';
 const frontendPort = process.env.EXPO_PUBLIC_FRONTEND_PORT || '8081';
 const webProxyEnabled = String(process.env.EXPO_PUBLIC_WEB_PROXY || '').toLowerCase() === 'true';
 
-const DEFAULT_API_URL = 'http://localhost:8080/api';
-const DEFAULT_WS_URL = 'ws://localhost:8080/ws';
-const DEFAULT_STUDENT_LINK_BASE_URL = 'https://gps-guardian-escolar-frontend.onrender.com';
+const requiredPublicEnv = (value, name) => {
+  const normalizedValue = value?.trim();
+  if (!normalizedValue) {
+    throw new Error(`[config/endpoints] Falta la variable ${name}. Configúrala antes de compilar la aplicación.`);
+  }
+  return normalizedValue;
+};
+
+const configuredApiUrl = requiredPublicEnv(process.env.EXPO_PUBLIC_API_URL, 'EXPO_PUBLIC_API_URL');
+const configuredWsUrl = requiredPublicEnv(process.env.EXPO_PUBLIC_WS_URL, 'EXPO_PUBLIC_WS_URL');
+const configuredStudentLinkBaseUrl = requiredPublicEnv(
+  process.env.EXPO_PUBLIC_STUDENT_LINK_BASE_URL,
+  'EXPO_PUBLIC_STUDENT_LINK_BASE_URL',
+);
 
 function isLocalHost(host) {
   return !host || host === 'localhost' || host === '127.0.0.1' || host === '::1';
@@ -76,7 +87,7 @@ function isTunnelHost(host) {
 }
 
 function resolveApiUrl() {
-  const configuredUrl = process.env.EXPO_PUBLIC_API_URL || DEFAULT_API_URL;
+  const configuredUrl = configuredApiUrl;
   const currentBrowserHost = browserHost();
   if (configuredUrl?.startsWith('/')) {
     // Static web builds served by Nginx use the same-origin API proxy.
@@ -107,11 +118,11 @@ function resolveApiUrl() {
   if (isRemoteConfiguredUrl(configuredUrl)) {
     return normalizeApiUrl(configuredUrl);
   }
-  return normalizeApiUrl(configuredUrl || `http://localhost:${apiPort}`);
+  return normalizeApiUrl(configuredUrl);
 }
 
 function resolveWsUrl(apiUrl) {
-  const configuredUrl = process.env.EXPO_PUBLIC_WS_URL || DEFAULT_WS_URL;
+  const configuredUrl = configuredWsUrl;
   const origin = browserOrigin();
   const currentBrowserHost = browserHost();
   if (configuredUrl?.startsWith('/')) {
@@ -143,11 +154,11 @@ function resolveWsUrl(apiUrl) {
   if (host) {
     return `ws://${host}:${apiPort}/ws`;
   }
-  return configuredUrl || apiUrl.replace(/^http/, 'ws').replace(/\/api\/?$/, '/ws');
+  return configuredUrl;
 }
 
 function resolveStudentLinkBaseUrl(apiUrl) {
-  const configuredUrl = process.env.EXPO_PUBLIC_STUDENT_LINK_BASE_URL || DEFAULT_STUDENT_LINK_BASE_URL;
+  const configuredUrl = configuredStudentLinkBaseUrl;
   const origin = browserOrigin();
   const currentBrowserHost = browserHost();
   // QR links must point to the public frontend origin, never to the API
@@ -156,7 +167,7 @@ function resolveStudentLinkBaseUrl(apiUrl) {
     return origin;
   }
   if (configuredUrl?.startsWith('/')) {
-    return DEFAULT_STUDENT_LINK_BASE_URL;
+    return configuredUrl;
   }
   if (isRemoteConfiguredUrl(configuredUrl)) {
     return configuredUrl;
@@ -176,7 +187,7 @@ function resolveStudentLinkBaseUrl(apiUrl) {
   if (host && !isLocalHost(host)) {
     return `http://${host}:${frontendPort}`;
   }
-  return configuredUrl || `http://localhost:${frontendPort}`;
+  return configuredUrl;
 }
 
 const rawApiUrl = resolveApiUrl();
