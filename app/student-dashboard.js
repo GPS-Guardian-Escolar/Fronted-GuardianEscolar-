@@ -23,7 +23,7 @@ import {
   stopBackgroundUpdates,
 } from '../services/background/locationTracking';
 import { BASE_URL } from '../config/endpoints';
-import { showPlatformNotice } from '../utils/noticeBus';
+import { showPlatformConfirm, showPlatformNotice } from '../utils/noticeBus';
 import { AppTypography } from '../theme/tokens';
 import PermissionGate from '../features/child/components/PermissionGate';
 import SharingStatusCard from '../features/child/components/SharingStatusCard';
@@ -421,7 +421,7 @@ export default function StudentDashboardScreen() {
   };
 
   const confirmFinishTracking = () => {
-    Alert.alert(
+    showPlatformConfirm(
       t('studentFinishTrip'),
       t('studentConfirmFinishTrip'),
       [

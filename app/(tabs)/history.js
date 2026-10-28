@@ -16,7 +16,7 @@ import { notificationService } from '../../services/notification.service';
 import { getHistoryStatusKind, matchesHistoryStatus, toLocalDateKey } from '../../utils/tripHistory';
 import AppError from '../../components/ui/AppError';
 import AppLoading from '../../components/ui/AppLoading';
-import { showPlatformNotice } from '../../utils/noticeBus';
+import { showPlatformConfirm, showPlatformNotice } from '../../utils/noticeBus';
 
 const DATE_LOCALES = { es: 'es-CO', en: 'en-US', fr: 'fr-FR', pt: 'pt-BR' };
 
@@ -108,7 +108,7 @@ export default function HistoryScreen() {
       return;
     }
 
-    Alert.alert(t('histDelete'), t('histDeleteConfirm'), [
+    showPlatformConfirm(t('histDelete'), t('histDeleteConfirm'), [
       { text: t('cancel'), style: 'cancel' },
       { text: t('delete'), style: 'destructive', onPress: removeItem },
     ]);

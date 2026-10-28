@@ -27,7 +27,7 @@ import { studentService } from '../../services/student.service';
 import { AppTouch, AppTypography } from '../../theme/tokens';
 import { addStudent, deleteStudent, getInitials, getStudents, normalizeGrade, updateStudent } from '../../utils/studentStorage';
 import { validateInputEdit, isValidPersonName, isValidPhone } from '../../utils/validators';
-import { emitNotice, showPlatformNotice } from '../../utils/noticeBus';
+import { emitNotice, showPlatformConfirm } from '../../utils/noticeBus';
 
 const { width } = Dimensions.get('window');
 const isWeb = width > 768;
@@ -234,7 +234,7 @@ export default function StudentScreen() {
       issueStudentLinkCode(studentToLink);
       return;
     }
-    Alert.alert(t('studLinkCode'), t('studReplaceLinkCodeConfirm'), [
+    showPlatformConfirm(t('studLinkCode'), t('studReplaceLinkCodeConfirm'), [
       { text: t('cancel'), style: 'cancel' },
       { text: t('studGenerateLinkCode'), onPress: () => issueStudentLinkCode(studentToLink) },
     ]);
@@ -308,7 +308,7 @@ export default function StudentScreen() {
       return;
     }
 
-    Alert.alert(
+    showPlatformConfirm(
       t('studDelete'),
       `${t('studDeleteConfirm')} ${student.nombre}? ${t('studDeleteWarning')}`,
       [

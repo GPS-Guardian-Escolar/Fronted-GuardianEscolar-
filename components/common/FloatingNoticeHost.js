@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Portal, Snackbar, Text } from 'react-native-paper';
+import { Button, Portal, Snackbar, Text } from 'react-native-paper';
 import { useTheme } from '../../contexts/ThemeContext';
 import { subscribeNotice } from '../../utils/noticeBus';
 
@@ -31,6 +31,28 @@ export default function FloatingNoticeHost() {
 
   const toneColor = colors[TONE_COLORS[notice.tone]] || colors.primary;
 
+  if (notice.title === '__confirm__' && notice.message?.confirm) {
+    const { title, message, cancel, confirm } = notice.message;
+    return (
+      <Portal>
+        <View style={styles.confirmOverlay}>
+          <View style={[styles.confirmCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.confirmTitle, { color: colors.text }]}>{title}</Text>
+            <Text style={[styles.confirmMessage, { color: colors.textSecondary }]}>{message}</Text>
+            <View style={styles.confirmActions}>
+              <Button mode="outlined" onPress={() => { setNotice(null); cancel?.onPress?.(); }}>
+                {cancel?.text || 'Cancelar'}
+              </Button>
+              <Button mode="contained" onPress={() => { setNotice(null); confirm?.onPress?.(); }}>
+                {confirm?.text || 'Confirmar'}
+              </Button>
+            </View>
+          </View>
+        </View>
+      </Portal>
+    );
+  }
+
   return (
     <Portal>
       <View pointerEvents="box-none" style={styles.portalLayer}>
@@ -59,6 +81,36 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 16,
     alignItems: 'center',
+  },
+  confirmOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  confirmCard: {
+    width: '92%',
+    maxWidth: 520,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 22,
+    elevation: 10,
+  },
+  confirmTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  confirmMessage: {
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  confirmActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 22,
   },
   card: {
     width: '92%',

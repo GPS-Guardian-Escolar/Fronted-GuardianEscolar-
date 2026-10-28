@@ -23,3 +23,13 @@ export function showPlatformNotice(title, message, options = {}) {
   }
   Alert.alert(title, message);
 }
+
+export function showPlatformConfirm(title, message, buttons = []) {
+  if (Platform.OS === 'web') {
+    const cancel = buttons.find(button => button.style === 'cancel') || buttons[0];
+    const confirm = buttons.find(button => button.style !== 'cancel') || buttons[buttons.length - 1];
+    emitNotice('__confirm__', { title, message, cancel, confirm });
+    return;
+  }
+  Alert.alert(title, message, buttons);
+}

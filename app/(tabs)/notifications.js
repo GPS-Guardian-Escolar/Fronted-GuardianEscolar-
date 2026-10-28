@@ -19,7 +19,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import AppError from '../../components/ui/AppError';
 import AppLoading from '../../components/ui/AppLoading';
-import { showPlatformNotice } from '../../utils/noticeBus';
+import { showPlatformConfirm, showPlatformNotice } from '../../utils/noticeBus';
 
 const isWeb = Dimensions.get('window').width > 768;
 
@@ -131,7 +131,7 @@ export default function NotificationsScreen() {
       return;
     }
 
-    Alert.alert(
+    showPlatformConfirm(
       t('delete'),
       t('delete') + '?',
       [
