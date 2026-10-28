@@ -124,6 +124,7 @@ export default function StudentScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [fotoCargada, setFotoCargada] = useState(null); // guardara la URI de la imagen
   const [codigoGenerado, setCodigoGenerado] = useState(null);
+  const [generatingLinkCode, setGeneratingLinkCode] = useState(false);
   const [formErrors, setFormErrors] = useState({});
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [sharingStudent, setSharingStudent] = useState(null);
@@ -203,6 +204,40 @@ export default function StudentScreen() {
     setModalVisible(true);
   }
 
+  async function issueStudentLinkCode() {
+    if (!editingStudent?.id || !canManageStudent(editingStudent)) return;
+    setGeneratingLinkCode(true);
+    try {
+      const issued = await studentService.issueLinkCode(editingStudent.id);
+      const updatedStudent = {
+        ...editingStudent,
+        codigo_vinculacion: issued.code,
+        codigo_expira_en: issued.expiresAt,
+      };
+      setEditingStudent(updatedStudent);
+      setCodigoGenerado(issued.code);
+      setStudents(current => current.map(student => student.id === updatedStudent.id ? updatedStudent : student));
+    } catch (error) {
+      Alert.alert(t('error'), error.message || t('studLinkCodeIssueFailed'));
+    } finally {
+      setGeneratingLinkCode(false);
+    }
+  }
+
+  function requestStudentLinkCode() {
+    if (!editingStudent?.id) return;
+    const expiresAt = Date.parse(editingStudent.codigo_expira_en || '');
+    const hasActiveCode = codigoGenerado && Number.isFinite(expiresAt) && expiresAt > Date.now();
+    if (!hasActiveCode) {
+      issueStudentLinkCode();
+      return;
+    }
+    Alert.alert(t('studLinkCode'), t('studReplaceLinkCodeConfirm'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('studGenerateLinkCode'), onPress: issueStudentLinkCode },
+    ]);
+  }
+
   async function openShare(student) {
     setSharingStudent(student);
     setShareEmail('');
@@ -225,12 +260,9 @@ export default function StudentScreen() {
     setShareLoading(true);
     try {
       const result = await studentService.shareWithGuardian(sharingStudent.id, { email, relationshipRole: 'VIEWER' });
-      const [guardianData, updatedStudents] = await Promise.all([
-        studentService.listGuardians(sharingStudent.id),
-        getStudents(),
-      ]);
+      const guardianData = await studentService.listGuardians(sharingStudent.id);
+      await loadStudents();
       setGuardians(guardianData);
-      setStudents(updatedStudents);
       setShareEmail('');
       Alert.alert(
         t('studShareSuccessTitle'),
@@ -252,12 +284,9 @@ export default function StudentScreen() {
     setGuardianLoading(true);
     try {
       await studentService.revokeGuardian(sharingStudent.id, guardian.userId);
-      const [guardianData, updatedStudents] = await Promise.all([
-        studentService.listGuardians(sharingStudent.id),
-        getStudents(),
-      ]);
+      const guardianData = await studentService.listGuardians(sharingStudent.id);
+      await loadStudents();
       setGuardians(guardianData);
-      setStudents(updatedStudents);
       setGuardianCandidate(null);
     } catch (error) {
       Alert.alert(t('error'), error.message || t('studShareRemoveError'));
@@ -771,6 +800,19 @@ export default function StudentScreen() {
                     <View style={[styles.codigoBox, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
                       <Text style={[styles.codigoHint, themed.textSecondary]}>{t('studQrAfterSave')}</Text>
                     </View>
+                  )}
+                  {editingStudent && (
+                    <TouchableOpacity
+                      style={[styles.mockupUploadBtn, { borderColor: colors.primary }]}
+                      onPress={requestStudentLinkCode}
+                      disabled={generatingLinkCode}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('studGenerateLinkCode')}
+                    >
+                      <Text style={[styles.mockupUploadText, { color: colors.primary }]}>
+                        {generatingLinkCode ? t('studGeneratingLinkCode') : t('studGenerateLinkCode')}
+                      </Text>
+                    </TouchableOpacity>
                   )}
                 </View>
               </ScrollView>
