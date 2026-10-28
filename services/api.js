@@ -1,7 +1,7 @@
 import { create } from 'axios'
 
-import { BASE_URL } from '../config/endpoints'
-import { emitAuthExpired } from '../utils/authEvents'
+import { BASE_URL, ENDPOINTS } from '../config/endpoints'
+import { emitAuthExpired, emitPermissionDenied } from '../utils/authEvents'
 import { storage } from '../utils/storage'
 
 const api = create({
@@ -13,21 +13,21 @@ const api = create({
 })
 
 const PUBLIC_ENDPOINTS = [
-  '/auth/login',
-  '/auth/register',
-  '/auth/verify-email',
-  '/auth/confirm-login',
-  '/auth/password/forgot',
-  '/auth/password/reset',
-  '/auth/2fa/resend',
-  '/auth/2fa/verify',
+  ENDPOINTS.LOGIN,
+  ENDPOINTS.REGISTER,
+  ENDPOINTS.VERIFY_EMAIL,
+  ENDPOINTS.CONFIRM_LOGIN,
+  ENDPOINTS.FORGOT_PASSWORD,
+  ENDPOINTS.RESET_PASSWORD,
+  ENDPOINTS.TWO_FACTOR_RESEND,
+  ENDPOINTS.TWO_FACTOR_VERIFY,
 ]
 
 const isPublicEndpoint = (url = '') => {
   const path = url.split('?')[0]
   return PUBLIC_ENDPOINTS.some((endpoint) => path.endsWith(endpoint))
 }
-const REAUTH_ENDPOINTS = ['/auth/email', '/auth/password', '/auth/2fa/disable']
+const REAUTH_ENDPOINTS = [ENDPOINTS.EMAIL, ENDPOINTS.PASSWORD, ENDPOINTS.TWO_FACTOR_DISABLE]
 const isReauthenticationEndpoint = (url = '') => {
   const path = url.split('?')[0]
   return REAUTH_ENDPOINTS.some((endpoint) => path.endsWith(endpoint))
@@ -44,16 +44,29 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// Si el servidor rechaza la sesion, cierra la sesion automaticamente
+export const handleResponseError = async (error) => {
+  const status = error.response?.status
+  const isProtectedRequest = !error.config?.skipAuth
+    && !isPublicEndpoint(error.config?.url)
+    && !isReauthenticationEndpoint(error.config?.url)
+
+  if (status === 401 && isProtectedRequest) {
+    await storage.clearAll()
+    emitAuthExpired()
+  } else if (status === 403 && isProtectedRequest) {
+    emitPermissionDenied({
+      message: error.response?.data?.message || error.response?.data?.mensaje,
+      url: error.config?.url,
+    })
+  }
+
+  return Promise.reject(error)
+}
+
+// Solo 401 invalida la sesion; 403 conserva la sesion y muestra permisos insuficientes.
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    if (error.response?.status === 401 && !error.config?.skipAuth && !isPublicEndpoint(error.config?.url) && !isReauthenticationEndpoint(error.config?.url)) {
-      await storage.clearAll()
-      emitAuthExpired()
-    }
-    return Promise.reject(error)
-  }
+  handleResponseError
 )
 
 export default api
