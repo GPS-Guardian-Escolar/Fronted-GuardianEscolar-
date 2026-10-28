@@ -73,6 +73,21 @@ export default function SafeMap({
     }, 600);
   }, [currentCoordinate, region]);
 
+  useEffect(() => {
+    if (currentCoordinate || !mapRef.current) return;
+    const routePoints = [
+      ...normalizedMarkers.map(marker => marker.coordinate),
+      ...route,
+      ...routes.flatMap(routeLine => routeLine.coordinates),
+    ];
+    if (routePoints.length >= 2) {
+      mapRef.current.fitToCoordinates(routePoints, {
+        animated: true,
+        edgePadding: { top: 48, right: 48, bottom: 48, left: 48 },
+      });
+    }
+  }, [currentCoordinate, normalizedMarkers, route, routes]);
+
   if (!GOOGLE_MAPS_API_KEY) {
     return <View style={[sharedStyles.container, style]}><ErrorState message="Configura EXPO_PUBLIC_GOOGLE_MAPS_API_KEY en .env para cargar Google Maps." /></View>;
   }

@@ -11,32 +11,41 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { deleteHistory, deleteNotification, getHistory } from '../../utils/studentStorage';
 import { trackingService } from '../../services/tracking.service';
+import { notificationService } from '../../services/notification.service';
+import { getHistoryStatusKind, matchesHistoryStatus, toLocalDateKey } from '../../utils/tripHistory';
 
-function formatTripDate(value) {
+const DATE_LOCALES = { es: 'es-CO', en: 'en-US', fr: 'fr-FR', pt: 'pt-BR' };
+
+function formatTripDate(value, lang = 'es') {
   if (!value) return '--';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' });
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString(DATE_LOCALES[lang] || DATE_LOCALES.es, { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-function formatTripTime(value) {
+function formatTripTime(value, lang = 'es') {
   if (!value) return '--';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '--' : date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  return Number.isNaN(date.getTime()) ? '--' : date.toLocaleTimeString(DATE_LOCALES[lang] || DATE_LOCALES.es, { hour: '2-digit', minute: '2-digit' });
 }
 
-function normalizeTrip(trip) {
+function normalizeTrip(trip, notifications = [], lang = 'es') {
   const status = String(trip.status || '').toUpperCase();
-  const alerta = Boolean(trip.hadDeviation);
+  const tripEvents = notifications.filter(notification => String(notification.tripId) === String(trip.id));
+  const alerta = Boolean(trip.hadDeviation)
+    || tripEvents.some(notification => notification.eventType === 'ROUTE_DEVIATION');
+  const advertencia = tripEvents.some(notification => notification.eventType === 'INACTIVITY');
   return {
     id: `trip-${trip.id}`,
     backendId: trip.id,
     estudiante: trip.student || 'Estudiante',
-    fecha: formatTripDate(trip.tripStartedAt),
-    horaInicio: formatTripTime(trip.tripStartedAt),
-    horaFin: formatTripTime(trip.tripEndedAt),
+    fecha: formatTripDate(trip.tripStartedAt, lang),
+    fechaKey: toLocalDateKey(trip.tripStartedAt),
+    horaInicio: formatTripTime(trip.tripStartedAt, lang),
+    horaFin: formatTripTime(trip.tripEndedAt, lang),
     ruta: trip.route || 'Ruta asignada',
     estado: status === 'IN_PROGRESS' ? 'En Proceso' : status === 'COMPLETED' ? 'Completado' : status === 'CANCELED' ? 'Cancelado' : 'Pendiente',
     alerta,
+    advertencia: !alerta && advertencia,
     duracion: trip.tripStartedAt && trip.tripEndedAt ? Math.max(0, Math.round((new Date(trip.tripEndedAt) - new Date(trip.tripStartedAt)) / 60000)) : 0,
   };
 }
@@ -45,7 +54,7 @@ export default function HistoryScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 769;
   const insets = useSafeAreaInsets();
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { theme } = useTheme();
   const colors = theme.colors;
   const [history, setHistory] = useState([]);
@@ -57,11 +66,12 @@ export default function HistoryScreen() {
   const loadData = useCallback(async () => {
     setRefreshing(true);
     try {
-      const [storedHistory, trips] = await Promise.all([
+      const [storedHistory, trips, notifications] = await Promise.all([
         getHistory(),
         trackingService.listTrips().catch(() => []),
+        notificationService.listNotifications().catch(() => []),
       ]);
-      const remoteHistory = (trips || []).map(normalizeTrip);
+      const remoteHistory = (trips || []).map(trip => normalizeTrip(trip, notifications || [], lang));
       const remoteIds = new Set(remoteHistory.map(item => item.backendId));
       const localOnly = storedHistory.filter(item => !item.backendId && !remoteIds.has(item.id));
       setHistory([...remoteHistory, ...localOnly]);
@@ -70,7 +80,7 @@ export default function HistoryScreen() {
     } finally {
       setRefreshing(false);
     }
-  }, [t]);
+  }, [t, lang]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
@@ -95,24 +105,33 @@ export default function HistoryScreen() {
   const stats = {
     total: history.length,
     completados: history.filter(item => item.estado === 'Completado').length,
-    incidentes: history.filter(item => item.alerta || item.estado === 'Con Incidente').length,
+    incidentes: history.filter(item => (item.alerta && !item.advertencia) || item.estado === 'Con Incidente').length,
     enProceso: history.filter(item => item.estado === 'En Proceso').length,
     horas: history.reduce((acc, item) => acc + (parseInt(item.duracion, 10) || 0), 0) / 60,
   };
 
   const filteredHistory = history.filter((item) => {
     const matchesStudent = !filterStudent || item.estudiante.toLowerCase().includes(filterStudent.toLowerCase());
-    const matchesDate = !filterDate || String(item.fecha).toLowerCase().includes(filterDate.toLowerCase());
-    const matchesStatus = statusFilter === 'all'
-      || item.estado === statusFilter
-      || (statusFilter === 'Con Incidente' && item.alerta);
+    const matchesDate = !filterDate || item.fechaKey === filterDate;
+    const matchesStatus = matchesHistoryStatus(item, statusFilter);
     return matchesStudent && matchesDate && matchesStatus;
   });
 
+  const getDisplayedStatus = (item) => {
+    const kind = getHistoryStatusKind(item);
+    if (kind === 'incident') return t('histIncident');
+    if (kind === 'inProgress') return t('histInProcess');
+    if (kind === 'completed') return t('histCompleted');
+    return item.estado;
+  };
+
   const getStatusColor = (item) => {
-    if (item.alerta || item.estado === 'Con Incidente') return colors.error;
-    if (item.estado === 'En Proceso') return colors.primary;
-    return colors.accent;
+    const kind = getHistoryStatusKind(item);
+    if (kind === 'inProgress') return colors.primary;
+    if (kind === 'completed') return colors.accent;
+    if (kind === 'incident') return colors.error;
+    if (item.advertencia) return colors.warning;
+    return colors.textSecondary;
   };
 
   const escapeHtml = (value) => String(value ?? '')
@@ -123,11 +142,11 @@ export default function HistoryScreen() {
     .replace(/'/g, '&#39;');
 
   const buildReportHtml = () => {
-    const generatedAt = new Date().toLocaleString('es-CO');
+    const generatedAt = new Date().toLocaleString(DATE_LOCALES[lang] || DATE_LOCALES.es);
     const activeFilters = [
-      ['Estudiante', filterStudent || 'Todos'],
-      ['Fecha', filterDate || 'Todas'],
-      ['Estado', statusFilter === 'all' ? 'Todos' : statusFilter],
+      [t('tabStudent'), filterStudent || t('histFilterAll')],
+      [t('histDate'), filterDate || t('histFilterAll')],
+      [t('histStatus'), statusFilter === 'all' ? t('histFilterAll') : statusFilter === 'En Proceso' ? t('histInProcess') : statusFilter === 'Completado' ? t('histCompleted') : t('histIncident')],
     ];
     const rows = filteredHistory.map((item) => `
       <tr>
@@ -135,17 +154,17 @@ export default function HistoryScreen() {
         <td>${escapeHtml(item.fecha)}</td>
         <td>${escapeHtml(item.horaInicio)}${item.horaFin && item.horaFin !== '--' ? ` - ${escapeHtml(item.horaFin)}` : ''}</td>
         <td>${escapeHtml(item.ruta)}</td>
-        <td><span class="status">${escapeHtml(item.estado)}</span></td>
-        <td>${escapeHtml(item.alerta ? 'Con alerta' : 'Normal')}</td>
+        <td><span class="status">${escapeHtml(getDisplayedStatus(item))}</span></td>
+        <td>${escapeHtml(item.alerta ? t('histObsAlert') : item.advertencia ? t('histObsInactivity') : t('histObsNormal'))}</td>
       </tr>
     `).join('');
 
     return `
       <!doctype html>
-      <html lang="es">
+      <html lang="${escapeHtml(lang)}">
       <head>
         <meta charset="utf-8" />
-        <title>Reporte de historial de trayectos</title>
+        <title>${escapeHtml(t('histReportTitle'))}</title>
         <style>
           * { box-sizing: border-box; }
           body { margin: 0; padding: 32px; color: #172033; font-family: Arial, Helvetica, sans-serif; background: #ffffff; }
@@ -175,30 +194,30 @@ export default function HistoryScreen() {
       <body>
         <section class="header">
           <div class="brand">GPS Guardian Escolar</div>
-          <h1>Reporte de historial de trayectos</h1>
-          <div class="muted">Generado el ${escapeHtml(generatedAt)}</div>
+          <h1>${escapeHtml(t('histReportTitle'))}</h1>
+          <div class="muted">${escapeHtml(t('histGeneratedAt'))} ${escapeHtml(generatedAt)}</div>
         </section>
 
         <section class="summary">
           <div class="card"><div class="metric">${stats.total}</div><div class="label">Total</div></div>
-          <div class="card"><div class="metric">${stats.completados}</div><div class="label">Completados</div></div>
-          <div class="card"><div class="metric">${stats.enProceso}</div><div class="label">En proceso</div></div>
-          <div class="card"><div class="metric">${stats.incidentes}</div><div class="label">Incidentes</div></div>
+          <div class="card"><div class="metric">${stats.completados}</div><div class="label">${escapeHtml(t('histCompleted'))}</div></div>
+          <div class="card"><div class="metric">${stats.enProceso}</div><div class="label">${escapeHtml(t('histInProcess'))}</div></div>
+          <div class="card"><div class="metric">${stats.incidentes}</div><div class="label">${escapeHtml(t('histIncident'))}</div></div>
         </section>
 
         <section class="filters">
           ${activeFilters.map(([label, value]) => `<div class="filter"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</div>`).join('')}
         </section>
 
-        ${filteredHistory.length === 0 ? '<div class="empty">No hay trayectos para los filtros seleccionados.</div>' : `
+        ${filteredHistory.length === 0 ? `<div class="empty">${escapeHtml(t('histNoResults'))}</div>` : `
           <table>
             <thead>
               <tr>
-                <th>Estudiante</th>
-                <th>Fecha</th>
-                <th>Hora</th>
-                <th>Ruta</th>
-                <th>Estado</th>
+                <th>${escapeHtml(t('studentLabel'))}</th>
+                <th>${escapeHtml(t('histDate'))}</th>
+                <th>${escapeHtml(t('histTime'))}</th>
+                <th>${escapeHtml(t('histRoute'))}</th>
+                <th>${escapeHtml(t('histStatus'))}</th>
                 <th>Observación</th>
               </tr>
             </thead>
@@ -228,16 +247,16 @@ export default function HistoryScreen() {
           });
           return;
         }
-        Alert.alert('Reporte PDF', `PDF generado en: ${uri}`);
+        Alert.alert(t('histPdfTitle'), `${t('histPdfGenerated')}: ${uri}`);
       } catch (error) {
-        Alert.alert('Reporte PDF', error.message || 'No se pudo generar el PDF.');
+        Alert.alert(t('histPdfTitle'), error.message || t('histPdfFailed'));
       }
       return;
     }
 
     const reportWindow = window.open('', '_blank', 'width=980,height=720');
     if (!reportWindow) {
-      Alert.alert('Reporte PDF', 'Permite ventanas emergentes para generar el reporte.');
+      Alert.alert(t('histPdfTitle'), t('histPdfAllowPopups'));
       return;
     }
     reportWindow.document.open();
@@ -288,20 +307,25 @@ export default function HistoryScreen() {
           <View style={styles.detailItem}>
             <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>{t('histStatus')}</Text>
             <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
-              <Text style={[styles.statusBadgeText, { color: statusColor }]}>{item.estado}</Text>
+              <Text style={[styles.statusBadgeText, { color: statusColor }]}>{getDisplayedStatus(item)}</Text>
             </View>
           </View>
-          <Detail label={t('histObservation')} value={item.alerta ? t('histObsAlert') : t('histObsNormal')} danger={item.alerta} />
+          <Detail
+            label={t('histObservation')}
+            value={item.alerta ? t('histObsAlert') : item.advertencia ? t('histObsInactivity') : t('histObsNormal')}
+            danger={item.alerta}
+            warning={item.advertencia}
+          />
           <Detail label={t('histRoute')} value={item.ruta} />
         </View>
       </Surface>
     );
   };
 
-  const Detail = ({ label, value, danger }) => (
+  const Detail = ({ label, value, danger, warning }) => (
     <View style={styles.detailItem}>
       <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>{label}</Text>
-      <Text style={[styles.detailValue, { color: danger ? colors.error : colors.text }]}>{value}</Text>
+      <Text style={[styles.detailValue, { color: danger ? colors.error : warning ? colors.warning : colors.text }]}>{value}</Text>
     </View>
   );
 
