@@ -159,6 +159,14 @@ export default function ScanQrScreen() {
     }
   }, [router, t]);
 
+  useEffect(() => {
+    const studentId = String(params?.studentId || '').trim();
+    const code = String(params?.code || '').trim();
+    if (!code || params?.relink || isProcessing || success) return;
+
+    linkDevice({ studentId: studentId || undefined, code });
+  }, [isProcessing, linkDevice, params?.code, params?.relink, params?.studentId, success]);
+
   const handleQrValue = useCallback((value) => {
     if (isProcessing || success || scanLock.current) return;
 
