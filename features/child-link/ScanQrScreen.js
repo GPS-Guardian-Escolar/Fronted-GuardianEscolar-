@@ -299,7 +299,8 @@ export default function ScanQrScreen() {
             ref={cameraRef}
             key={`${permission.granted ? 'camera-enabled' : 'camera-disabled'}-${cameraKey}`}
             style={styles.camera}
-            facing={isMobile ? 'back' : 'front'}
+            // Use the rear camera for QR scanning on both native and web.
+            facing="back"
             active={isFocused && !cameraError}
             barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
             onBarcodeScanned={isProcessing || success ? undefined : ({ data }) => handleQrValue(data)}
