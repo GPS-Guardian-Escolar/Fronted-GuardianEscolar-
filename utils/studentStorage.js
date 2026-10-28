@@ -142,9 +142,6 @@ export function calculateAge(fechaNacimiento) {
   return age > 0 ? String(age) : '';
 }
 
-function buildLinkCode(id = '') {
-  return String(id).replace(/-/g, '').slice(0, 10).toUpperCase();
-}
 
 async function getStudentExtras(studentId, preloadedZones) {
   const apiZones = Array.isArray(preloadedZones) ? preloadedZones : await safeZoneService.list();
@@ -199,7 +196,8 @@ async function mapStudent(apiStudent, apiZones) {
     acudientes_vinculados: apiStudent.linkedGuardians || apiStudent.acudientesVinculados || 1,
     correo_acudiente: apiStudent.guardianEmail || apiStudent.correoAcudiente || '',
     foto: apiStudent.photoData || apiStudent.foto || '',
-    codigo_vinculacion: buildLinkCode(apiStudent.id),
+    codigo_vinculacion: null,
+    codigo_expira_en: null,
     label: getInitials(fullName),
     color: COLORS.PRIMARIO,
     status: (apiStudent.isActive ?? apiStudent.estaActivo) ? 'SAFE' : 'INFO',
@@ -315,8 +313,10 @@ export async function addRoute(studentId, routeData) {
     description: `Origen: ${routeData.start}. Destino: ${routeData.end}.`,
     originLatitude: origin.latitude,
     originLongitude: origin.longitude,
+    originAddress: routeData.start,
     destinationLatitude: destination.latitude,
     destinationLongitude: destination.longitude,
+    destinationAddress: routeData.end,
      stops: (routeData.routePoints || []).slice(1, -1).map((point, index) => ({
        stopOrder: index + 1,
        stopName: 'Punto intermedio ' + (index + 1),
@@ -338,8 +338,10 @@ export async function updateRoute(studentId, routeId, routeData) {
     description: `Origen: ${routeData.start}. Destino: ${routeData.end}.`,
     originLatitude: origin.latitude,
     originLongitude: origin.longitude,
+    originAddress: routeData.start,
     destinationLatitude: destination.latitude,
     destinationLongitude: destination.longitude,
+    destinationAddress: routeData.end,
      stops: (routeData.routePoints || []).slice(1, -1).map((point, index) => ({
        stopOrder: index + 1,
        stopName: 'Punto intermedio ' + (index + 1),
