@@ -76,14 +76,17 @@ export default function NotificationsScreen() {
     const mappedType = isWarning ? 'Advertencias'
       : tipo.includes('EXITO') || tipo.includes('SUCCESS') ? 'Exitosas'
         : 'Informativas';
+    const receiptId = item.receiptId || item.id;
     return {
-      id: item.id || item.reciboId,
+      id: receiptId,
+      receiptId,
+      notificationId: item.notificationId,
       type: mappedType,
       name: item.estudianteNombre || item.name || t('notifDetail'),
       message,
-      time: item.recibidoEn || item.creadoEn || item.time || '',
+      time: item.receivedAt || item.eventDateTime || item.recibidoEn || item.creadoEn || item.time || '',
       color: mappedType === 'Advertencias' ? colors.error : mappedType === 'Exitosas' ? colors.success : colors.primary,
-      read: item.leida || false,
+      read: Boolean(item.wasRead ?? item.leida ?? item.read),
     };
   }, [colors, t]);
 
@@ -220,10 +223,10 @@ export default function NotificationsScreen() {
               key={item.id} 
               style={[styles.notifCard, themed.surface]}
               onPress={async () => {
-                const isRemoteReceipt = item.id && !String(item.id).startsWith('notif-');
+                const isRemoteReceipt = item.receiptId && !String(item.receiptId).startsWith('notif-');
                 if (!item.read && isRemoteReceipt) {
                   try {
-                    await notificationService.markAsRead(item.id);
+                    await notificationService.markAsRead(item.receiptId);
                     setNotifications(previous => previous.map(notification => notification.id === item.id
                       ? { ...notification, read: true }
                       : notification));
