@@ -37,4 +37,17 @@ describe('studentService', () => {
       { skipAuth: true },
     );
   });
+
+  it('omits the student identifier when linking from a manual code', async () => {
+    api.post.mockResolvedValue({ data: { studentId: 'student-1', childToken: 'token' } });
+
+    await studentService.linkDevice({
+      code: 'ABCD2345EFGH6789',
+      deviceIdentifier: 'device-1',
+    });
+
+    const [, payload] = api.post.mock.calls[0];
+    expect(payload).toEqual(expect.objectContaining({ code: 'ABCD2345EFGH6789' }));
+    expect(payload).not.toHaveProperty('studentId');
+  });
 });
