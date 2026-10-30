@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { COLORS } from '../../constants/colors';
 import * as Print from 'expo-print';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useState } from 'react';
@@ -15,6 +16,7 @@ import { notificationService } from '../../services/notification.service';
 import { getHistoryStatusKind, matchesHistoryStatus, toLocalDateKey } from '../../utils/tripHistory';
 import AppError from '../../components/ui/AppError';
 import AppLoading from '../../components/ui/AppLoading';
+import { showPlatformConfirm, showPlatformNotice } from '../../utils/noticeBus';
 
 const DATE_LOCALES = { es: 'es-CO', en: 'en-US', fr: 'fr-FR', pt: 'pt-BR' };
 
@@ -106,7 +108,7 @@ export default function HistoryScreen() {
       return;
     }
 
-    Alert.alert(t('histDelete'), t('histDeleteConfirm'), [
+    showPlatformConfirm(t('histDelete'), t('histDeleteConfirm'), [
       { text: t('cancel'), style: 'cancel' },
       { text: t('delete'), style: 'destructive', onPress: removeItem },
     ]);
@@ -257,16 +259,16 @@ export default function HistoryScreen() {
           });
           return;
         }
-        Alert.alert(t('histPdfTitle'), `${t('histPdfGenerated')}: ${uri}`);
+        showPlatformNotice(t('histPdfTitle'), `${t('histPdfGenerated')}: ${uri}`, { tone: 'success' });
       } catch (error) {
-        Alert.alert(t('histPdfTitle'), error.message || t('histPdfFailed'));
+        showPlatformNotice(t('histPdfTitle'), error.message || t('histPdfFailed'), { tone: 'error' });
       }
       return;
     }
 
     const reportWindow = window.open('', '_blank', 'width=980,height=720');
     if (!reportWindow) {
-      Alert.alert(t('histPdfTitle'), t('histPdfAllowPopups'));
+      showPlatformNotice(t('histPdfTitle'), t('histPdfAllowPopups'), { tone: 'warning' });
       return;
     }
     reportWindow.document.open();
@@ -304,7 +306,7 @@ export default function HistoryScreen() {
     return (
       <Surface key={item.id} style={[styles.historyCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: statusColor }]} elevation={1}>
         <View style={styles.cardHeader}>
-          <Avatar.Text size={44} label={item.estudiante.substring(0, 2).toUpperCase()} style={{ backgroundColor: statusColor }} color={colors.textOnPrimary} />
+          <Avatar.Text size={44} label={item.estudiante.substring(0, 2).toUpperCase()} style={{ backgroundColor: COLORS.PRIMARIO }} color={COLORS.TEXTO_CONTRASTE} />
           <View style={styles.headerInfo}>
             <Text style={[styles.itemName, { color: colors.text }]}>{item.estudiante}</Text>
             <Text style={[styles.itemDate, { color: colors.textSecondary }]}>{item.fecha}</Text>

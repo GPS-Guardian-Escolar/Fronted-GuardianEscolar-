@@ -159,6 +159,14 @@ export default function ScanQrScreen() {
     }
   }, [router, t]);
 
+  useEffect(() => {
+    const studentId = String(params?.studentId || '').trim();
+    const code = String(params?.code || '').trim();
+    if (!code || params?.relink || isProcessing || success) return;
+
+    linkDevice({ studentId: studentId || undefined, code });
+  }, [isProcessing, linkDevice, params?.code, params?.relink, params?.studentId, success]);
+
   const handleQrValue = useCallback((value) => {
     if (isProcessing || success || scanLock.current) return;
 
@@ -299,7 +307,8 @@ export default function ScanQrScreen() {
             ref={cameraRef}
             key={`${permission.granted ? 'camera-enabled' : 'camera-disabled'}-${cameraKey}`}
             style={styles.camera}
-            facing={isMobile ? 'back' : 'front'}
+            // Use the rear camera for QR scanning on both native and web.
+            facing="back"
             active={isFocused && !cameraError}
             barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
             onBarcodeScanned={isProcessing || success ? undefined : ({ data }) => handleQrValue(data)}

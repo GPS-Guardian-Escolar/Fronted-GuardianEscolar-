@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Avatar, IconButton, Surface, Text } from 'react-native-paper';
 import { getInitials } from '../../../utils/studentStorage';
+import { COLORS } from '../../../constants/colors';
 
 export default function TrackingHeader({ student, status, onRefresh, colors, t }) {
   return (
@@ -10,8 +11,8 @@ export default function TrackingHeader({ student, status, onRefresh, colors, t }
         <Avatar.Text
           size={40}
           label={student ? getInitials(student.nombre) : '??'}
-          backgroundColor={colors.primary}
-          color={colors.textOnPrimary}
+          backgroundColor={COLORS.PRIMARIO}
+          color={COLORS.TEXTO_CONTRASTE}
         />
         <View>
           <Text style={[styles.name, { color: colors.text }]}>

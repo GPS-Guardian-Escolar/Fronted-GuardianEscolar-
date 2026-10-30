@@ -10,6 +10,7 @@ import { notificationService } from '../../services/notification.service';
 import { trackingService } from '../../services/tracking.service';
 import AppError from '../../components/ui/AppError';
 import AppLoading from '../../components/ui/AppLoading';
+import { COLORS } from '../../constants/colors';
 
 // ════════════════════════════════════════════════════════════════
 // BREAKPOINTS
@@ -224,8 +225,8 @@ export default function DashboardScreen() {
                       <Avatar.Text
                         size={44}
                         label={student.label || getInitials(student.nombre)}
-                        backgroundColor={theme.colors.primary}
-                        color={theme.colors.textOnPrimary}
+                        backgroundColor={COLORS.PRIMARIO}
+                        color={COLORS.TEXTO_CONTRASTE}
                       />
                     )}
                     <View style={styles.studentInfo}>

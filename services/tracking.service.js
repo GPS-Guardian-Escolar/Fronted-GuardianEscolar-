@@ -26,8 +26,8 @@ export const trackingService = {
     return response.data;
   },
 
-  listCoordinates: async (tripId) => {
-    const response = await api.get(ENDPOINTS.TRIP_COORDINATES(tripId));
+  listCoordinates: async (tripId, options = {}) => {
+    const response = await api.get(ENDPOINTS.TRIP_COORDINATES(tripId), buildChildAuthConfig(options));
     return response.data;
   },
 };

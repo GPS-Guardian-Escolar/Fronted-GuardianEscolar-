@@ -147,6 +147,7 @@ async function main() {
   const trackingCalls = [];
   const { trackingService } = loadModule('services/tracking.service.js', {
     './api': { __esModule: true, default: {
+      get: async (...args) => { trackingCalls.push(args); return { data: [] }; },
       post: async (...args) => { trackingCalls.push(args); return { data: {} }; },
       patch: async (...args) => { trackingCalls.push(args); return { data: {} }; },
     } },
@@ -159,12 +160,15 @@ async function main() {
     },
   });
   await trackingService.startTrip({ studentId: 'student-1' }, { childToken: 'device-token' });
+  await trackingService.listCoordinates('trip-1', { childToken: 'device-token' });
   await trackingService.addCoordinate('trip-1', { latitude: 4, longitude: -74 }, { childToken: 'device-token' });
   await trackingService.updateStatus('trip-1', { status: 'COMPLETED' }, { childToken: 'device-token' });
-  for (const call of trackingCalls) {
-    assert.equal(call[2].skipAuth, true);
-    assert.equal(call[2].headers.Authorization, 'Bearer device-token');
+  for (const [index, call] of trackingCalls.entries()) {
+    const config = index === 1 ? call[1] : call[2];
+    assert.equal(config.skipAuth, true);
+    assert.equal(config.headers.Authorization, 'Bearer device-token');
   }
+  assert.equal(trackingCalls[1][0], '/trips/trip-1/coordinates');
   const memory = new Map();
   const storage = {
     getItem: async key => memory.get(key) ?? null,

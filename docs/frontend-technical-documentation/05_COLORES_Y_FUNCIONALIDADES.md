@@ -1,218 +1,31 @@
-# 🎨 Colores y Funcionalidades
-## GPS Guardian Escolar
+﻿# Sistema visual y funcionalidades verificadas
 
-> Guía completa de la identidad visual y todas las funcionalidades disponibles en la aplicación.
+GPS Guardian Escolar usa una jerarquía visual común para que las pantallas de Hijos y Seguimiento presenten tarjetas, espaciado, etiquetas e iniciales de manera consistente. Esta guía documenta los tokens visuales actuales; no certifica capacidad, precisión GPS ni entrega de notificaciones externas.
 
----
+## Colores semánticos
 
-## 🎨 PALETA DE COLORES OFICIAL
+Los estados principales son azul para información, verde para éxito y rojo para errores o alertas. Los fondos, superficies, bordes y textos usan colores neutros. En tema oscuro se usan variantes con contraste suficiente; los tokens están centralizados en `theme/tokens.js`, `theme/colors.js`, `theme/lightTheme.js` y `theme/darkTheme.js`.
 
-La identidad visual de Guardian Escolar sigue la regla **60-30-10**:
-- **60%** → Color de fondo (Gris neutro claro).
-- **30%** → Color principal de marca (Azul Medianoche).
-- **10%** → Color de acento (Verde Lima).
+| Función | Tema claro | Tema oscuro |
+| --- | --- | --- |
+| Azul primario e información | `#1A4F8A` | `#9CCBFF` |
+| Verde de éxito | `#7BC74D` | `#9EE361` |
+| Rojo de error o alerta | `#B42318` | `#FFB4AB` |
 
----
+Las iniciales del estudiante usan siempre el color primario de marca dentro de una misma sesión visual; su fondo no cambia según el estado del trayecto. El estado se comunica con una etiqueta o indicador semántico adicional.
 
-### Colores Principales
+## Espaciado y componentes
 
-| Nombre en Código | Hex | Vista | Uso |
-|---|---|---|---|
-| `FONDO_PRINCIPAL` | `#F4F5F7` | ⬜ Gris muy claro | Fondo de todas las pantallas |
-| `PRIMARIO` | `#1A4F8A` | 🟦 Azul Medianoche | Barra superior, botones principales, marca |
-| `ACENTO` | `#7BC74D` | 🟩 Verde Lima | Detalles, estado seguro, acentos de diseño |
+La escala compartida de espaciado se define en `theme/tokens.js` (4, 8, 16, 24, 32 y 48 px). Los radios comunes son 6, 10 y 16 px. Las tarjetas principales de Hijos y Seguimiento mantienen la misma familia de bordes, separación y superficie; los controles interactivos conservan un área de toque accesible.
 
----
+## Alcance del seguimiento
 
-### Colores de Superficies
+La pantalla identifica una ubicación atrasada cuando hay un trayecto activo sin nuevos puntos GPS durante más de dos minutos y muestra la hora del último punto recibido cuando existe. La ausencia de puntos no permite asegurar si la causa es internet, GPS, permisos, batería o una pausa del rastreo.
 
-| Nombre en Código | Hex | Uso |
-|---|---|---|
-| `FONDO_TARJETA` | `#FFFFFF` | Fondo de tarjetas (blanco) |
-| `FONDO_INPUT` | `#F8F9FA` | Fondo de campos de texto |
-| `FONDO_HEADER` | `#1A4F8A` | Barra superior de navegación |
+El mapa conecta las coordenadas que el celular envía y filtra algunos saltos improbables. Los segmentos rectos entre muestras no representan cada giro exacto; la precisión depende del GPS, la frecuencia de envío, la conectividad y los permisos del teléfono. La aplicación no debe anunciar ese dibujo como navegación giro a giro.
 
----
+Ver [alcance del seguimiento, retención y políticas pendientes](tracking-scope-and-data-policy.md) para los límites observados, los plazos de datos que aún deben aprobarse, la capacidad que aún no tiene prueba de carga y las referencias de protección de datos de menores.
 
-### Colores de Texto
+## Verificación
 
-| Nombre en Código | Hex | Uso |
-|---|---|---|
-| `TEXTO_GENERAL` | `#1A1A1A` | Texto principal (negro suave) |
-| `TEXTO_CONTRASTE` | `#FFFFFF` | Texto sobre fondos oscuros (blanco) |
-| `TEXTO_SECUNDARIO` | `#6B7280` | Subtítulos, etiquetas, fechas (gris) |
-| `TEXTO_AZUL` | `#1A4F8A` | Texto con color de marca |
-
----
-
-### Variantes del Azul Principal
-
-| Nombre en Código | Hex | Uso |
-|---|---|---|
-| `PRIMARIO_OSCURO` | `#133A66` | Hover y estados presionados |
-| `PRIMARIO_SUAVE` | `#2A6CB5` | Gradientes y versiones más claras |
-| `PRIMARIO_CLARO` | `#E8EFF7` | Fondos con tono azul muy suave |
-
----
-
-### Variantes del Verde Acento
-
-| Nombre en Código | Hex | Uso |
-|---|---|---|
-| `ACENTO_OSCURO` | `#5C9E37` | Hover del botón verde |
-| `ACENTO_CLARO` | `#F1F9EE` | Fondo de badges de estado OK |
-
----
-
-### Colores de Estado y Alerta
-
-| Nombre en Código | Hex | Vista | Uso |
-|---|---|---|---|
-| `ALERTA` | `#E53935` | 🔴 Rojo | Errores, alertas críticas, estudiante fuera de ruta |
-| `ALERTA_CLARO` | `#FFEBEE` | Rojo muy claro | Fondo de tarjetas de alerta |
-| `ADVERTENCIA` | `#F59E0B` | 🟡 Amarillo | Advertencias y situaciones de precaución |
-| `ESTADO_OK` | `#7BC74D` | 🟢 Verde | Estado correcto, llegó a destino |
-| `ESTADO_ALERTA` | `#E53935` | 🔴 Rojo | Estado de alerta activa |
-
----
-
-### Colores de Bordes y Neutros
-
-| Nombre en Código | Hex | Uso |
-|---|---|---|
-| `BLANCO` | `#FFFFFF` | Blanco puro |
-| `NEGRO` | `#000000` | Negro puro |
-| `GRIS_BORDE` | `#E0E4E8` | Bordes de tarjetas e inputs |
-
----
-
-### Colores Legacy (Compatibilidad)
-
-> Estos colores existen para no romper pantallas antiguas. Son equivalentes a los colores principales.
-
-| Nombre Legacy | Equivalente Actual |
-|---|---|
-| `AZUL_FONDO` | = `FONDO_PRINCIPAL` |
-| `AZUL_BOTON` | = `PRIMARIO` |
-| `AZUL_LOGO` | = `PRIMARIO` |
-| `GRIS_TARJETA` | = `FONDO_TARJETA` |
-| `GRIS_INPUT` | = `FONDO_INPUT` |
-
----
-
-## ✅ FUNCIONALIDADES DE LA APLICACIÓN
-
-### 🔐 Módulo de Autenticación
-
-| Funcionalidad | Descripción |
-|---|---|
-| **Inicio de Sesión** | Login con correo y contraseña, opción "Recordarme" |
-| **Registro** | Creación de cuenta de acudiente con validación de campos |
-| **Recuperar Contraseña** | Flujo de 3 pasos: correo → código → nueva contraseña |
-| **Verificación por Código** | Código de 6 dígitos enviado al correo del usuario |
-
----
-
-### 👨‍👧 Módulo de Estudiantes
-
-| Funcionalidad | Descripción |
-|---|---|
-| **Ver Hijos** | Lista de todos los hijos vinculados con tarjeta visual |
-| **Agregar Hijo** | Formulario con nombre, grado, colegio, edad, contacto de emergencia |
-| **Editar Hijo** | Modificar todos los datos de un hijo existente |
-| **Eliminar Hijo** | Eliminación permanente + limpieza de historial y notificaciones asociadas |
-| **Foto del Hijo** | Tomar foto con la cámara o seleccionar de galería |
-| **Estado Manual** | Cambiar el estado del hijo: Zona Segura / En Trayecto / Alerta |
-| **Ver en Mapa** | Acceso rápido al mapa de seguimiento desde la tarjeta del hijo |
-
----
-
-### 🗺️ Módulo de Seguimiento GPS
-
-| Funcionalidad | Descripción |
-|---|---|
-| **Mapa en Tiempo Real** | Visualización del mapa con la posición del estudiante |
-| **Marcador Personalizado** | Pin con inicial del nombre y color según estado |
-| **Zona Segura Visual** | Círculo semitransparente en el mapa que indica el área segura |
-| **Panel de Estado** | Estado actual, velocidad, hora de última actualización |
-| **Selector de Hijo** | Cambiar entre hijos cuando hay varios registrados |
-| **Indicador Online/Offline** | Barra superior muestra si el servicio está activo (LIVE/Sin Señal) |
-
----
-
-### 🔔 Módulo de Notificaciones
-
-| Funcionalidad | Descripción |
-|---|---|
-| **Centro de Alertas** | Lista de todos los eventos con icono y color según tipo |
-| **Tipos de Notificación** | ✅ Exitosas, ⚠️ Advertencias, ℹ️ Informativas |
-| **Filtro por Tipo** | Ver solo un tipo de notificación a la vez |
-| **Eliminar Notificación** | Borrar un aviso individual de la lista |
-| **Contador de Notificaciones** | Muestra el total de notificaciones activas |
-
----
-
-### 📋 Módulo de Historial
-
-| Funcionalidad | Descripción |
-|---|---|
-| **Registro de Trayectos** | Lista completa de todos los eventos pasados |
-| **Filtro por Nombre** | Buscar eventos de un hijo específico |
-| **Filtro por Fecha** | Buscar eventos en una fecha específica |
-| **Filtro por Estado** | Completados / En Proceso / Con Incidente |
-| **Estadísticas Rápidas** | Contadores de cada tipo de estado al inicio de la pantalla |
-| **Detalle del Trayecto** | Hora inicio/fin, duración, estado, observación, ruta |
-| **Eliminar Registro** | Borrar un evento individual del historial |
-
----
-
-### 🗺️ Módulo de Zonas y Rutas
-
-| Funcionalidad | Descripción |
-|---|---|
-| **Crear Zona Segura** | Definir área con nombre, dirección y radio de cobertura |
-| **Editar Zona** | Modificar datos de una zona existente |
-| **Eliminar Zona** | Borrar una zona segura |
-| **Crear Ruta** | Definir ruta con nombre, punto de inicio y llegada |
-| **Editar Ruta** | Modificar datos de una ruta guardada |
-| **Eliminar Ruta** | Borrar una ruta del sistema |
-| **Asignar por Hijo** | Cada zona/ruta está vinculada a un hijo específico |
-
----
-
-### 👤 Módulo de Perfil
-
-| Funcionalidad | Descripción |
-|---|---|
-| **Ver Perfil** | Nombre, email, teléfono y foto del acudiente |
-| **Editar Perfil** | Modificar datos personales |
-| **Preferencias de Notificaciones** | Activar/desactivar por tipo de evento |
-| **Notificaciones por Email/SMS** | Configurar canales de notificación externos |
-| **Cambiar Contraseña** | Actualizar contraseña desde dentro de la app |
-| **Autenticación de Dos Factores** | Activar/desactivar 2FA para mayor seguridad |
-| **Selector de Idioma** | Cambiar entre Español e Inglés |
-| **Cerrar Sesión** | Limpiar sesión y volver a la pantalla de bienvenida |
-
----
-
-### 🌐 Funcionalidades Globales
-
-| Funcionalidad | Descripción |
-|---|---|
-| **Soporte Bilingüe** | Toda la app disponible en Español e Inglés |
-| **Modo Web** | Funciona en navegadores web con diseño adaptado |
-| **Modo Móvil** | Android e iOS con mapa real y GPS del dispositivo |
-| **Indicador LIVE** | Punto parpadeante en la barra superior (verde=conectado, rojo=sin señal) |
-| **Datos Locales** | Historial y notificaciones guardados en el dispositivo |
-| **Sincronización al entrar** | Cada pantalla recarga sus datos al ser visitada |
-
----
-
-## 🎨 Tipografía y Diseño
-
-- **Fuente:** Sistema (San Francisco en iOS, Roboto en Android, Inter en Web).
-- **Estilo:** Material Design 3 a través de `react-native-paper`.
-- **Tema:** Diseño claro (Light Mode) con superficies blancas y fondo gris.
-- **Bordes:** Redondeados (border-radius 8-16px) para un aspecto moderno.
-- **Sombras:** Elevación sutil en tarjetas para profundidad visual.
-- **Animaciones:** Punto LIVE parpadeante, transiciones de pantallas, estados de carga.
+Los tokens y componentes se pueden contrastar con el código indicado arriba. La prueba funcional del frontend cubre validaciones, QR, autenticación del estudiante, cola GPS, traducciones, historial y geometría de rutas; una prueba automatizada no reemplaza una prueba GPS con celulares reales ni una medición de carga en el entorno desplegado.

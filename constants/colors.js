@@ -25,7 +25,7 @@ export const COLORS = {
 
   ALERTA: lightColors.error,
   ALERTA_CLARO: '#FFEBEE',
-  ADVERTENCIA: '#F59E0B',
+  ADVERTENCIA: lightColors.primary,
   ESTADO_OK: '#7BC74D',
   ESTADO_ALERTA: lightColors.error,
 

@@ -23,11 +23,12 @@ import {
   stopBackgroundUpdates,
 } from '../services/background/locationTracking';
 import { BASE_URL } from '../config/endpoints';
+import { showPlatformConfirm, showPlatformNotice } from '../utils/noticeBus';
 import { AppTypography } from '../theme/tokens';
 import PermissionGate from '../features/child/components/PermissionGate';
 import SharingStatusCard from '../features/child/components/SharingStatusCard';
 import TripControls from '../features/child/components/TripControls';
-import TripMap from '../features/child/components/TripMap';
+import LanguageSelector from '../components/common/LanguageSelector';
 
 const DEVICE_ID_KEY = '@guardian_student_device_id';
 
@@ -113,14 +114,12 @@ export default function StudentDashboardScreen() {
         // The QR link code is single-use. Once this device already has a child
         // token, do not validate the consumed code again after navigation.
         if (existingSession.childToken && String(existingSession.studentId) === String(resolvedStudentId)) {
+          const profile = await studentService.childProfile(existingSession.childToken);
           if (mounted) {
-            setStudentProfile({
-              id: resolvedStudentId,
-              fullName: params.nombre || '',
-              contactPhone: params.telefono || '',
-            });
+            setStudentProfile(profile);
             setStoredSession(existingSession);
             setActiveTripId(existingSession.activeTripId || '');
+            setLinkedCount(profile.linkedDevices);
             setLinkStatus('linked');
           }
           return;
@@ -179,19 +178,29 @@ export default function StudentDashboardScreen() {
   }, [params.codigo, params.id, router]);
 
   React.useEffect(() => {
-    if (!params.id || !params.codigo) return undefined;
-
+    const resolvedStudentId = params.id || storedSession.studentId;
+    const resolvedCode = params.codigo || storedSession.studentCode;
+    if (!resolvedStudentId || !resolvedCode || linkStatus !== 'linked') return undefined;
     let mounted = true;
     const checkLinkStatus = async () => {
       try {
-        const profile = await studentService.linkedProfile(String(params.id), String(params.codigo));
+        const profile = storedSession.childToken
+          ? await studentService.childProfile(storedSession.childToken)
+          : await studentService.linkedProfile(String(resolvedStudentId), String(resolvedCode));
         const linkedDevices = Number(profile?.linkedDevices);
+        if (mounted) {
+          setStudentProfile(profile);
+          if (Number.isFinite(linkedDevices)) setLinkedCount(linkedDevices);
+        }
         if (mounted && Number.isFinite(linkedDevices) && linkedDevices < 1) {
           await clearChildSession();
           router.replace('/welcome');
         }
-      } catch {
-        // A temporary network failure must not expel the device.
+      } catch (error) {
+        if (mounted && [401, 403, 404].includes(error?.response?.status)) {
+          await clearChildSession();
+          router.replace('/welcome');
+        }
       }
     };
 
@@ -200,7 +209,7 @@ export default function StudentDashboardScreen() {
       mounted = false;
       clearInterval(timer);
     };
-  }, [params.codigo, params.id, router]);
+  }, [linkStatus, params.codigo, params.id, router, storedSession.studentId, storedSession.studentCode]);
   React.useEffect(() => {
     let mounted = true;
     const restoreTracking = async () => {
@@ -353,14 +362,14 @@ export default function StudentDashboardScreen() {
       setActiveTripId('');
       setTrackingStatus('paused');
     } catch (error) {
-      Alert.alert(t('error'), error.message || t('studentStopTrackingError'));
+      showPlatformNotice(t('error'), error.message || t('studentStopTrackingError'), { tone: 'error' });
     } finally {
       setTrackingLoading(false);
     }
   };
 
   const confirmFinishTracking = () => {
-    Alert.alert(
+    showPlatformConfirm(
       t('studentFinishTrip'),
       t('studentConfirmFinishTrip'),
       [
@@ -373,14 +382,14 @@ export default function StudentDashboardScreen() {
   const callEmergencyContact = async () => {
     const phoneDigits = String(parentPhone).replace(/[^\d+]/g, '');
     if (!phoneDigits || phoneDigits === t('notRegistered')) {
-      Alert.alert(t('studentContactUnavailable'), t('studentQrNoEmergencyPhone'));
+      showPlatformNotice(t('studentContactUnavailable'), t('studentQrNoEmergencyPhone'), { tone: 'warning' });
       return;
     }
 
     const phoneUrl = `tel:${phoneDigits}`;
     const supported = await Linking.canOpenURL(phoneUrl);
     if (!supported) {
-      Alert.alert(t('studentCannotCall'), t('studentDeviceCannotCall'));
+      showPlatformNotice(t('studentCannotCall'), t('studentDeviceCannotCall'), { tone: 'error' });
       return;
     }
     await Linking.openURL(phoneUrl);
@@ -391,6 +400,7 @@ export default function StudentDashboardScreen() {
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top, backgroundColor: colors.primary }]}>
         <Text style={[styles.headerTitle, { color: colors.textOnPrimary }]}>GPS Guardian Escolar</Text>
+        <LanguageSelector style={styles.headerControls} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -437,7 +447,6 @@ export default function StudentDashboardScreen() {
             sentCount={sentCount}
             activeTripId={activeTripId}
           />
-          <TripMap coordinates={[]} />
           <PermissionGate message={permissionError} onRetry={handleStartTracking} />
           {!permissionError && (
             <TripControls
@@ -547,15 +556,20 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   header: {
     paddingBottom: 15,
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
+    justifyContent: 'space-between',
   },
   headerTitle: {
     color: '#FFF',
-    fontSize: 20,
+    flex: 1,
+    fontSize: 16,
     fontWeight: 'bold',
+    marginRight: 8,
+  },
+  headerControls: {
+    flexShrink: 0,
   },
   scrollContent: {
     flexGrow: 1,
