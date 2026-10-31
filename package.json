@@ -13,6 +13,7 @@
     "web": "expo start --web",
     "web:lan": "expo start --web --host lan --port 8081 --clear",
     "test": "node scripts/verify-functional-fixes.cjs",
+    "security:release": "node scripts/validate-release-artifacts.cjs",
     "lint": "eslint --no-cache --ignore-pattern dist --ignore-pattern .expo ."
   },
   "dependencies": {
