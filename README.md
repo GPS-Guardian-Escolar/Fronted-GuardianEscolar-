@@ -121,9 +121,16 @@ Variables principales:
 ## Validacion
 
 ```powershell
+npm run security:release
 npm run lint
 npx expo export --platform web
 ```
+
+Los APK no se almacenan en el repositorio ni en las ramas de trabajo. Se generan con
+EAS y se publican como activos de un GitHub Release. La clave de Google Maps se configura
+como variable de entorno restringida por dominio o aplicación; nunca se copia a código,
+`.env.example`, commits o artefactos. Si una clave apareció en una rama histórica, debe
+revocarse y regenerarse desde Google Cloud aunque ya no esté en la rama actual.
 
 El lint puede mostrar advertencias preexistentes de `utils/studentStorage.js`; deben
 separarse de errores introducidos por la configuracion de Render.
