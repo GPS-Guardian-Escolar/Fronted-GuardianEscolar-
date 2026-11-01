@@ -123,7 +123,9 @@ export default function NotificationsScreen() {
       const confirmed = window.confirm(t('delete') + '?');
       if (confirmed) {
         (async () => {
-          await deleteNotification(item.id);
+          const isRemoteReceipt = item.receiptId && !String(item.receiptId).startsWith('notif-');
+          if (isRemoteReceipt) await notificationService.deleteNotification(item.receiptId);
+          else await deleteNotification(item.id);
           await deleteHistory(item.id);
           setNotifications(prev => prev.filter(n => n.id !== item.id));
         })();
@@ -140,7 +142,9 @@ export default function NotificationsScreen() {
           text: t('delete'), 
           style: 'destructive',
           onPress: async () => {
-            await deleteNotification(item.id);
+            const isRemoteReceipt = item.receiptId && !String(item.receiptId).startsWith('notif-');
+            if (isRemoteReceipt) await notificationService.deleteNotification(item.receiptId);
+            else await deleteNotification(item.id);
             await deleteHistory(item.id);
             setNotifications(prev => prev.filter(n => n.id !== item.id));
           }
