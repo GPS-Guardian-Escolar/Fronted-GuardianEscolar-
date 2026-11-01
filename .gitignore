@@ -55,3 +55,6 @@ app-example
 
 # generated mobile artifacts
 /public/*.apk
+
+# test coverage output
+/coverage/
