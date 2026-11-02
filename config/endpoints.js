@@ -240,6 +240,7 @@ export const ENDPOINTS = {
   TRIP_COORDINATES: (id) => `/trips/${id}/coordinates`,
 
   NOTIFICATIONS: '/notifications',
+  NOTIFICATION_BY_ID: (id) => `/notifications/${id}`,
   MARK_READ: (id) => `/notifications/${id}/read`,
   MARK_ALL_READ: '/notifications/read-all',
   NOTIFICATION_SETTINGS: '/notifications/settings',

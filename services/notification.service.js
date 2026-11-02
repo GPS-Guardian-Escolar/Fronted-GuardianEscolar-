@@ -67,6 +67,10 @@ export const notificationService = {
     return response.data;
   },
 
+  deleteNotification: async (receiptId) => {
+    await api.delete(ENDPOINTS.NOTIFICATION_BY_ID(receiptId));
+  },
+
   markAsRead: async (receiptId) => {
     const response = await api.patch(ENDPOINTS.MARK_READ(receiptId));
     return response.data;
