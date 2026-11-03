@@ -4,7 +4,7 @@ import { ENDPOINTS } from '../config/endpoints';
 export const trackingService = {
   listTrips: async () => {
     const response = await api.get(ENDPOINTS.TRIPS);
-    return response.data;
+    return response.data.items ?? response.data;
   },
 
   startTrip: async ({ studentId, routeId, tripStartedAt }, options = {}) => {
@@ -28,7 +28,7 @@ export const trackingService = {
 
   listCoordinates: async (tripId, options = {}) => {
     const response = await api.get(ENDPOINTS.TRIP_COORDINATES(tripId), buildChildAuthConfig(options));
-    return response.data;
+    return response.data.items ?? response.data;
   },
 };
 

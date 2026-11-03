@@ -4,7 +4,7 @@ import { ENDPOINTS } from '../config/endpoints';
 export const studentService = {
   list: async () => {
     const response = await api.get(ENDPOINTS.STUDENTS);
-    return response.data;
+    return response.data.items ?? response.data;
   },
 
   create: async ({ fullName, schoolGrade, birthDate, userId, photoData, emergencyContact }) => {

@@ -64,7 +64,7 @@ export const notificationService = {
 
   listNotifications: async () => {
     const response = await api.get(ENDPOINTS.NOTIFICATIONS);
-    return response.data;
+    return response.data.items ?? response.data;
   },
 
   deleteNotification: async (receiptId) => {
