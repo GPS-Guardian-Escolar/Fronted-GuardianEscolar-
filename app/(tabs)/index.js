@@ -8,6 +8,9 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { getInitials, getNotifications, getStudents } from '../../utils/studentStorage';
 import { notificationService } from '../../services/notification.service';
 import { trackingService } from '../../services/tracking.service';
+import AppError from '../../components/ui/AppError';
+import AppLoading from '../../components/ui/AppLoading';
+import { COLORS } from '../../constants/colors';
 
 // ════════════════════════════════════════════════════════════════
 // BREAKPOINTS
@@ -33,38 +36,47 @@ export default function DashboardScreen() {
   const [students, setStudents] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [trips, setTrips] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [retryKey, setRetryKey] = useState(0);
   const { t } = useLanguage();
   const { theme } = useTheme();
 
   useFocusEffect(
     useCallback(() => {
       let isActive = true;
+      void retryKey;
+      setLoading(true);
+      setLoadError(null);
 
       Promise.all([
         getStudents(),
-        notificationService.listNotifications().catch(() => []),
-        getNotifications().catch(() => []),
-        trackingService.listTrips().catch(() => []),
+        notificationService.listNotifications(),
+        getNotifications(),
+        trackingService.listTrips(),
       ])
         .then(([storedStudents, apiNotifications, storedNotifications, apiTrips]) => {
           if (!isActive) return;
           setStudents(storedStudents);
           setNotifications([...apiNotifications, ...storedNotifications]);
           setTrips(apiTrips);
+          setLoading(false);
         })
         .catch((error) => {
           if (!isActive) return;
-          setStudents([]);
-          setNotifications([]);
-          setTrips([]);
+          setLoadError(error);
+          setLoading(false);
           console.warn('No se pudieron cargar los datos del panel:', error?.message || error);
         });
 
       return () => {
         isActive = false;
       };
-    }, [])
+    }, [retryKey])
   );
+
+  if (loading) return <AppLoading message="Cargando panel..." />;
+  if (loadError) return <AppError message="No se pudo cargar el panel." onRetry={() => setRetryKey((value) => value + 1)} />;
 
   const unreadNotifications = notifications.filter((notification) => !notification.leida && !notification.read);
   const recentNotifications = notifications.slice(0, 3);
@@ -213,8 +225,8 @@ export default function DashboardScreen() {
                       <Avatar.Text
                         size={44}
                         label={student.label || getInitials(student.nombre)}
-                        backgroundColor={theme.colors.primary}
-                        color={theme.colors.textOnPrimary}
+                        backgroundColor={COLORS.PRIMARIO}
+                        color={COLORS.TEXTO_CONTRASTE}
                       />
                     )}
                     <View style={styles.studentInfo}>

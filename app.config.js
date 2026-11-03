@@ -25,4 +25,11 @@ module.exports = {
       googleMapsApiKey,
     },
   },
+  extra: {
+    ...(baseConfig.expo.extra || {}),
+    eas: {
+      ...(baseConfig.expo.extra?.eas || {}),
+      projectId: '368acaa4-e953-4515-b958-4bcf16b5aa2b',
+    },
+  },
 };

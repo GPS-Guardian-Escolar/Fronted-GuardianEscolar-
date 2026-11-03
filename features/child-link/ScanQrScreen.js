@@ -147,6 +147,8 @@ export default function ScanQrScreen() {
         params: {
           id: String(linkedStudentId),
           codigo: String(payload.code),
+          nombre: payload.name || '',
+          telefono: payload.contactPhone || '',
         },
       });
     } catch (error) {
@@ -156,6 +158,14 @@ export default function ScanQrScreen() {
       scanLock.current = false;
     }
   }, [router, t]);
+
+  useEffect(() => {
+    const studentId = String(params?.studentId || '').trim();
+    const code = String(params?.code || '').trim();
+    if (!code || params?.relink || isProcessing || success) return;
+
+    linkDevice({ studentId: studentId || undefined, code });
+  }, [isProcessing, linkDevice, params?.code, params?.relink, params?.studentId, success]);
 
   const handleQrValue = useCallback((value) => {
     if (isProcessing || success || scanLock.current) return;
@@ -181,13 +191,11 @@ export default function ScanQrScreen() {
     const scanFrame = () => {
       const video = cameraContainerRef.current?.querySelector?.('video');
       if (!video || video.readyState < 2 || video.videoWidth < 1 || video.videoHeight < 1) return;
-      const sourceSize = Math.min(video.videoWidth, video.videoHeight);
-      const sourceX = Math.max(0, (video.videoWidth - sourceSize) / 2);
-      const sourceY = Math.max(0, (video.videoHeight - sourceSize) / 2);
-      canvas.width = sourceSize;
-      canvas.height = sourceSize;
+      const scale = Math.min(1, 1280 / video.videoWidth, 1280 / video.videoHeight);
+      canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+      canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
       const context = canvas.getContext('2d', { willReadFrequently: true });
-      context.drawImage(video, sourceX, sourceY, sourceSize, sourceSize, 0, 0, sourceSize, sourceSize);
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
       const image = context.getImageData(0, 0, canvas.width, canvas.height);
       const result = jsQR(image.data, canvas.width, canvas.height, {
         inversionAttempts: 'attemptBoth',
@@ -299,6 +307,7 @@ export default function ScanQrScreen() {
             ref={cameraRef}
             key={`${permission.granted ? 'camera-enabled' : 'camera-disabled'}-${cameraKey}`}
             style={styles.camera}
+            // Use the rear camera for QR scanning on both native and web.
             facing="back"
             active={isFocused && !cameraError}
             barcodeScannerSettings={{ barcodeTypes: ['qr'] }}

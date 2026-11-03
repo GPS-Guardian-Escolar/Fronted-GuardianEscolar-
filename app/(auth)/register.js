@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Dimensions, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Button, Checkbox, Text, TextInput } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
@@ -11,11 +11,10 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import LanguageSelector from '../../components/common/LanguageSelector';
 import { validateInputEdit, isValidEmail, isValidPersonName, isValidPhone, normalizeColombianPhoneInput, passwordChecks } from '../../utils/validators';
-
-const isWeb = Dimensions.get('window').width > 768;
+import { emitNotice } from '../../utils/noticeBus';
 
 const TERMS_VERSION = '2026-08-20';
-const TERMS_SECTION_KEYS = Array.from({ length: 8 }, (_, index) => index + 1);
+const TERMS_SECTION_KEYS = Array.from({ length: 9 }, (_, index) => index + 1);
 
 // CheckItem sin gap, sin whitespace entre nodos
 const CheckItem = ({ ok, label, colors }) => (
@@ -62,6 +61,8 @@ const FieldSvgIcon = ({ type, color, size = 22 }) => {
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isWeb = width > 768;
   const [inputNotice, setInputNotice] = useState('');
   function changeInput(value, kind, setter) {
     if (!validateInputEdit(value, kind)) {
@@ -112,7 +113,7 @@ export default function RegisterScreen() {
     try {
       await authService.register({ name: name.trim(), email: email.trim(), password, phone: phoneDigits, acceptedTerms: true, termsVersion: TERMS_VERSION });
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        window.alert(`${t('success')}\n\n${t('authRegisterSuccess')}`);
+        emitNotice(t('success'), t('authRegisterSuccess'), { tone: 'success' });
       } else {
         Alert.alert(t('success'), t('authRegisterSuccess'));
       }
@@ -141,10 +142,10 @@ export default function RegisterScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={styles.cardWrapper}>
             <Image source={require('../../assets/images/logo.png')} style={styles.headerLogo} contentFit="contain" />
-            <Text style={[styles.headerTitle, { color: colors.primary }]}>{t('appName')}</Text>
+            <Text style={[styles.headerTitle, { color: colors.primary, fontSize: isWeb ? 32 : 22 }]}>{t('appName')}</Text>
 
             <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>{t('authRegister')}</Text>
+              <Text style={[styles.cardTitle, { color: colors.text, fontSize: isWeb ? 24 : 20 }]}>{t('authRegister')}</Text>
               <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>{t('authEnterEmail')}</Text>
 
               {inputNotice ? <Text accessibilityRole="alert" style={{ color: colors.error }}>{t(inputNotice)}</Text> : null}
@@ -328,6 +329,15 @@ export default function RegisterScreen() {
                   <Text style={[styles.termsBody, { color: colors.textSecondary }]}>{t(`authTerms${index}Body`).replace('{version}', TERMS_VERSION)}</Text>
                 </View>
               ))}
+              <TouchableOpacity onPress={() => Linking.openURL('https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=49981')} accessibilityRole="link">
+                <Text style={[styles.termsBody, { color: colors.primary, textDecorationLine: 'underline' }]}>{t('authTermsLaw1581')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => Linking.openURL('https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=53646')} accessibilityRole="link">
+                <Text style={[styles.termsBody, { color: colors.primary, textDecorationLine: 'underline' }]}>{t('authTermsDecree1377')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => Linking.openURL('https://sedeelectronica.sic.gov.co/publicaciones/boletin-juridico/boletin/el-silencio-las-casillas-premarcadas-y-la-inaccion-no-constituyen-el-consentimiento-conforme-con')} accessibilityRole="link">
+                <Text style={[styles.termsBody, { color: colors.primary, textDecorationLine: 'underline' }]}>{t('authTermsSicConsent')}</Text>
+              </TouchableOpacity>
             </ScrollView>
             <Button
               mode="contained"
@@ -355,14 +365,14 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1, justifyContent: 'center' },
   cardWrapper: { width: '100%', alignItems: 'center', padding: 20, alignSelf: 'center' },
   headerLogo: { width: 120, height: 120, marginBottom: 6 },
-  headerTitle: { fontSize: isWeb ? 32 : 22, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
+  headerTitle: { fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
   card: {
     width: '100%', maxWidth: 430,
     padding: 18, borderRadius: 12, elevation: 3,
     shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6,
     borderWidth: 1,
   },
-  cardTitle: { fontSize: isWeb ? 24 : 20, fontWeight: '700', textAlign: 'center', marginBottom: 4 },
+  cardTitle: { fontWeight: '700', textAlign: 'center', marginBottom: 4 },
   cardSubtitle: { fontSize: 13, textAlign: 'center', marginBottom: 16 },
   inputGroup: { marginBottom: 12 },
   label: { fontSize: 13, fontWeight: '600', marginBottom: 4 },

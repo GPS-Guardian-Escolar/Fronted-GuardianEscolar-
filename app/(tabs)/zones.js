@@ -9,6 +9,7 @@ import { getStudents, addZone, updateZone, deleteZone, getInitials, addRoute, up
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { calculateRouteGeometry } from '../../utils/routeGeometry';
+import { emitNotice } from '../../utils/noticeBus';
 
 const { width } = Dimensions.get('window');
 const isWeb = width > 768;
@@ -18,7 +19,7 @@ const VALID_ZONE_TYPES = ['Casa', 'Escuela', 'Personalizado'];
 
 function showZonesAlert(title, message) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    window.alert(`${title}\n\n${message}`);
+    emitNotice(title, message, { tone: 'error' });
     return;
   }
   Alert.alert(title, message);

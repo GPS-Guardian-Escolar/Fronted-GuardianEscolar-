@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Dimensions, ScrollView } from 'react-native';
-import { Avatar, Text, Surface, IconButton, Button } from 'react-native-paper';
+import { View, StyleSheet, ActivityIndicator, Dimensions, ScrollView } from 'react-native';
+import { Text, Surface, IconButton, Button, Switch } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { COLORS } from '../../constants/colors';
@@ -9,7 +9,10 @@ import { getStudents, getInitials } from '../../utils/studentStorage';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { trackingService } from '../../services/tracking.service';
-import { createTrackingSocket } from '../../services/socket';
+import { notificationService } from '../../services/notification.service';
+import { useTrackingRealtime } from '../../hooks/useTrackingRealtime';
+import TrackingHeader from '../../features/tracking/components/TrackingHeader';
+import TrackingStudentSelector from '../../features/tracking/components/TrackingStudentSelector';
 import { calculateRouteGeometry } from '../../utils/routeGeometry';
 
 const { width } = Dimensions.get('window');
@@ -61,6 +64,15 @@ function filterJourneyCoordinates(points) {
   return accepted;
 }
 
+const RECENT_ALERT_TRANSLATION_KEYS = {
+  DELAY: 'trackAlertDelay',
+  INACTIVITY: 'trackAlertInactivity',
+  ROUTE_DEVIATION: 'trackAlertRouteDeviation',
+  SAFE_ZONE_ENTRY: 'trackAlertSafeZoneEntry',
+  SAFE_ZONE_EXIT: 'trackAlertSafeZoneExit',
+  TRIP_STARTED: 'trackAlertTripStarted',
+};
+
 export default function TrackingScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -72,13 +84,25 @@ export default function TrackingScreen() {
   const [routeGeometry, setRouteGeometry] = useState([]);
   const [routeGeometries, setRouteGeometries] = useState([]);
   const [journeyCoordinates, setJourneyCoordinates] = useState([]);
+  const [recentAlert, setRecentAlert] = useState(null);
+  const [showJourneyPath, setShowJourneyPath] = useState(true);
+  const [showAssignedRoute, setShowAssignedRoute] = useState(true);
   const [activeTrip, setActiveTrip] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [clockNow, setClockNow] = useState(0);
   const refreshSequence = useRef(0);
   const lastStudentId = useRef(null);
-  const { t } = useLanguage();
+  const { lang, t } = useLanguage();
   const { theme } = useTheme();
   const colors = theme.colors;
+  const locationTimestamp = location?.timestamp || new Date(location?.recordedAt || 0).getTime();
+  const tripStartedAt = new Date(activeTrip?.tripStartedAt || 0).getTime();
+  const isLocationStale = Boolean(activeTrip && (
+    (location && Number.isFinite(locationTimestamp) && clockNow - locationTimestamp > 2 * 60 * 1000)
+    || (!location && Number.isFinite(tripStartedAt) && tripStartedAt > 0 && clockNow - tripStartedAt > 2 * 60 * 1000)
+  ));
+  const recentAlertEventType = String(recentAlert?.eventType || '').toUpperCase();
+  const isRecentAlertWarning = ['DELAY', 'INACTIVITY', 'ROUTE_DEVIATION', 'SAFE_ZONE_EXIT'].includes(recentAlertEventType);
   const themed = {
     screen: { backgroundColor: colors.background },
     surface: { backgroundColor: colors.surface, borderColor: colors.border },
@@ -86,6 +110,12 @@ export default function TrackingScreen() {
     text: { color: colors.text },
     textSecondary: { color: colors.textSecondary },
   };
+
+  useEffect(() => {
+    setClockNow(Date.now());
+    const timer = setInterval(() => setClockNow(Date.now()), 15000);
+    return () => clearInterval(timer);
+  }, []);
 
   const refreshLocation = useCallback(async (showSpinner = true) => {
     const sequence = ++refreshSequence.current;
@@ -114,11 +144,11 @@ export default function TrackingScreen() {
       const routes = selectedStudent.routes || [];
       const routePaths = await Promise.all(routes.map(async (route, index) => {
         const geometry = await calculateRouteGeometry(route).catch(() => []);
-        return { id: route.id || `route-${index}`, coordinates: geometry, color: '#8B95A7' };
+        return { id: route.id || `route-${index}`, coordinates: geometry, color: colors.textMuted };
       }));
       if (sequence !== refreshSequence.current) return;
       setStudentZones(zones.filter(zone => String(zone.studentId) === String(studentId)));
-      setRouteGeometries(routePaths.filter(path => path.coordinates.length >= 2).map(path => ({ ...path, color: '#8B95A7' })));
+      setRouteGeometries(routePaths.filter(path => path.coordinates.length >= 2));
       setRouteGeometry(routePaths[0]?.coordinates || []);
       if (Number(selectedStudent.dispositivos_vinculados || 0) < 1) {
         setLocation(null);
@@ -136,6 +166,7 @@ export default function TrackingScreen() {
       if (!selectedTrip) {
         setLocation(null);
         setJourneyCoordinates([]);
+        setRecentAlert(null);
         return;
       }
       const coordinates = await trackingService.listCoordinates(selectedTrip.id);
@@ -154,7 +185,7 @@ export default function TrackingScreen() {
           recordedAt: point.recordedAt,
         }))
         .filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && Number.isFinite(point.timestamp)));
-      setJourneyCoordinates(validCoordinates.map(({ latitude, longitude }) => ({ latitude, longitude })));
+      setJourneyCoordinates(validCoordinates.map(({ latitude, longitude, timestamp }) => ({ latitude, longitude, timestamp })));
       const latest = validCoordinates[validCoordinates.length - 1];
       if (!latest) {
         setLocation(null);
@@ -171,7 +202,7 @@ export default function TrackingScreen() {
     } finally {
       if (sequence === refreshSequence.current) setIsLoading(false);
     }
-  }, [selectedStudent]);
+  }, [selectedStudent, colors.textMuted]);
 
   useFocusEffect(
     useCallback(() => {
@@ -205,104 +236,80 @@ export default function TrackingScreen() {
   }, [refreshLocation]);
 
   useEffect(() => {
-    if (!activeTrip?.id) return undefined;
-
-    let disposed = false;
-    let client;
-    createTrackingSocket({
-      tripId: activeTrip.id,
-      onCoordinate: (point) => {
-        if (disposed) return;
-        const normalized = {
-          latitude: Number(point.latitude),
-          longitude: Number(point.longitude),
-          timestamp: new Date(point.recordedAt || point.createdAt || Date.now()).getTime(),
-          accuracy: point.accuracy,
-          recordedAt: point.recordedAt,
-        };
-        if (!Number.isFinite(normalized.latitude) || !Number.isFinite(normalized.longitude)) return;
-        setLocation(normalized);
-        setJourneyCoordinates(current => [
-          ...current,
-          normalized,
-        ].slice(-500).map(({ latitude, longitude }) => ({ latitude, longitude })));
-      },
-      onError: (error) => {
-        if (!disposed) console.warn('Seguimiento en tiempo real no disponible:', error?.message || error);
-      },
-    }).then((connectedClient) => {
-      if (disposed) {
-        connectedClient.deactivate();
-      } else {
-        client = connectedClient;
+    if (!activeTrip?.id) {
+      setRecentAlert(null);
+      return undefined;
+    }
+    let mounted = true;
+    const refreshRecentAlert = async () => {
+      try {
+        const notifications = await notificationService.listNotifications();
+        if (!mounted || !Array.isArray(notifications)) return;
+        const matchingAlerts = notifications
+          .filter(item => String(item.tripId || '') === String(activeTrip.id))
+          .sort((a, b) => new Date(b.receivedAt || b.eventDateTime || 0) - new Date(a.receivedAt || a.eventDateTime || 0));
+        setRecentAlert(matchingAlerts[0] || null);
+      } catch {
+        // Conserva la alerta visible si el servicio de notificaciones no responde temporalmente.
       }
-    }).catch((error) => {
-      if (!disposed) console.warn('No se pudo conectar el seguimiento en tiempo real:', error?.message || error);
-    });
-
+    };
+    refreshRecentAlert();
+    const timer = setInterval(refreshRecentAlert, 15000);
     return () => {
-      disposed = true;
-      client?.deactivate();
+      mounted = false;
+      clearInterval(timer);
     };
   }, [activeTrip?.id]);
+
+  useTrackingRealtime(activeTrip?.id, {
+    onCoordinate: (point) => {
+      const normalized = {
+        latitude: Number(point.latitude),
+        longitude: Number(point.longitude),
+        timestamp: new Date(point.recordedAt || point.createdAt || Date.now()).getTime(),
+        accuracy: point.accuracy,
+        recordedAt: point.recordedAt,
+      };
+      if (!Number.isFinite(normalized.latitude) || !Number.isFinite(normalized.longitude)) return;
+      setLocation(normalized);
+      setJourneyCoordinates(current => {
+        const ordered = [...current, normalized]
+          .filter(point => Number.isFinite(point.timestamp))
+          .sort((a, b) => a.timestamp - b.timestamp)
+          .filter((point, index, all) => index === 0 || point.timestamp !== all[index - 1].timestamp)
+          .slice(-500);
+        return filterJourneyCoordinates(ordered);
+      });
+    },
+    onError: (error) => console.warn(
+      'Seguimiento en tiempo real no disponible:',
+      error?.message || error,
+    ),
+  });
 
   return (
     <View style={[styles.container, themed.screen]}>
       <ScrollView contentContainerStyle={[styles.scrollContent, isWeb && styles.scrollContentWeb]}>
         
-        {/* Cabecera del Estudiante */}
-        <Surface style={[styles.headerCard, themed.surface]} elevation={1}>
-          <View style={styles.headerProfile}>
-            <Avatar.Text 
-              size={40} 
-              label={selectedStudent ? getInitials(selectedStudent.nombre) : '??'} 
-              backgroundColor={colors.primary} 
-              color={colors.textOnPrimary} 
-            />
-            <View style={styles.headerTextCol}>
-              <Text style={[styles.studentName, themed.text]}>{selectedStudent?.nombre || t('trackSelectStudent')}</Text>
-              <Text style={[styles.studentStatus, themed.textSecondary]}>
-                {Number(selectedStudent?.dispositivos_vinculados || 0) < 1
-                  ? t('trackNoDevice')
-                  : activeTrip ? t('trackOnline') : t('trackWaitingTrip')}
-              </Text>
-            </View>
-          </View>
-          <IconButton 
-            icon="refresh" 
-            size={20} 
-            style={[styles.refreshBtn, themed.surfaceSecondary]} 
-            iconColor={colors.textSecondary} 
-            onPress={() => refreshLocation(false)}
-          />
-        </Surface>
+        <TrackingHeader
+          student={selectedStudent}
+          status={
+            Number(selectedStudent?.dispositivos_vinculados || 0) < 1
+              ? t('trackNoDevice')
+              : activeTrip && isLocationStale ? t('trackOffline')
+                : activeTrip ? t('trackOnline') : t('trackWaitingTrip')
+          }
+          onRefresh={() => refreshLocation(false)}
+          colors={colors}
+          t={t}
+        />
 
-        {/* Selector de Estudiantes Horizontal */}
-        <View style={styles.selectorContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectorScroll}>
-            {students.map(student => (
-              <TouchableOpacity 
-                key={student.id} 
-                onPress={() => handleSelectStudent(student)}
-                style={[
-                  styles.selectorItem, 
-                  themed.surface,
-                  selectedStudent?.id === student.id && { borderColor: colors.primary, borderWidth: 2 }
-                ]}
-              >
-                <Avatar.Text 
-                  size={42} 
-                  label={getInitials(student.nombre)} 
-                  backgroundColor={colors.primary} 
-                  color={colors.textOnPrimary} 
-                />
-                <Text style={[styles.selectorLabel, themed.textSecondary, selectedStudent?.id === student.id && { color: colors.primary, fontWeight: 'bold' }]} numberOfLines={1}>
-                  {student.nombre.split(' ')[0]}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+        <TrackingStudentSelector
+          students={students}
+          selectedStudent={selectedStudent}
+          onSelect={handleSelectStudent}
+          colors={colors}
+        />
 
         {/* Tarjeta del Mapa */}
         <Surface style={[styles.mapCard, themed.surface]} elevation={1}>
@@ -319,10 +326,10 @@ export default function TrackingScreen() {
               }),
             ]}
             safeZones={(studentZones || []).map(zone => ({ ...zone, color: getZoneColor(zone, colors), center: zone.center || { latitude: Number(zone.latitude), longitude: Number(zone.longitude) } }))}
-            coordinates={routeGeometry}
-            showRoute={routeGeometry.length >= 2}
-            routePaths={routeGeometries}
-            journeyCoordinates={journeyCoordinates}
+            coordinates={showAssignedRoute ? routeGeometry : []}
+            showRoute={showAssignedRoute && routeGeometry.length >= 2}
+            routePaths={showAssignedRoute ? routeGeometries : []}
+            journeyCoordinates={showJourneyPath ? journeyCoordinates : []}
           />
           {isLoading && (
             <View pointerEvents="none" style={styles.loadingOverlay}>
@@ -341,23 +348,39 @@ export default function TrackingScreen() {
           {/* Leyenda del Mapa */}
           <View style={[styles.mapLegend, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
             <View style={styles.legendRow}>
-              <View style={[styles.legendDot, { backgroundColor: COLORS.PRIMARIO }]} />
-              <Text style={[styles.legendText, themed.text]}>{t('trackCurrentLocation')}</Text>
+              <View style={[styles.legendDot, { backgroundColor: colors.primary }]} />
+              <Text style={[styles.legendText, { color: colors.text }]}>{t('trackCurrentLocation')}</Text>
             </View>
             <View style={styles.legendRow}>
-              <View style={[styles.legendLine, { backgroundColor: COLORS.PRIMARIO }]} />
-              <Text style={[styles.legendText, themed.text]}>{t('trackJourney')}</Text>
+              <View style={[styles.legendLine, { backgroundColor: colors.primary }]} />
+              <Text style={[styles.legendText, { color: colors.text }]}>{t('trackJourney')}</Text>
             </View>
             <View style={styles.legendRow}>
-              <View style={[styles.legendLine, { backgroundColor: COLORS.TEXTO_SECUNDARIO, borderStyle: 'dashed' }]} />
-              <Text style={[styles.legendText, themed.text]}>{t('trackAssignedRoute')}</Text>
+              <View style={[styles.legendLine, { backgroundColor: colors.textMuted, borderStyle: 'dashed' }]} />
+              <Text style={[styles.legendText, { color: colors.text }]}>{t('trackAssignedRoute')}</Text>
             </View>
             <View style={styles.legendRow}>
-              <View style={[styles.legendDot, { backgroundColor: COLORS.ACENTO }]} />
-              <Text style={[styles.legendText, themed.text]}>{t('trackSafeZone')}</Text>
+              <View style={[styles.legendDot, { backgroundColor: colors.success }]} />
+              <Text style={[styles.legendText, { color: colors.text }]}>{t('trackSafeZone')}</Text>
             </View>
           </View>
         </Surface>
+
+        <Surface style={[styles.mapOptions, themed.surface]} elevation={0}>
+          <View style={styles.mapOptionRow}>
+            <Text style={[styles.mapOptionLabel, themed.text]}>{t('trackShowJourney')}</Text>
+            <Switch value={showJourneyPath} onValueChange={setShowJourneyPath} color={colors.primary} />
+          </View>
+          <View style={styles.mapOptionRow}>
+            <Text style={[styles.mapOptionLabel, themed.text]}>{t('trackShowAssignedRoute')}</Text>
+            <Switch value={showAssignedRoute} onValueChange={setShowAssignedRoute} color={colors.primary} />
+          </View>
+        </Surface>
+
+        <View style={[styles.trackingNote, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
+          <MaterialCommunityIcons name="information-outline" size={18} color={colors.info} />
+          <Text style={[styles.trackingNoteText, themed.textSecondary]}>{t('trackAccuracyNote')}</Text>
+        </View>
 
         {/* Última Actualización */}
         <Surface style={[styles.infoCard, themed.surface]} elevation={1}>
@@ -365,15 +388,27 @@ export default function TrackingScreen() {
             <View>
               <Text style={[styles.cardTitle, themed.text]}>{t('trackLastUpdate')}</Text>
               <Text style={[styles.cardSubtitle, themed.textSecondary]}>
-                {location ? 'Ubicación local actualizada' : 'Sin ubicación disponible'}
+                {isLocationStale && location
+                  ? `${t('trackLastLocationReceived')} ${new Date(locationTimestamp).toLocaleTimeString(
+                    { es: 'es-CO', en: 'en-US', fr: 'fr-FR', pt: 'pt-BR' }[lang] || 'es-CO',
+                    { hour: '2-digit', minute: '2-digit' },
+                  )}`
+                  : isLocationStale ? t('trackNoRecentLocation')
+                    : location ? t('trackLocationUpdated') : t('trackNoLocation')}
               </Text>
             </View>
-            <View style={[styles.activeBadge, { backgroundColor: colors.accentLight }]}>
-              <Text style={[styles.activeBadgeText, { color: location ? colors.success : colors.warning }]}>
-                {location ? t('trackActive') : 'Sin datos'}
+            <View style={[styles.activeBadge, { backgroundColor: isLocationStale ? colors.errorLight : colors.accentLight }]}>
+              <Text style={[styles.activeBadgeText, { color: isLocationStale ? colors.error : location ? colors.success : colors.warning }]}>
+                {isLocationStale ? t('trackOffline') : location ? t('trackActive') : t('trackNoData')}
               </Text>
             </View>
           </View>
+          {activeTrip && isLocationStale && (
+            <View style={[styles.statusRowWrapper, themed.surfaceSecondary, styles.signalWarning]}>
+              <MaterialCommunityIcons name="wifi-off" size={18} color={colors.error} style={styles.statusIcon} />
+              <Text style={[styles.statusText, { color: colors.error }]}>{t('trackSignalMayBeLost')}</Text>
+            </View>
+          )}
         </Surface>
 
         {/* Estado Actual */}
@@ -396,7 +431,7 @@ export default function TrackingScreen() {
             <Text style={[styles.statusText, themed.text]}>
               {location
                 ? `${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`
-                : 'Sin ubicación registrada'}
+                : t('trackNoLocation')}
             </Text>
           </View>
         </Surface>
@@ -404,9 +439,19 @@ export default function TrackingScreen() {
         {/* Alerta Reciente */}
         <Surface style={[styles.infoCard, themed.surface]} elevation={1}>
           <Text style={[styles.cardTitle, themed.text]}>{t('trackRecentAlert')}</Text>
-          <View style={[styles.alertBox, { backgroundColor: colors.accentLight }]}>
-            <Text style={[styles.alertBoxTitle, { color: colors.success }]}>{t('trackNoAlert')}</Text>
-            <Text style={[styles.alertBoxSub, { color: colors.success }]}>{t('trackNoAlertHint')}</Text>
+          <View style={[styles.alertBox, { backgroundColor: isRecentAlertWarning ? colors.errorLight : colors.accentLight }]}>
+            <Text style={[styles.alertBoxTitle, { color: isRecentAlertWarning ? colors.error : colors.success }]}>
+              {recentAlert
+                ? RECENT_ALERT_TRANSLATION_KEYS[recentAlertEventType]
+                  ? t(RECENT_ALERT_TRANSLATION_KEYS[recentAlertEventType])
+                  : (recentAlert.message || recentAlert.eventType || t('trackRecentAlert'))
+                : t('trackNoAlert')}
+            </Text>
+            <Text style={[styles.alertBoxSub, { color: colors.textSecondary }]}>
+              {recentAlert
+                ? new Date(recentAlert.receivedAt || recentAlert.eventDateTime).toLocaleString(lang)
+                : t('trackNoAlertHint')}
+            </Text>
           </View>
         </Surface>
 
@@ -428,7 +473,7 @@ export default function TrackingScreen() {
             onPress={() => router.push('/(tabs)/zones')}
             contentStyle={styles.btnContent}
           >
-            {t('live') === 'Live' ? 'Configure Route' : 'Configurar Ruta'}
+            {t('trackConfigureRoute')}
           </Button>
         </View>
 
@@ -439,8 +484,8 @@ export default function TrackingScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.FONDO_PRINCIPAL },
-  scrollContent: { padding: 16, paddingBottom: 40 },
-  scrollContentWeb: { maxWidth: 1180, alignSelf: 'center', width: '100%', paddingTop: 20 },
+  scrollContent: { padding: 20, paddingBottom: 40 },
+  scrollContentWeb: { maxWidth: 1120, alignSelf: 'center', width: '100%', paddingTop: 20 },
   
   headerCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.BLANCO, borderRadius: 8, padding: 12, marginBottom: 16 },
   headerProfile: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -454,20 +499,22 @@ const styles = StyleSheet.create({
   selectorItem: { alignItems: 'center', gap: 6, padding: 4, borderRadius: 12, backgroundColor: COLORS.BLANCO, width: 75, elevation: 1 },
   selectorLabel: { fontSize: 11, color: COLORS.TEXTO_SECUNDARIO, textAlign: 'center' },
 
-  mapCard: { height: isWeb ? 520 : 330, backgroundColor: COLORS.BLANCO, borderRadius: 8, overflow: 'hidden', marginBottom: 16, position: 'relative' },
+  mapCard: { height: isWeb ? 520 : 330, backgroundColor: COLORS.BLANCO, borderRadius: 16, borderWidth: 1, overflow: 'hidden', marginBottom: 16, position: 'relative' },
   map: { flex: 1 },
   loadingCenter: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.12)', zIndex: 5 },
   
-  mapLegend: { position: 'absolute', bottom: 14, left: 14, backgroundColor: 'rgba(255,255,255,0.9)', padding: 8, borderRadius: 8 },
+  mapLegend: { position: 'absolute', bottom: 14, left: 14, borderWidth: 1, padding: 10, borderRadius: 12 },
+  trackingNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 16 },
+  trackingNoteText: { flex: 1, fontSize: 12, lineHeight: 18 },
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
   legendLine: { width: 12, height: 2 },
-  legendText: { fontSize: 10, color: COLORS.NEGRO },
+  legendText: { fontSize: 11 },
   
   mapFab: { position: 'absolute', top: 10, right: 10, elevation: 4 },
 
-  infoCard: { backgroundColor: COLORS.BLANCO, borderRadius: 8, padding: 16, marginBottom: 16 },
+  infoCard: { backgroundColor: COLORS.BLANCO, borderRadius: 16, borderWidth: 1, padding: 18, marginBottom: 16 },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardTitle: { fontSize: 14, fontWeight: 'bold', color: COLORS.NEGRO, marginBottom: 4 },
   cardSubtitle: { fontSize: 12, color: COLORS.TEXTO_SECUNDARIO },
@@ -475,7 +522,8 @@ const styles = StyleSheet.create({
   activeBadge: { backgroundColor: COLORS.ACENTO_CLARO, paddingHorizontal: 16, paddingVertical: 4, borderRadius: 12 },
   activeBadgeText: { color: COLORS.ACENTO_OSCURO, fontSize: 12, fontWeight: 'bold' },
 
-  statusRowWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.FONDO_INPUT, padding: 10, borderRadius: 8, marginBottom: 8 },
+  statusRowWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.FONDO_INPUT, padding: 12, borderRadius: 12, marginBottom: 8 },
+  signalWarning: { marginTop: 12, borderWidth: 1, borderColor: COLORS.ALERTA },
   statusIcon: { marginRight: 10 },
   statusText: { fontSize: 13, color: COLORS.NEGRO },
 

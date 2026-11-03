@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, FlatList, Modal, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Animated, FlatList, Linking, Modal, Platform, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AppButton from '../../components/ui/AppButton';
@@ -27,6 +27,7 @@ export default function WelcomeScreen() {
   const { lang, setLanguage, t } = useLanguage();
   const { theme, isDark, toggleTheme } = useTheme();
   const colors = theme.colors;
+  const androidApkUrl = String(process.env.EXPO_PUBLIC_ANDROID_APK_URL || '').trim();
   const listRef = useRef(null);
   const fade = useRef(new Animated.Value(1)).current;
   const [activeIndex, setActiveIndex] = useState(0);
@@ -185,6 +186,16 @@ export default function WelcomeScreen() {
       />
 
       <View style={styles.footer}>
+        {activeIndex === slides.length - 1 && Platform.OS === 'web' && /^https?:\/\//i.test(androidApkUrl) && (
+          <View style={styles.downloadButtonWrap}>
+            <AppButton
+              title={t('welcomeDownloadApp')}
+              variant="ghost"
+              onPress={() => Linking.openURL(androidApkUrl)}
+              accessibilityLabel={t('welcomeDownloadApp')}
+            />
+          </View>
+        )}
         <View style={styles.indicators} accessibilityRole="text" accessibilityLabel={t('welcomePage').replace('{current}', String(activeIndex + 1)).replace('{total}', String(slides.length))}>
           {slides.map((item, index) => (
             <View
@@ -306,6 +317,11 @@ const styles = StyleSheet.create({
   footer: {
     gap: AppSpacing.md,
     padding: AppSpacing.md,
+  },
+  downloadButtonWrap: {
+    alignSelf: 'center',
+    maxWidth: 360,
+    width: '100%',
   },
   indicators: {
     flexDirection: 'row',

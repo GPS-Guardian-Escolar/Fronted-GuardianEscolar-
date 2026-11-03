@@ -16,8 +16,8 @@ function linkQuery(payload) {
 function normalizePayload(payload) {
   return {
     v: 1,
-    studentId: String(payload.studentId || payload.id || ''),
-    code: String(payload.code || payload.codigo || ''),
+    studentId: String(payload.studentId || payload.student_id || payload.id || ''),
+    code: String(payload.code || payload.linkCode || payload.codigo || payload.codigo_vinculacion || payload.link_code || ''),
     name: String(payload.name || payload.nombre || ''),
     contactPhone: String(payload.contactPhone || payload.telefono || ''),
     exp: payload.exp || undefined,
@@ -32,16 +32,17 @@ function isExpired(exp) {
 
 function parseLegacyUrl(value) {
   try {
-    const url = new URL(value);
+    const base = typeof window !== 'undefined' ? window.location.origin : 'https://gps-guardian-escolar.invalid';
+    const url = new URL(value, base);
     const params = url.searchParams;
     const payload = normalizePayload({
       studentId: params.get('s') || params.get('id') || params.get('studentId'),
-      code: params.get('c') || params.get('codigo') || params.get('code'),
+      code: params.get('c') || params.get('codigo') || params.get('code') || params.get('linkCode') || params.get('codigo_vinculacion'),
       name: params.get('nombre') || params.get('name'),
       contactPhone: params.get('telefono') || params.get('contactPhone'),
     });
 
-    if (!isPresent(payload.studentId) || !isPresent(payload.code)) {
+    if (!isPresent(payload.code)) {
       return { ok: false, reason: 'legacy_missing_fields' };
     }
 
@@ -81,7 +82,7 @@ export function parseQrValue(value) {
       studentId: parsed.studentId || parsed.s,
       code: parsed.code || parsed.c,
     });
-    if (!isPresent(payload.studentId) || !isPresent(payload.code)) {
+    if (!isPresent(payload.code)) {
       return { ok: false, reason: 'missing_required_fields' };
     }
 

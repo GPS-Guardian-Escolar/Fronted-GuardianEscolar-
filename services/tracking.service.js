@@ -1,13 +1,14 @@
 import api from './api';
+import { ENDPOINTS } from '../config/endpoints';
 
 export const trackingService = {
   listTrips: async () => {
-    const response = await api.get('/trips');
-    return response.data;
+    const response = await api.get(ENDPOINTS.TRIPS);
+    return response.data.items ?? response.data;
   },
 
   startTrip: async ({ studentId, routeId, tripStartedAt }, options = {}) => {
-    const response = await api.post('/trips', {
+    const response = await api.post(ENDPOINTS.TRIPS, {
       studentId,
       routeId,
       tripStartedAt,
@@ -16,18 +17,18 @@ export const trackingService = {
   },
 
   updateStatus: async (tripId, data, options = {}) => {
-    const response = await api.patch(`/trips/${tripId}/status`, data, buildChildAuthConfig(options));
+    const response = await api.patch(ENDPOINTS.TRIP_STATUS(tripId), data, buildChildAuthConfig(options));
     return response.data;
   },
 
   addCoordinate: async (tripId, data, options = {}) => {
-    const response = await api.post(`/trips/${tripId}/coordinates`, data, buildChildAuthConfig(options));
+    const response = await api.post(ENDPOINTS.TRIP_COORDINATES(tripId), data, buildChildAuthConfig(options));
     return response.data;
   },
 
-  listCoordinates: async (tripId) => {
-    const response = await api.get(`/trips/${tripId}/coordinates`);
-    return response.data;
+  listCoordinates: async (tripId, options = {}) => {
+    const response = await api.get(ENDPOINTS.TRIP_COORDINATES(tripId), buildChildAuthConfig(options));
+    return response.data.items ?? response.data;
   },
 };
 
