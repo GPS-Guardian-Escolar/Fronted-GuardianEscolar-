@@ -354,6 +354,9 @@ export default function TrackingScreen() {
             showRoute={showAssignedRoute && routeGeometry.length >= 2}
             routePaths={showAssignedRoute ? routeGeometries : []}
             journeyCoordinates={showJourneyPath ? journeyCoordinates : []}
+            primaryColor={colors.primary}
+            routeColor={colors.primary}
+            journeyColor={colors.primary}
           />
           {isLoading && (
             <View pointerEvents="none" style={styles.loadingOverlay}>
@@ -380,7 +383,7 @@ export default function TrackingScreen() {
               <Text style={[styles.legendText, { color: colors.text }]}>{t('trackJourney')}</Text>
             </View>
             <View style={styles.legendRow}>
-              <View style={[styles.legendLine, { backgroundColor: colors.textMuted, borderStyle: 'dashed' }]} />
+              <View style={[styles.legendLine, { height: 0, backgroundColor: 'transparent', borderTopWidth: 2, borderStyle: 'dashed', borderTopColor: colors.primary }]} />
               <Text style={[styles.legendText, { color: colors.text }]}>{t('trackAssignedRoute')}</Text>
             </View>
             <View style={styles.legendRow}>
@@ -449,7 +452,7 @@ export default function TrackingScreen() {
           <Text style={[styles.cardTitle, themed.text]}>{t('trackCurrentStatus')}</Text>
           
           <View style={[styles.statusRowWrapper, themed.surfaceSecondary]}>
-            <MaterialCommunityIcons name="target" size={16} color={COLORS.ALERTA} style={styles.statusIcon} />
+            <MaterialCommunityIcons name="target" size={16} color={colors.primary} style={styles.statusIcon} />
             <Text style={[styles.statusText, themed.text]}>
               {activeTrip
                 ? t('trackLiveStatus')
@@ -460,7 +463,7 @@ export default function TrackingScreen() {
           </View>
           
           <View style={[styles.statusRowWrapper, themed.surfaceSecondary]}>
-            <MaterialCommunityIcons name="map-marker" size={16} color={COLORS.PRIMARIO} style={styles.statusIcon} />
+            <MaterialCommunityIcons name="map-marker" size={16} color={colors.primary} style={styles.statusIcon} />
             <Text style={[styles.statusText, themed.text]}>
               {location
                 ? `${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`
@@ -543,7 +546,7 @@ const styles = StyleSheet.create({
   trackingNoteText: { flex: 1, fontSize: 12, lineHeight: 18 },
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendLine: { width: 12, height: 2 },
+  legendLine: { width: 24, height: 2 },
   legendText: { fontSize: 11 },
   
   mapFab: { position: 'absolute', top: 10, right: 10, elevation: 4 },

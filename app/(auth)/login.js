@@ -36,6 +36,12 @@ export default function LoginScreen() {
     if (params.notice === 'registration-email') {
       setInfoMsg('authRegisterSuccess');
       setInfoEmail(String(params.email || ''));
+    } else if (params.notice === 'email-verified') {
+      setInfoMsg('authEmailVerifiedLogin');
+      setInfoEmail('');
+    } else if (params.notice === 'device-confirmed') {
+      setInfoMsg('authDeviceConfirmedLogin');
+      setInfoEmail('');
     }
   }, [params.notice, params.email]);
 

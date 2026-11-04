@@ -527,6 +527,8 @@
   "authVerifyEmailFailedTitle": "No se pudo verificar",
   "authVerifyingEmail": "Verificando correo...",
   "authVerifyEmailSuccess": "Tu correo fue verificado correctamente. Ya puedes iniciar sesión.",
+  "authEmailVerifiedLogin": "Correo verificado correctamente. Inicia sesión con tu correo y contraseña en este dispositivo.",
+  "authDeviceConfirmedLogin": "Dispositivo confirmado. Vuelve a iniciar sesión aquí para continuar.",
   "authVerifyEmailFailed": "No se pudo verificar el correo. Solicita un enlace nuevo e inténtalo otra vez.",
   "authVerifyLinkMissing": "El enlace no incluye un token de verificación.",
   "authGoToLogin": "Ir al inicio de sesión",

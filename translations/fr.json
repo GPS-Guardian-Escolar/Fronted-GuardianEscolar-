@@ -415,6 +415,8 @@
   "authVerifyEmailFailedTitle": "Échec de la vérification",
   "authVerifyingEmail": "Vérification de l’e-mail...",
   "authVerifyEmailSuccess": "Votre e-mail a été vérifié. Vous pouvez maintenant vous connecter.",
+  "authEmailVerifiedLogin": "E-mail vérifié. Connectez-vous avec votre adresse et votre mot de passe sur cet appareil.",
+  "authDeviceConfirmedLogin": "Appareil confirmé. Reconnectez-vous ici pour continuer.",
   "authVerifyEmailFailed": "Nous n’avons pas pu vérifier votre e-mail. Demandez un nouveau lien et réessayez.",
   "authVerifyLinkMissing": "Le lien ne contient pas de jeton de vérification.",
   "authGoToLogin": "Aller à la connexion",

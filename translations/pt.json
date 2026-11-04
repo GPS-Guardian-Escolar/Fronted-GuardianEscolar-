@@ -415,6 +415,8 @@
   "authVerifyEmailFailedTitle": "Falha na verificação",
   "authVerifyingEmail": "Verificando e-mail...",
   "authVerifyEmailSuccess": "Seu e-mail foi verificado. Agora você pode entrar.",
+  "authEmailVerifiedLogin": "E-mail verificado. Entre com seu e-mail e senha neste dispositivo.",
+  "authDeviceConfirmedLogin": "Dispositivo confirmado. Entre novamente aqui para continuar.",
   "authVerifyEmailFailed": "Não foi possível verificar seu e-mail. Solicite um novo link e tente novamente.",
   "authVerifyLinkMissing": "O link não contém um token de verificação.",
   "authGoToLogin": "Ir para o login",

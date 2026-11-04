@@ -36,18 +36,13 @@ export default function ConfirmLoginScreen() {
   }, [token]);
 
   const isSuccess = status === 'success';
-  const returnUrl = params.returnUrl ? String(params.returnUrl) : '';
-  const goToAttemptedPlace = () => {
-    if (returnUrl && typeof window !== 'undefined' && /^https?:\/\//i.test(returnUrl)) {
-      window.location.assign(returnUrl);
-      return;
-    }
-    router.replace('/(auth)/login');
+  const goToLogin = () => {
+    router.replace({ pathname: '/(auth)/login', params: { notice: isSuccess ? 'device-confirmed' : undefined } });
   };
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
-      <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/(auth)/login')}>
+      <TouchableOpacity style={styles.backButton} onPress={goToLogin}>
         <MaterialCommunityIcons name="arrow-left" size={28} color={colors.primary} />
       </TouchableOpacity>
       <View style={styles.wrapper}>
@@ -62,8 +57,8 @@ export default function ConfirmLoginScreen() {
             {isSuccess ? 'Dispositivo confirmado' : status === 'loading' ? 'Confirmando' : 'No se pudo confirmar'}
           </Text>
           <Text style={[styles.message, { color: colors.textSecondary }]}>{message}</Text>
-          <Button mode="contained" onPress={goToAttemptedPlace} buttonColor={colors.primary} textColor={colors.textOnPrimary} style={styles.button}>
-            {isSuccess ? 'Aceptar' : 'Volver al login'}
+          <Button mode="contained" onPress={goToLogin} buttonColor={colors.primary} textColor={colors.textOnPrimary} style={styles.button}>
+            {isSuccess ? 'Iniciar sesión' : 'Volver al login'}
           </Button>
         </View>
       </View>
