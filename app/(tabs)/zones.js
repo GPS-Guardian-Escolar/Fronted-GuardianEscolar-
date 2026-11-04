@@ -6,9 +6,13 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { COLORS } from '../../constants/colors';
 import SafeMap from '../../components/SafeMap';
 import { getStudents, addZone, updateZone, deleteZone, getInitials, addRoute, updateRoute, deleteRoute } from '../../utils/studentStorage';
+import { studentService } from '../../services/student.service';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { canManageStudent } from '../../features/students/studentActions';
 import { useTheme } from '../../contexts/ThemeContext';
 import { calculateRouteGeometry } from '../../utils/routeGeometry';
+import { buildRouteMarkers } from '../../utils/trackingMarkers';
 import { emitNotice } from '../../utils/noticeBus';
 
 const { width } = Dimensions.get('window');
@@ -51,7 +55,7 @@ function normalizeRouteForm(route) {
 }
 
 function normalizeRouteValue(value = '') {
-  return String(value).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim().toLowerCase().replace(/\\s+/g, ' ');
+  return String(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
 function isDuplicateRoute(route, existingRoutes = [], editingId) {
@@ -63,17 +67,6 @@ function isDuplicateRoute(route, existingRoutes = [], editingId) {
 function formatCoordinates(latitude, longitude) {
   if (latitude == null || longitude == null) return '';
   return String(latitude) + ', ' + String(longitude);
-}
-
-function getRouteCoordinates(route) {
-  return [
-    { latitude: Number(route?.originLatitude), longitude: Number(route?.originLongitude) },
-    ...(route?.stops || [])
-      .slice()
-      .sort((a, b) => Number(a.stopOrder || 0) - Number(b.stopOrder || 0))
-      .map(stop => ({ latitude: Number(stop.latitude), longitude: Number(stop.longitude) })),
-    { latitude: Number(route?.destinationLatitude), longitude: Number(route?.destinationLongitude) },
-  ].filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude));
 }
 
 function requestErrorMessage(error, fallback) {
@@ -89,6 +82,7 @@ export default function ZonesScreen() {
   const router = useRouter();
   const { t } = useLanguage();
   const { theme } = useTheme();
+  const { user } = useAuth();
   const colors = theme.colors;
   const themed = {
     screen: { backgroundColor: colors.background },
@@ -100,6 +94,7 @@ export default function ZonesScreen() {
   };
   const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const canManage = canManageStudent(selectedStudent, user);
   const [activeTab, setActiveTab] = useState('zones'); // 'zones' or 'routes'
   
   const [modalVisible, setModalVisible] = useState(false);
@@ -126,7 +121,7 @@ export default function ZonesScreen() {
     setStudents(data);
     setSelectedStudent(prev => {
       if (prev) {
-        return data.find(s => s.id === prev.id) || prev;
+        return data.find(s => s.id === prev.id) || null;
       }
       return prev;
     });
@@ -145,18 +140,21 @@ export default function ZonesScreen() {
   );
 
   function openAddZone() {
+    if (!canManage) return;
     setEditingZone(null);
     setForm({ ...EMPTY_ZONE, radius: `100 ${t('zonesMeters')}` });
     setModalVisible(true);
   }
 
   function openEditZone(zone) {
+    if (!canManage) return;
     setEditingZone(zone);
     setForm({ ...EMPTY_ZONE, ...zone, radius: `${parseRadiusMeters(zone.radius)} ${t('zonesMeters')}`, address: zone.address || formatCoordinates(zone.center?.latitude, zone.center?.longitude) });
     setModalVisible(true);
   }
 
   async function handleSaveZone() {
+    if (!canManage) return;
     const radius = parseRadiusMeters(form.radius);
     if (!String(form.name || '').trim()) {
       showZonesAlert(t('zonesRequiredFields'), t('zonesEnterName'));
@@ -199,10 +197,12 @@ export default function ZonesScreen() {
   }
 
   function confirmDeleteZone(zone) {
+    if (!canManage) return;
     setDeleteConfirmation({ type: 'zone', item: zone });
   }
 
   function openAddRoute() {
+    if (!canManage) return;
     setEditingRoute(null);
     setRouteForm(EMPTY_ROUTE);
     setRouteGeometry([]);
@@ -227,6 +227,7 @@ export default function ZonesScreen() {
   }
 
   function openEditRoute(route) {
+    if (!canManage) return;
     setEditingRoute(route);
     setRouteForm(route);
     setRoutePoints([
@@ -286,7 +287,22 @@ export default function ZonesScreen() {
       return next;
     });
   }
+  async function choosePreferredRoute(route) {
+    if (!canManage || !selectedStudent?.id) return;
+    try {
+      await studentService.setPreferredRoute(selectedStudent.id, route.id);
+      await loadData();
+      emitNotice(t('zonesPreferredRouteSaved'), route.name, { tone: 'success' });
+    } catch (error) {
+      showZonesAlert(t('error'), requestErrorMessage(error, {
+        general: t('zonesPreferredRouteFailed'), network: t('qrNoConnection'),
+        sessionExpired: t('qrGuardianSessionExpired'), forbidden: t('zonesForbidden'),
+      }));
+    }
+  }
+
   async function handleSaveRoute() {
+    if (!canManage) return;
     if (!routeForm.name.trim() || !routeForm.start.trim() || !routeForm.end.trim()) {
       showZonesAlert(t('zonesRequiredFields'), t('zonesRequiredRouteMsg'));
       return;
@@ -328,10 +344,12 @@ export default function ZonesScreen() {
   }
 
   function confirmDeleteRoute(route) {
+    if (!canManage) return;
     setDeleteConfirmation({ type: 'route', item: route });
   }
 
   async function handleConfirmDelete() {
+    if (!canManage) return;
     if (!deleteConfirmation) return;
     const { type, item } = deleteConfirmation;
     setDeleteConfirmation(null);
@@ -365,14 +383,14 @@ export default function ZonesScreen() {
     }
     Promise.all(routes.map(async (route, index) => {
       const geometry = await calculateRouteGeometry(route).catch(() => []);
-      return { id: route.id || `route-${index}`, coordinates: geometry, color: '#8B95A7' };
+      return { id: route.id || `route-${index}`, coordinates: geometry, color: colors.primary };
     })).then(paths => {
       if (cancelled) return;
       setRouteGeometries(paths.filter(path => path.coordinates.length >= 2));
       setRouteGeometry(paths[0]?.coordinates || []);
     });
     return () => { cancelled = true; };
-  }, [selectedStudent?.id, selectedStudent?.routes]);
+  }, [selectedStudent?.id, selectedStudent?.routes, colors.primary]);
 
   if (!selectedStudent) {
     return (
@@ -437,6 +455,8 @@ export default function ZonesScreen() {
           </View>
         </View>
 
+        {!canManage && <Text accessibilityRole="text" style={[styles.subtitle, themed.textSecondary]}>{t('studReadOnlyDetails')}</Text>}
+
         {/* Tabs */}
         <View style={[styles.tabsContainer, themed.surfaceSecondary]}>
           <TouchableOpacity 
@@ -457,9 +477,9 @@ export default function ZonesScreen() {
           <>
             <View style={styles.actionRow}>
               <Text style={[styles.countText, themed.textSecondary]}>{currentZones.length} {t('zonesConfigured')}</Text>
-              <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.accent }]} onPress={openAddZone}>
+              {canManage && (<TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.accent }]} onPress={openAddZone}>
                 <Text style={[styles.addBtnText, { color: colors.textOnAccent }]}>{t('zonesNewZone')}</Text>
-              </TouchableOpacity>
+              </TouchableOpacity>)}
             </View>
 
             <View style={styles.zonesGrid}>
@@ -486,12 +506,12 @@ export default function ZonesScreen() {
                       </View>
                     </View>
                     <View style={styles.zoneFooter}>
-                      <TouchableOpacity style={[styles.editBtn, { backgroundColor: colors.primary }]} onPress={() => openEditZone(zone)}>
+                      {canManage && (<TouchableOpacity style={[styles.editBtn, { backgroundColor: colors.primary }]} onPress={() => openEditZone(zone)}>
                         <Text style={[styles.editBtnText, { color: colors.textOnPrimary }]}>{t('live') === 'Live' ? 'Edit' : 'Editar'}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[styles.deleteBtn, { backgroundColor: colors.error }]} onPress={() => confirmDeleteZone(zone)}>
+                      </TouchableOpacity>)}
+                      {canManage && (<TouchableOpacity style={[styles.deleteBtn, { backgroundColor: colors.error }]} onPress={() => confirmDeleteZone(zone)}>
                         <Text style={[styles.deleteBtnText, { color: colors.onError }]}>{t('live') === 'Live' ? 'Delete' : 'Eliminar'}</Text>
-                      </TouchableOpacity>
+                      </TouchableOpacity>)}
                     </View>
                     </Surface>
                   );
@@ -544,9 +564,9 @@ export default function ZonesScreen() {
           <>
             <View style={styles.actionRow}>
               <Text style={[styles.countText, themed.textSecondary]}>{(selectedStudent.routes || []).length} {t('zonesSavedRouteCount')}</Text>
-              <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.accent }]} onPress={openAddRoute}>
+              {canManage && (<TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.accent }]} onPress={openAddRoute}>
                 <Text style={[styles.addBtnText, { color: colors.textOnAccent }]}>{t('zonesNewRoute')}</Text>
-              </TouchableOpacity>
+              </TouchableOpacity>)}
             </View>
 
             <View style={styles.zonesGrid}>
@@ -559,6 +579,7 @@ export default function ZonesScreen() {
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.routeName, themed.text]}>{route.name}</Text>
                         <Text style={[styles.routeAssign, themed.textSecondary]}>{t('live') === 'Live' ? 'Assigned to:' : 'Asignada a:'} {selectedStudent.nombre}</Text>
+                        {String(selectedStudent.preferredRouteId) === String(route.id) && <Text style={{color: colors.accent}}>{t('zonesPreferredRoute')}</Text>}
                       </View>
                       <View style={styles.routeStatus}>
                          <MaterialCommunityIcons name="radiobox-marked" size={12} color={colors.accent} />
@@ -579,12 +600,15 @@ export default function ZonesScreen() {
                         <MaterialCommunityIcons name={'map-outline'} size={16} color={colors.primary} />
                         <Text style={[styles.viewBtnText, { color: colors.primary }]}>{t('zonesViewMap')}</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={[styles.editBtn, { backgroundColor: colors.primary }]} onPress={() => openEditRoute(route)}>
+                      {canManage && String(selectedStudent.preferredRouteId) !== String(route.id) && <TouchableOpacity style={[styles.viewBtn, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]} onPress={() => choosePreferredRoute(route)} accessibilityRole="button">
+                        <Text style={[styles.viewBtnText, { color: colors.primary }]}>{t('zonesUseNextTrip')}</Text>
+                      </TouchableOpacity>}
+                      {canManage && (<TouchableOpacity style={[styles.editBtn, { backgroundColor: colors.primary }]} onPress={() => openEditRoute(route)}>
                         <Text style={[styles.editBtnText, { color: colors.textOnPrimary }]}>{t('live') === 'Live' ? 'Edit' : 'Editar'}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[styles.deleteBtn, { backgroundColor: colors.error }]} onPress={() => confirmDeleteRoute(route)}>
+                      </TouchableOpacity>)}
+                      {canManage && (<TouchableOpacity style={[styles.deleteBtn, { backgroundColor: colors.error }]} onPress={() => confirmDeleteRoute(route)}>
                         <Text style={[styles.deleteBtnText, { color: colors.onError }]}>{t('live') === 'Live' ? 'Delete' : 'Eliminar'}</Text>
-                      </TouchableOpacity>
+                      </TouchableOpacity>)}
                     </View>
                   </Surface>
                 ))
@@ -632,12 +656,8 @@ export default function ZonesScreen() {
               <SafeMap
                 style={{ flex: 1 }}
                 initialRegion={{ latitude: 4.5709, longitude: -74.2973, latitudeDelta: 0.05, longitudeDelta: 0.05 }}
-                markers={getRouteCoordinates(routePreview).map((point, index, points) => ({
-                  ...point,
-                  label: index === 0 ? 'I' : index === points.length - 1 ? 'D' : `P${index}`,
-                  title: index === 0 ? t('zonesRouteStart') : index === points.length - 1 ? t('zonesRouteEnd') : `${t('zonesRouteStop')} ${index}`,
-                  color: index === 0 ? colors.accent : index === points.length - 1 ? colors.error : colors.primary,
-                }))}
+                markers={buildRouteMarkers(routePreview, currentZones, colors, t)}
+                routeColor={colors.primary}
                 coordinates={routePreviewGeometry}
                 showRoute={routePreviewGeometry.length >= 2}
               />

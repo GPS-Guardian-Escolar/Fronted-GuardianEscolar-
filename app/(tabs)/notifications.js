@@ -70,6 +70,8 @@ export default function NotificationsScreen() {
       || eventType === 'SAFE_ZONE_EXIT'
       || eventType === 'ROUTE_DEVIATION'
       || eventType === 'INACTIVITY'
+      || eventType === 'LOCATION_UNAVAILABLE'
+      || eventType === 'LOCATION_STOPPED'
       || searchableText.includes('SALIÓ DE LA ZONA')
       || searchableText.includes('SALIO DE LA ZONA')
       || searchableText.includes('DESVÍO DE RUTA')

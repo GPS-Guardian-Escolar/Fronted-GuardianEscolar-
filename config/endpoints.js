@@ -220,6 +220,7 @@ export const ENDPOINTS = {
   STUDENT_LINK_CODE: (studentId) => `/students/${studentId}/link-code`,
   STUDENT_ROUTES: (studentId, routeId) => `/students/${studentId}/routes/${routeId}`,
   STUDENT_DEVICE: (studentId) => `/students/${studentId}/device`,
+  STUDENT_PREFERRED_ROUTE: (studentId, routeId) => `/students/${studentId}/preferred-route/${routeId}`,
   EMERGENCY_CONTACTS: (studentId) => `/students/${studentId}/emergency-contacts`,
   EMERGENCY_CONTACT_BY_ID: (studentId, contactId) => `/students/${studentId}/emergency-contacts/${contactId}`,
   LINK_DEVICE: '/students/link-device',

@@ -8,6 +8,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { SUPPORTED_LANGUAGES } from '../../translations';
+import { monitorConnection } from '../../utils/connectivity';
 
 // ════════════════════════════════════════════════════════════════
 // BREAKPOINTS RESPONSIVE
@@ -40,49 +41,23 @@ function CustomHeader() {
   const { theme, isDark, toggleTheme } = useTheme();
   const headerTextColor = theme.colors.white;
   
-  const [isOnline, setIsOnline] = useState(true);
+  const [isOnline, setIsOnline] = useState(null);
   const [langModalVisible, setLangModalVisible] = useState(false);
   const [selectedLang, setSelectedLang] = useState(lang);
   const [pulseAnim] = useState(() => new Animated.Value(1));
 
   // ─── Verificar conexión ───
-  useEffect(() => {
-    const checkConnection = async () => {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
-        const url = Platform.OS === 'web' 
-          ? 'https://captive.apple.com/generate_204' 
-          : 'http://connectivitycheck.gstatic.com/generate_204';
-        await fetch(url, { 
-          method: 'GET',
-          signal: controller.signal,
-          ...(Platform.OS === 'web' ? { mode: 'no-cors' } : {})
-        });
-        clearTimeout(timeoutId);
-        setIsOnline(true);
-      } catch {
-        setIsOnline(false);
-      }
-    };
-    checkConnection();
-    const interval = setInterval(checkConnection, 3000);
-    if (Platform.OS === 'web') {
-      const handleStatus = () => { setIsOnline(navigator.onLine); checkConnection(); };
-      window.addEventListener('online', handleStatus);
-      window.addEventListener('offline', handleStatus);
-      return () => {
-        clearInterval(interval);
-        window.removeEventListener('online', handleStatus);
-        window.removeEventListener('offline', handleStatus);
-      };
-    }
-    return () => clearInterval(interval);
-  }, [pulseAnim]);
+  useEffect(() => monitorConnection({
+    fetchFn: fetch,
+    onStatus: setIsOnline,
+    isWeb: Platform.OS === 'web',
+    windowRef: Platform.OS === 'web' && typeof window !== 'undefined' ? window : undefined,
+    navigatorRef: Platform.OS === 'web' && typeof navigator !== 'undefined' ? navigator : undefined,
+  }), []);
 
   // ─── Animación LIVE ───
   useEffect(() => {
-    if (isOnline) {
+    if (isOnline === true) {
       Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, { toValue: 0.3, duration: 1000, useNativeDriver: true }),
@@ -120,9 +95,9 @@ function CustomHeader() {
         {/* Marca + Badge LIVE */}
         <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
           <Text style={[styles.headerBrand, { color: headerTextColor }]}>{t('appName')}</Text>
-          <View style={[styles.connectionBadge, !isOnline && styles.connectionBadgeOffline]}>
-            <Animated.View style={[styles.statusDot, { opacity: pulseAnim }, !isOnline && styles.statusDotOffline]} />
-            <Text style={styles.statusText}>{isOnline ? t('live') : t('offline')}</Text>
+          <View style={[styles.connectionBadge, isOnline === false && styles.connectionBadgeOffline]}>
+            <Animated.View style={[styles.statusDot, { opacity: pulseAnim }, isOnline === false && styles.statusDotOffline, isOnline === null && { backgroundColor: theme.colors.textSecondary }]} />
+            <Text style={styles.statusText}>{isOnline === null ? t('connectionChecking') : isOnline ? t('live') : t('offline')}</Text>
           </View>
         </View>
 

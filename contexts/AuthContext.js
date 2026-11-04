@@ -59,7 +59,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     const result = await authService.login(email, password);
-    if (result.requires2FA) {
+    if (result.requires2FA || result.requiresDeviceConfirmation) {
       return result;
     }
     const { token: newToken, user: newUser } = result;

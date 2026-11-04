@@ -194,6 +194,7 @@ async function mapStudent(apiStudent, apiZones) {
     contacto_parentesco: primaryContact?.relationship || primaryContact?.parentesco || '',
     dispositivos_vinculados: apiStudent.linkedDevices || 0,
     acudientes_vinculados: apiStudent.linkedGuardians || apiStudent.acudientesVinculados || 1,
+    preferredRouteId: apiStudent.preferredRouteId || null,
     correo_acudiente: apiStudent.guardianEmail || apiStudent.correoAcudiente || '',
     foto: apiStudent.photoData || apiStudent.foto || '',
     codigo_vinculacion: null,

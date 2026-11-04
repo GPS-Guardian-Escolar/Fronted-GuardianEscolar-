@@ -308,6 +308,7 @@ export default function StudentDashboardScreen() {
       const trip = await trackingService.startTrip({
         studentId: String(resolvedStudentId),
         tripStartedAt: new Date().toISOString(),
+        routeId: studentProfile?.preferredRouteId || undefined,
       }, { childToken: session.childToken });
       const tripId = String(trip.id || trip.tripId || trip.uuid || '');
       if (!tripId) {

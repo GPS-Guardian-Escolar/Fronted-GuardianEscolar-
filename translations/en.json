@@ -659,5 +659,16 @@
   "zonesNoAddress": "No address",
   "inputNameBlocked": "Enter a name of 3 to 60 characters, without numbers or three identical consecutive letters. The invalid text was not added.",
   "inputPhoneBlocked": "Enter a 10-digit mobile number starting with 3, without five identical consecutive digits. The invalid text was not added.",
-  "trackingPendingLocations": "Some locations have not been sent. Check your connection and finish the trip again."
+  "trackingPendingLocations": "Some locations have not been sent. Check your connection and finish the trip again.",
+  "trackSelectRouteToView": "Choose a route to view",
+  "trackRouteViewOnly": "This selection changes the map view; it does not change an active trip's route.",
+  "trackAlertLocationUnavailable": "Location unavailable",
+  "trackAlertLocationStopped": "Tracking stopped",
+  "connectionChecking": "Checking",
+  "trackWaitingLocation": "Waiting for the first location",
+  "trackRefreshFailed": "Tracking could not be refreshed. Check your connection and try again. Visible data may be out of date.",
+  "zonesPreferredRouteSaved": "Route saved for the next trip",
+  "zonesPreferredRouteFailed": "Could not save the preferred route.",
+  "zonesPreferredRoute": "Selected for the next trip",
+  "zonesUseNextTrip": "Use for next trip"
 }

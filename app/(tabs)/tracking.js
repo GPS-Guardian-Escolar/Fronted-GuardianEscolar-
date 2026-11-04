@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { COLORS } from '../../constants/colors';
 import SafeMap from '../../components/SafeMap';
-import { getStudents, getInitials } from '../../utils/studentStorage';
+import { getStudents } from '../../utils/studentStorage';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { trackingService } from '../../services/tracking.service';
@@ -14,6 +14,7 @@ import { useTrackingRealtime } from '../../hooks/useTrackingRealtime';
 import TrackingHeader from '../../features/tracking/components/TrackingHeader';
 import TrackingStudentSelector from '../../features/tracking/components/TrackingStudentSelector';
 import { calculateRouteGeometry } from '../../utils/routeGeometry';
+import { buildTrackingMarkers } from '../../utils/trackingMarkers';
 
 const { width } = Dimensions.get('window');
 const isWeb = width > 768;
@@ -71,6 +72,8 @@ const RECENT_ALERT_TRANSLATION_KEYS = {
   SAFE_ZONE_ENTRY: 'trackAlertSafeZoneEntry',
   SAFE_ZONE_EXIT: 'trackAlertSafeZoneExit',
   TRIP_STARTED: 'trackAlertTripStarted',
+  LOCATION_UNAVAILABLE: 'trackAlertLocationUnavailable',
+  LOCATION_STOPPED: 'trackAlertLocationStopped',
 };
 
 export default function TrackingScreen() {
@@ -81,6 +84,7 @@ export default function TrackingScreen() {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [location, setLocation] = useState(null);
   const [studentZones, setStudentZones] = useState([]);
+  const [selectedRouteId, setSelectedRouteId] = useState(null);
   const [routeGeometry, setRouteGeometry] = useState([]);
   const [routeGeometries, setRouteGeometries] = useState([]);
   const [assignedRouteStatus, setAssignedRouteStatus] = useState('none');
@@ -88,11 +92,15 @@ export default function TrackingScreen() {
   const [recentAlert, setRecentAlert] = useState(null);
   const [showJourneyPath, setShowJourneyPath] = useState(true);
   const [showAssignedRoute, setShowAssignedRoute] = useState(true);
+  const [recentTripId, setRecentTripId] = useState(null);
+  const [refreshFailed, setRefreshFailed] = useState(false);
+  const refreshInProgress = useRef(false);
   const [activeTrip, setActiveTrip] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [clockNow, setClockNow] = useState(0);
   const refreshSequence = useRef(0);
   const lastStudentId = useRef(null);
+  const userSelectedRoute = useRef(false);
   const { lang, t } = useLanguage();
   const { theme } = useTheme();
   const colors = theme.colors;
@@ -103,7 +111,7 @@ export default function TrackingScreen() {
     || (!location && Number.isFinite(tripStartedAt) && tripStartedAt > 0 && clockNow - tripStartedAt > 2 * 60 * 1000)
   ));
   const recentAlertEventType = String(recentAlert?.eventType || '').toUpperCase();
-  const isRecentAlertWarning = ['DELAY', 'INACTIVITY', 'ROUTE_DEVIATION', 'SAFE_ZONE_EXIT'].includes(recentAlertEventType);
+  const isRecentAlertWarning = ['DELAY', 'INACTIVITY', 'ROUTE_DEVIATION', 'SAFE_ZONE_EXIT', 'LOCATION_UNAVAILABLE', 'LOCATION_STOPPED'].includes(recentAlertEventType);
   const themed = {
     screen: { backgroundColor: colors.background },
     surface: { backgroundColor: colors.surface, borderColor: colors.border },
@@ -118,14 +126,24 @@ export default function TrackingScreen() {
     return () => clearInterval(timer);
   }, []);
 
-  const refreshLocation = useCallback(async (showSpinner = true) => {
+  useEffect(() => {
+    const routes = selectedStudent?.routes || [];
+    setSelectedRouteId(current => routes.some(route => String(route.id) === String(current)) ? current : (routes.find(route => String(route.id) === String(selectedStudent?.preferredRouteId))?.id || routes[0]?.id || null));
+  }, [selectedStudent?.id, selectedStudent?.routes]);
+
+  const refreshLocation = useCallback(async (showSpinner = true, updateGeometry = true) => {
+    if (!updateGeometry && refreshInProgress.current) return;
+    refreshInProgress.current = true;
     const sequence = ++refreshSequence.current;
     if (showSpinner) setIsLoading(true);
     const studentId = selectedStudent?.id || null;
     if (lastStudentId.current !== studentId) {
       lastStudentId.current = studentId;
+      userSelectedRoute.current = false;
       setLocation(null);
       setActiveTrip(null);
+      setRecentTripId(null);
+      setRecentAlert(null);
       setJourneyCoordinates([]);
       setRouteGeometry([]);
       setRouteGeometries([]);
@@ -143,8 +161,9 @@ export default function TrackingScreen() {
         setJourneyCoordinates([]);
         return;
       }
+      if (updateGeometry) {
       const zones = selectedStudent.zones || [];
-      const routes = selectedStudent.routes || [];
+      const routes = (selectedStudent.routes || []).filter(route => String(route.id) === String(selectedRouteId));
       setAssignedRouteStatus(routes.length ? 'loading' : 'none');
       const routePaths = await Promise.all(routes.map(async (route, index) => {
         try {
@@ -160,6 +179,7 @@ export default function TrackingScreen() {
       setRouteGeometries(drawableRoutes);
       setRouteGeometry(drawableRoutes[0]?.coordinates || []);
       setAssignedRouteStatus(routes.length === 0 ? 'none' : drawableRoutes.length === routes.length ? 'ready' : 'failed');
+      }
       if (Number(selectedStudent.dispositivos_vinculados || 0) < 1) {
         setLocation(null);
         setActiveTrip(null);
@@ -169,14 +189,18 @@ export default function TrackingScreen() {
       const trips = await trackingService.listTrips();
       if (sequence !== refreshSequence.current) return;
       const studentTrips = trips
-        .filter(trip => String(trip.studentId) === String(studentId) && trip.status === 'IN_PROGRESS')
+        .filter(trip => String(trip.studentId) === String(studentId))
         .sort((a, b) => new Date(b.tripStartedAt || 0) - new Date(a.tripStartedAt || 0));
-      const selectedTrip = studentTrips[0];
+      setRecentTripId(studentTrips[0]?.id || null);
+      setRefreshFailed(false);
+      const selectedTrip = studentTrips.find(trip => trip.status === 'IN_PROGRESS');
       setActiveTrip(selectedTrip || null);
+      if (!userSelectedRoute.current && selectedTrip?.routeId && (selectedStudent.routes || []).some(route => String(route.id) === String(selectedTrip.routeId))) {
+        setSelectedRouteId(selectedTrip.routeId);
+      }
       if (!selectedTrip) {
         setLocation(null);
         setJourneyCoordinates([]);
-        setRecentAlert(null);
         return;
       }
       const coordinates = await trackingService.listCoordinates(selectedTrip.id);
@@ -208,11 +232,15 @@ export default function TrackingScreen() {
         recordedAt: latest.recordedAt,
       });
     } catch {
+      if (sequence === refreshSequence.current) setRefreshFailed(true);
       // Conserva los datos visibles si la actualización puntual falla por red.
     } finally {
-      if (sequence === refreshSequence.current) setIsLoading(false);
+      if (sequence === refreshSequence.current) {
+        setIsLoading(false);
+        refreshInProgress.current = false;
+      }
     }
-  }, [selectedStudent, colors.primary, t]);
+  }, [selectedStudent, selectedRouteId, colors.primary, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -220,7 +248,7 @@ export default function TrackingScreen() {
         .then(data => {
           setStudents(data);
           setSelectedStudent(current => {
-            if (current) return current;
+            if (current) return data.find(student => student.id === current.id) || data[0] || null;
             if (params.id) {
               const found = data.find(s => s.id === params.id);
               if (found) return found;
@@ -245,8 +273,13 @@ export default function TrackingScreen() {
     refreshLocation();
   }, [refreshLocation]);
 
+  useFocusEffect(useCallback(() => {
+    const timer = setInterval(() => refreshLocation(false, false), 15000);
+    return () => clearInterval(timer);
+  }, [refreshLocation]));
+
   useEffect(() => {
-    if (!activeTrip?.id) {
+    if (!recentTripId) {
       setRecentAlert(null);
       return undefined;
     }
@@ -256,7 +289,7 @@ export default function TrackingScreen() {
         const notifications = await notificationService.listNotifications();
         if (!mounted || !Array.isArray(notifications)) return;
         const matchingAlerts = notifications
-          .filter(item => String(item.tripId || '') === String(activeTrip.id))
+          .filter(item => String(item.tripId || '') === String(recentTripId))
           .sort((a, b) => new Date(b.receivedAt || b.eventDateTime || 0) - new Date(a.receivedAt || a.eventDateTime || 0));
         setRecentAlert(matchingAlerts[0] || null);
       } catch {
@@ -269,7 +302,7 @@ export default function TrackingScreen() {
       mounted = false;
       clearInterval(timer);
     };
-  }, [activeTrip?.id]);
+  }, [recentTripId]);
 
   useTrackingRealtime(activeTrip?.id, {
     onCoordinate: (point) => {
@@ -301,13 +334,15 @@ export default function TrackingScreen() {
     <View style={[styles.container, themed.screen]}>
       <ScrollView contentContainerStyle={[styles.scrollContent, isWeb && styles.scrollContentWeb]}>
         
+        {refreshFailed && <Text accessibilityRole="alert" style={{ color: colors.error }}>{t('trackRefreshFailed')}</Text>}
         <TrackingHeader
           student={selectedStudent}
           status={
             Number(selectedStudent?.dispositivos_vinculados || 0) < 1
               ? t('trackNoDevice')
               : activeTrip && isLocationStale ? t('trackOffline')
-                : activeTrip ? t('trackOnline') : t('trackWaitingTrip')
+                : activeTrip && location ? t('trackOnline')
+                  : activeTrip ? t('trackWaitingLocation') : t('trackWaitingTrip')
           }
           onRefresh={() => refreshLocation(false)}
           colors={colors}
@@ -328,27 +363,12 @@ export default function TrackingScreen() {
             currentLocation={location}
             initialRegion={INITIAL_REGION}
             style={styles.map}
-            markers={[
-              ...(studentZones || []).map(zone => {
-                const center = zone.center || { latitude: Number(zone.latitude), longitude: Number(zone.longitude) };
-                const zoneName = zone.name || zone.zoneName || zone.nombre || zone.type || zone.zoneType || 'Zona';
-                return { ...center, label: getInitials(zoneName), title: zoneName, color: getZoneColor({ ...zone, type: zone.type || zone.zoneType }, colors) };
-              }),
-              ...(showAssignedRoute ? (selectedStudent?.routes || []).flatMap((route, index, routes) => {
-                const points = [
-                  { latitude: route.originLatitude == null ? Number.NaN : Number(route.originLatitude), longitude: route.originLongitude == null ? Number.NaN : Number(route.originLongitude), role: 'origin', label: t('zonesRouteStart') },
-                  { latitude: route.destinationLatitude == null ? Number.NaN : Number(route.destinationLatitude), longitude: route.destinationLongitude == null ? Number.NaN : Number(route.destinationLongitude), role: 'destination', label: t('zonesRouteEnd') },
-                ];
-                return points.filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude))
-                  .map((point, pointIndex) => ({
-                    id: `${route.id || index}-${pointIndex}`,
-                    ...point,
-                    label: point.role === 'origin' ? 'I' : 'D',
-                    title: `${route.name || route.routeName || t('trackAssignedRoute')} · ${point.label}`,
-                    color: colors.primary,
-                  }));
-              }) : []),
-            ]}
+            markers={buildTrackingMarkers(
+              studentZones,
+              showAssignedRoute ? (selectedStudent?.routes || []).find(route => String(route.id) === String(selectedRouteId)) : null,
+              colors,
+              t,
+            )}
             safeZones={(studentZones || []).map(zone => ({ ...zone, color: getZoneColor(zone, colors), center: zone.center || { latitude: Number(zone.latitude), longitude: Number(zone.longitude) } }))}
             coordinates={showAssignedRoute ? routeGeometry : []}
             showRoute={showAssignedRoute && routeGeometry.length >= 2}
@@ -392,6 +412,24 @@ export default function TrackingScreen() {
             </View>
           </View>
         </Surface>
+
+        {(selectedStudent?.routes || []).length > 1 && showAssignedRoute && (
+          <Surface style={[styles.routeSelector, themed.surface]} elevation={0}>
+            <Text style={[styles.mapOptionLabel, themed.text]}>{t('trackSelectRouteToView')}</Text>
+            <View style={styles.routeSelectorButtons}>
+              {selectedStudent.routes.map(route => (
+                <Button key={route.id} mode={String(route.id) === String(selectedRouteId) ? 'contained' : 'outlined'}
+                  buttonColor={String(route.id) === String(selectedRouteId) ? colors.primary : undefined}
+                  textColor={String(route.id) === String(selectedRouteId) ? colors.textOnPrimary : colors.primary}
+                  onPress={() => { if (String(route.id) === String(selectedRouteId)) return; userSelectedRoute.current = true; setRouteGeometry([]); setRouteGeometries([]); setSelectedRouteId(route.id); }}
+                  accessibilityLabel={t('trackSelectRouteToView') + ': ' + route.name}>
+                  {route.name || t('trackAssignedRoute')}
+                </Button>
+              ))}
+            </View>
+            <Text style={themed.textSecondary}>{t('trackRouteViewOnly')}</Text>
+          </Surface>
+        )}
 
         <Surface style={[styles.mapOptions, themed.surface]} elevation={0}>
           <View style={styles.mapOptionRow}>
@@ -542,6 +580,8 @@ const styles = StyleSheet.create({
   
   mapLegend: { position: 'absolute', bottom: 14, left: 14, borderWidth: 1, padding: 10, borderRadius: 12 },
   trackingNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 16 },
+  routeSelector: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12, gap: 8 },
+  routeSelectorButtons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   routeStatusNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 16 },
   trackingNoteText: { flex: 1, fontSize: 12, lineHeight: 18 },
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },

@@ -659,5 +659,16 @@
   "zonesNoAddress": "Sin dirección",
   "inputNameBlocked": "Escribe un nombre de 3 a 60 caracteres, sin números ni tres letras iguales seguidas. No se añadió el texto inválido.",
   "inputPhoneBlocked": "Escribe un celular de 10 dígitos que comience por 3, sin cinco dígitos iguales seguidos. No se añadió el texto inválido.",
-  "trackingPendingLocations": "Quedan ubicaciones sin enviar. Comprueba la conexión y vuelve a finalizar el trayecto."
+  "trackingPendingLocations": "Quedan ubicaciones sin enviar. Comprueba la conexión y vuelve a finalizar el trayecto.",
+  "trackSelectRouteToView": "Selecciona la ruta que quieres ver",
+  "trackRouteViewOnly": "Esta selección cambia la vista del mapa; no modifica la ruta de un trayecto activo.",
+  "trackAlertLocationUnavailable": "Ubicación no disponible",
+  "trackAlertLocationStopped": "Seguimiento detenido",
+  "connectionChecking": "Comprobando",
+  "trackWaitingLocation": "Esperando la primera ubicación",
+  "trackRefreshFailed": "No pudimos actualizar el seguimiento. Comprueba tu conexión y vuelve a intentar. Los datos visibles pueden estar desactualizados.",
+  "zonesPreferredRouteSaved": "Ruta guardada para el próximo trayecto",
+  "zonesPreferredRouteFailed": "No se pudo guardar la ruta preferida.",
+  "zonesPreferredRoute": "Ruta elegida para el próximo trayecto",
+  "zonesUseNextTrip": "Usar en próximo trayecto"
 }

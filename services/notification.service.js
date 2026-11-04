@@ -1,3 +1,4 @@
+import { collectPages } from './pagination';
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
@@ -63,8 +64,7 @@ export const notificationService = {
   },
 
   listNotifications: async () => {
-    const response = await api.get(ENDPOINTS.NOTIFICATIONS);
-    return response.data.items ?? response.data;
+    return collectPages(async page => (await api.get(ENDPOINTS.NOTIFICATIONS, { params: { page, size: 100 } })).data);
   },
 
   deleteNotification: async (receiptId) => {

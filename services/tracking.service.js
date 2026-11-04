@@ -1,10 +1,10 @@
+import { collectPages } from './pagination';
 import api from './api';
 import { ENDPOINTS } from '../config/endpoints';
 
 export const trackingService = {
   listTrips: async () => {
-    const response = await api.get(ENDPOINTS.TRIPS);
-    return response.data.items ?? response.data;
+    return collectPages(async page => (await api.get(ENDPOINTS.TRIPS, { params: { page, size: 100 } })).data);
   },
 
   startTrip: async ({ studentId, routeId, tripStartedAt }, options = {}) => {
@@ -27,8 +27,7 @@ export const trackingService = {
   },
 
   listCoordinates: async (tripId, options = {}) => {
-    const response = await api.get(ENDPOINTS.TRIP_COORDINATES(tripId), buildChildAuthConfig(options));
-    return response.data.items ?? response.data;
+    return collectPages(async page => (await api.get(ENDPOINTS.TRIP_COORDINATES(tripId), { ...buildChildAuthConfig(options), params: { page, size: 100 } })).data);
   },
 };
 

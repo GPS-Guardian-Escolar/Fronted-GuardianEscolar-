@@ -657,5 +657,16 @@
   "zonesNoAddress": "Aucune adresse",
   "inputNameBlocked": "Saisissez un nom de 3 à 60 caractères, sans chiffres ni trois lettres identiques consécutives. Le texte incorrect n’a pas été ajouté.",
   "inputPhoneBlocked": "Saisissez un numéro mobile à 10 chiffres commençant par 3, sans cinq chiffres identiques consécutifs. Le texte incorrect n’a pas été ajouté.",
-  "trackingPendingLocations": "Certaines positions n’ont pas été envoyées. Vérifiez votre connexion et terminez à nouveau le trajet."
+  "trackingPendingLocations": "Certaines positions n’ont pas été envoyées. Vérifiez votre connexion et terminez à nouveau le trajet.",
+  "trackSelectRouteToView": "Choisissez la route à afficher",
+  "trackRouteViewOnly": "Cette sélection modifie la carte, pas la route du trajet en cours.",
+  "trackAlertLocationUnavailable": "Position indisponible",
+  "trackAlertLocationStopped": "Suivi arrêté",
+  "connectionChecking": "Vérification",
+  "trackWaitingLocation": "En attente de la première position",
+  "trackRefreshFailed": "Impossible de mettre à jour le suivi. Vérifiez votre connexion. Les données affichées peuvent être anciennes.",
+  "zonesPreferredRouteSaved": "Itinéraire enregistré pour le prochain trajet",
+  "zonesPreferredRouteFailed": "Impossible d?enregistrer l?itinéraire préféré.",
+  "zonesPreferredRoute": "Choisi pour le prochain trajet",
+  "zonesUseNextTrip": "Utiliser au prochain trajet"
 }
