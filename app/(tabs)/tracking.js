@@ -50,26 +50,40 @@ function distanceMeters(a, b) {
 }
 
 function filterJourneyCoordinates(points) {
-  const withoutIsolatedJumps = points.filter((point, index) => {
-    const previous = points[index - 1];
-    const next = points[index + 1];
-    return !previous || !next
-      || distanceMeters(previous, point) <= 300
-      || distanceMeters(previous, next) >= 300;
-  });
+  const minimumMovementMeters = 100;
+  const movingPoints = points.filter(point => Number(point.stoppedSeconds || 0) === 0);
   const accepted = [];
-  for (const point of withoutIsolatedJumps) {
-    // Stationary heartbeats keep the guardian's connection fresh, but GPS
-    // drift while the phone is still must never be painted as a journey.
-    if (Number(point.stoppedSeconds || 0) > 0) continue;
-    if (!accepted.length) {
-      accepted.push(point);
-      continue;
-    }
+  if (movingPoints.length) accepted.push(movingPoints[0]);
+
+  // A path is drawn only after the following GPS fix confirms that the
+  // candidate continued away from the previous point. This avoids painting
+  // stationary GPS drift or a one-off incorrect fix as a trip.
+  for (let index = 1; index < movingPoints.length - 1; index += 1) {
     const previous = accepted[accepted.length - 1];
-    const distance = distanceMeters(previous, point);
-    const elapsedSeconds = Math.max(1, (point.timestamp - previous.timestamp) / 1000);
-    if (distance <= 1000 && distance / elapsedSeconds <= 30) accepted.push(point);
+    const candidate = movingPoints[index];
+    const confirmation = movingPoints[index + 1];
+    const travelled = distanceMeters(previous, candidate);
+    const netDistance = distanceMeters(previous, confirmation);
+    const nextDistance = distanceMeters(candidate, confirmation);
+    const elapsedSeconds = Math.max(1, (candidate.timestamp - previous.timestamp) / 1000);
+    const previousToCandidate = {
+      latitude: candidate.latitude - previous.latitude,
+      longitude: candidate.longitude - previous.longitude,
+    };
+    const candidateToNext = {
+      latitude: confirmation.latitude - candidate.latitude,
+      longitude: confirmation.longitude - candidate.longitude,
+    };
+    const continuesForward = (previousToCandidate.latitude * candidateToNext.latitude)
+      + (previousToCandidate.longitude * candidateToNext.longitude) > 0;
+    const settlesAtNewPlace = nextDistance <= minimumMovementMeters;
+
+    if (travelled >= minimumMovementMeters
+      && netDistance >= minimumMovementMeters
+      && travelled / elapsedSeconds <= 30
+      && (continuesForward || settlesAtNewPlace)) {
+      accepted.push(candidate);
+    }
   }
   return accepted;
 }

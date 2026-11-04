@@ -18,7 +18,7 @@ const LAST_COORD_KEY = '@guardian_last_location_coord';
 const MAX_FLUSH_ATTEMPTS = 3;
 // GPS can drift several metres while a phone is sitting still. Keep a
 // heartbeat for availability, but do not treat less than this as movement.
-const MIN_DISTANCE_METERS = 50;
+const MIN_DISTANCE_METERS = 100;
 const HEARTBEAT_INTERVAL_MS = 30000;
 const MAX_ACCURACY_METERS = 80;
 const MAX_SINGLE_JUMP_METERS = 1000;
