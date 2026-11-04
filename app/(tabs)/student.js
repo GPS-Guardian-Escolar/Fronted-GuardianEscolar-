@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert, Dimensions,
   KeyboardAvoidingView,
@@ -23,6 +23,7 @@ import { buildQrPayload, encodeQrValue } from '../../features/child-link/qrPaylo
 import LinkStatusBadge from '../../features/students/components/LinkStatusBadge';
 import QrSection from '../../features/students/components/QrSection';
 import StudentList from '../../features/students/components/StudentList';
+import { canManageStudent as canManage, hasActiveStudentQr, validateIssuedLinkCode, mergeStudentLinkCodes, getLinkCodeErrorKey } from '../../features/students/studentActions';
 import { studentService } from '../../services/student.service';
 import { AppTouch, AppTypography } from '../../theme/tokens';
 import { addStudent, deleteStudent, getInitials, getStudents, normalizeGrade, updateStudent } from '../../utils/studentStorage';
@@ -127,6 +128,9 @@ export default function StudentScreen() {
   const [fotoCargada, setFotoCargada] = useState(null); // guardara la URI de la imagen
   const [codigoGenerado, setCodigoGenerado] = useState(null);
   const [generatingLinkCode, setGeneratingLinkCode] = useState(false);
+  const linkRequestPending = useRef(false);
+  const [generatingStudentId, setGeneratingStudentId] = useState(null);
+  const [, setQrClock] = useState(0);
   const [formErrors, setFormErrors] = useState({});
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [sharingStudent, setSharingStudent] = useState(null);
@@ -146,6 +150,17 @@ export default function StudentScreen() {
   const { t } = useLanguage();
   const { theme } = useTheme();
   const colors = theme.colors;
+  useEffect(() => {
+    const expiryTimes = [...students, editingStudent].filter(student => hasActiveStudentQr(student))
+      .map(student => Date.parse(student.codigo_expira_en));
+    if (!expiryTimes.length) return;
+    const timer = setTimeout(() => {
+      setQrClock(value => value + 1);
+      setStudents(current => current.map(student => hasActiveStudentQr(student) ? student
+        : { ...student, codigo_vinculacion: null, codigo_expira_en: null }));
+    }, Math.min(...expiryTimes) - Date.now() + 50);
+    return () => clearTimeout(timer);
+  }, [students, editingStudent]);
   const filteredStudents = students.filter(student => {
     const query = studentQuery.trim().toLowerCase();
     if (!query) return true;
@@ -166,13 +181,13 @@ export default function StudentScreen() {
     setRefreshing(true);
     try {
       const data = await getStudents();
-      setStudents(data);
+      setStudents(current => mergeStudentLinkCodes(data, current, user));
     } catch (error) {
       showStudentAlert(t('error'), error.message || 'No se pudieron cargar los estudiantes.');
     } finally {
       setRefreshing(false);
     }
-  }, [t]);
+  }, [t, user]);
 
   // Recarga cada vez que la pantalla recibe foco
   useFocusEffect(
@@ -207,21 +222,36 @@ export default function StudentScreen() {
   }
 
   async function issueStudentLinkCode(studentToLink = editingStudent) {
-    if (!studentToLink?.id || !canManageStudent(studentToLink)) return;
+    if (!studentToLink?.id) {
+      showStudentAlert(t('error'), t('studQrAfterSave'));
+      return;
+    }
+    if (!canManageStudent(studentToLink)) {
+      showStudentAlert(t('error'), t('studReadOnlyDetails'));
+      return;
+    }
+    if (linkRequestPending.current) return;
+    linkRequestPending.current = true;
+    setGeneratingStudentId(studentToLink.id);
     setGeneratingLinkCode(true);
     try {
-      const issued = await studentService.issueLinkCode(studentToLink.id);
+      const issued = validateIssuedLinkCode(await studentService.issueLinkCode(studentToLink.id));
       const updatedStudent = {
         ...studentToLink,
         codigo_vinculacion: issued.code,
         codigo_expira_en: issued.expiresAt,
       };
-      setEditingStudent(updatedStudent);
-      setCodigoGenerado(issued.code);
-      setStudents(current => current.map(student => student.id === updatedStudent.id ? updatedStudent : student));
+      setEditingStudent(current => current?.id === studentToLink.id
+        ? { ...current, codigo_vinculacion: issued.code, codigo_expira_en: issued.expiresAt }
+        : current);
+      setStudents(current => current.map(student => student.id === updatedStudent.id
+        ? { ...student, codigo_vinculacion: issued.code, codigo_expira_en: issued.expiresAt } : student));
+      showStudentAlert(t('success'), t('studLinkCodeReady'), 'success');
     } catch (error) {
-      showStudentAlert(t('error'), error.message || t('studLinkCodeIssueFailed'));
+      showStudentAlert(t('error'), t(getLinkCodeErrorKey(error)));
     } finally {
+      linkRequestPending.current = false;
+      setGeneratingStudentId(null);
       setGeneratingLinkCode(false);
     }
   }
@@ -238,11 +268,6 @@ export default function StudentScreen() {
       { text: t('cancel'), style: 'cancel' },
       { text: t('studGenerateLinkCode'), onPress: () => issueStudentLinkCode(studentToLink) },
     ]);
-  }
-
-  function hasActiveStudentQr(student) {
-    const expiresAt = Date.parse(student?.codigo_expira_en || '');
-    return Boolean(student?.codigo_vinculacion && Number.isFinite(expiresAt) && expiresAt > Date.now());
   }
 
   async function openShare(student) {
@@ -493,8 +518,15 @@ export default function StudentScreen() {
   }
 
   function canManageStudent(student) {
-    const roles = Array.isArray(user?.roles) ? user.roles : [];
-    return student.usuarioId === user?.id || user?.role === 'ADMIN' || roles.includes('ADMIN');
+    return canManage(student, user);
+  }
+
+  function manageStudent(student, action) {
+    if (!canManageStudent(student)) {
+      showStudentAlert(t('studReadOnly'), t('studReadOnlyDetails'), 'info');
+      return;
+    }
+    action(student);
   }
 
   const StudentCard = ({ item }) => {
@@ -522,6 +554,7 @@ export default function StudentScreen() {
         )}
       </View>
       <Text style={[styles.childName, themed.text]}>{item.nombre}</Text>
+      {!canManage && <Text style={[styles.childSub, themed.textSecondary]}>{t('studReadOnly')}</Text>}
       <Text style={[styles.childSub, themed.textSecondary]}>
         {item.edad ? `${item.edad} ${t('studYears')}` : ''} {item.grado ? `- ${item.grado}` : ''}
       </Text>
@@ -573,19 +606,19 @@ export default function StudentScreen() {
           hint={t('studScanQrStudentPhone')}
           colors={colors}
         />
-      ) : canManage ? (
+      ) : (
         <Button
           mode="outlined"
           textColor={colors.primary}
-          onPress={() => issueStudentLinkCode(item)}
-          loading={generatingLinkCode}
+          onPress={() => manageStudent(item, issueStudentLinkCode)}
+          loading={generatingStudentId === item.id}
           disabled={generatingLinkCode}
           accessibilityRole="button"
           accessibilityLabel={t('studGenerateQrCard')}
         >
           {t('studGenerateQrCard')}
         </Button>
-      ) : null}
+      )}
 
       <Button 
         mode="contained" 
@@ -598,27 +631,27 @@ export default function StudentScreen() {
         {t('studViewMap')}
       </Button>
 
-      {canManage && (
+      {(
         <Button
           mode="outlined"
           style={styles.shareAccessBtn}
           textColor={colors.primary}
-          onPress={() => openShare(item)}
+          onPress={() => manageStudent(item, openShare)}
         >
           {t('studShareAccess')}
         </Button>
       )}
 
       {/* Acciones flotantes */}
-      {canManage && (
+      {(
         <View style={styles.cardActionsFloating}>
-          <TouchableOpacity style={[styles.actionBtnIcon, themed.surfaceSecondary]} onPress={() => openEdit(item)} accessibilityRole="button" accessibilityLabel={t('edit')}>
+          <TouchableOpacity style={[styles.actionBtnIcon, themed.surfaceSecondary]} onPress={() => manageStudent(item, openEdit)} accessibilityRole="button" accessibilityLabel={t('edit')}>
             <MaterialCommunityIcons name="pencil" size={16} color={colors.textSecondary} />
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtnIcon, themed.surfaceSecondary]} onPress={() => openShare(item)} accessibilityRole="button" accessibilityLabel={t('studShareAccess')}>
+          <TouchableOpacity style={[styles.actionBtnIcon, themed.surfaceSecondary]} onPress={() => manageStudent(item, openShare)} accessibilityRole="button" accessibilityLabel={t('studShareAccess')}>
             <MaterialCommunityIcons name="account-plus" size={16} color={colors.primary} />
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtnIcon, themed.surfaceSecondary]} onPress={() => confirmDelete(item)} accessibilityRole="button" accessibilityLabel={t('delete')}>
+          <TouchableOpacity style={[styles.actionBtnIcon, themed.surfaceSecondary]} onPress={() => manageStudent(item, confirmDelete)} accessibilityRole="button" accessibilityLabel={t('delete')}>
             <MaterialCommunityIcons name="trash-can" size={16} color={colors.error} />
           </TouchableOpacity>
         </View>
@@ -803,11 +836,11 @@ export default function StudentScreen() {
                   <Text style={[styles.mockupInfoTitle, { color: colors.primary }]}>{t('studLinkDevice')}</Text>
                   <Text style={[styles.mockupInfoDesc, themed.textSecondary]}>{t('studLinkDeviceDescription')}</Text>
                   
-                  {editingStudent && codigoGenerado ? (
+                  {editingStudent && hasActiveStudentQr(editingStudent) ? (
                     <View style={[styles.codigoBox, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
                       <QrSection
                         value={getStudentQrValue(editingStudent)}
-                        code={`${t('studLinkCode')}: ${codigoGenerado}`}
+                        code={`${t('studLinkCode')}: ${editingStudent.codigo_vinculacion}`}
                         title={t('studLinkDevice')}
                         hint={t('studLinkDeviceHint')}
                         size={isWeb ? 160 : 140}
@@ -823,7 +856,7 @@ export default function StudentScreen() {
                   {editingStudent && (
                     <TouchableOpacity
                       style={[styles.mockupUploadBtn, { borderColor: colors.primary }]}
-                      onPress={requestStudentLinkCode}
+                      onPress={() => requestStudentLinkCode(editingStudent)}
                       disabled={generatingLinkCode}
                       accessibilityRole="button"
                       accessibilityLabel={t('studGenerateLinkCode')}
