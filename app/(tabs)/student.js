@@ -589,10 +589,10 @@ export default function StudentScreen() {
 
       {canManage && Number(item.dispositivos_vinculados || 0) > 0 && (
         <TouchableOpacity
-          style={[styles.unlinkDeviceButton, { borderColor: colors.error }]}
           onPress={() => handleUnlinkDevice(item)}
           accessibilityRole="button"
           accessibilityLabel="Desvincular dispositivo del estudiante"
+          style={[styles.cardActionButton, styles.unlinkDeviceButton, { borderColor: colors.error, marginBottom: 14 }]}
         >
           <MaterialCommunityIcons name="cellphone-remove" size={18} color={colors.error} />
           <Text style={[styles.unlinkDeviceText, { color: colors.error }]}>{t('studUnlinkDevice')}</Text>
@@ -614,6 +614,7 @@ export default function StudentScreen() {
           onPress={() => manageStudent(item, issueStudentLinkCode)}
           loading={generatingStudentId === item.id}
           disabled={generatingLinkCode}
+          style={styles.cardActionButton}
           accessibilityRole="button"
           accessibilityLabel={t('studGenerateQrCard')}
         >
@@ -626,7 +627,7 @@ export default function StudentScreen() {
         buttonColor={
           getStatusColor(item.status)
         }
-        style={styles.verMapaBtn}
+        style={styles.cardActionButton}
         onPress={() => router.push({ pathname: '/(tabs)/tracking', params: { id: item.id, name: item.nombre } })}
       >
         {t('studViewMap')}
@@ -635,7 +636,7 @@ export default function StudentScreen() {
       {(
         <Button
           mode="outlined"
-          style={styles.shareAccessBtn}
+          style={[styles.cardActionButton, styles.shareAccessBtn]}
           textColor={colors.primary}
           onPress={() => manageStudent(item, openShare)}
         >
@@ -1194,13 +1195,10 @@ const styles = StyleSheet.create({
   },
   unlinkDeviceButton: {
     alignItems: 'center',
-    borderRadius: AppRadius.button,
     borderWidth: 1,
     flexDirection: 'row',
     gap: 8,
     justifyContent: 'center',
-    marginBottom: 14,
-    minHeight: 42,
     paddingHorizontal: 12,
   },
   unlinkDeviceText: {
@@ -1233,15 +1231,14 @@ const styles = StyleSheet.create({
     lineHeight: AppTypography.xs.lineHeight,
     marginTop: 4,
   },
-  verMapaBtn: {
+  cardActionButton: {
     borderRadius: AppRadius.button,
     minHeight: AppTouch.min,
+    width: '100%',
+    alignSelf: 'stretch',
     justifyContent: 'center',
   },
   shareAccessBtn: {
-    borderRadius: AppRadius.button,
-    minHeight: AppTouch.min,
-    justifyContent: 'center',
     marginTop: 10,
   },
   cardActionsFloating: {

@@ -2,18 +2,25 @@ import { collectPages } from './pagination';
 import api from './api';
 import { ENDPOINTS } from '../config/endpoints';
 
+async function createTrip({ studentId, routeId, tripStartedAt }, options = {}) {
+  const response = await api.post(ENDPOINTS.TRIPS, {
+    studentId,
+    routeId,
+    tripStartedAt,
+  }, buildChildAuthConfig(options));
+  return response.data;
+}
+
 export const trackingService = {
   listTrips: async () => {
     return collectPages(async page => (await api.get(ENDPOINTS.TRIPS, { params: { page, size: 100 } })).data);
   },
 
-  startTrip: async ({ studentId, routeId, tripStartedAt }, options = {}) => {
-    const response = await api.post(ENDPOINTS.TRIPS, {
-      studentId,
-      routeId,
-      tripStartedAt,
-    }, buildChildAuthConfig(options));
-    return response.data;
+  startTrip: createTrip,
+
+  startOrResumeTrip: async ({ activeTripId, studentId, routeId, tripStartedAt }, options = {}) => {
+    if (activeTripId) return { trip: { id: String(activeTripId) }, created: false };
+    return { trip: await createTrip({ studentId, routeId, tripStartedAt }, options), created: true };
   },
 
   updateStatus: async (tripId, data, options = {}) => {

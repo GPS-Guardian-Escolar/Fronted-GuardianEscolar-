@@ -223,28 +223,19 @@ export default function StudentDashboardScreen() {
       setActiveTripId(tripId || '');
       setQueueSize(size);
       setTrackingStatus(active ? 'sharing' : 'paused');
-      if (tripId && !active && Platform.OS !== 'web') {
+      if (tripId && !active) {
         try {
-          try {
-            await startBackgroundUpdates(tripId);
-          } catch (locationError) {
-          try {
-            await trackingService.updateStatus(tripId, {
-              status: 'CANCELED',
-              tripEndedAt: new Date().toISOString(),
-            }, { childToken: (await getChildSession()).childToken });
-          } catch (statusError) {
-            console.warn('No se pudo cancelar el trayecto tras fallar el rastreo:', statusError?.message || statusError);
-          }
-            throw locationError;
+          // A temporary permission or browser interruption must not cancel the
+          // server trip. Keep its ID so Retry can resume it instead of creating
+          // a duplicate active trip.
+          await startBackgroundUpdates(tripId);
+          const result = await flushQueue();
+          if (mounted) {
+            setSentCount(count => count + result.sent);
+            setQueueSize(result.remaining);
           }
           if (mounted) setTrackingStatus('sharing');
         } catch (error) {
-          try {
-            await stopBackgroundUpdates();
-          } catch (stopError) {
-            console.warn('No se pudo detener el rastreo tras un fallo:', stopError?.message || stopError);
-          }
           if (mounted) setPermissionError(error.message || 'No se pudo reanudar el rastreo.');
         }
       }
@@ -274,6 +265,9 @@ export default function StudentDashboardScreen() {
         || ''
     ).trim();
     const normalized = raw.toLowerCase();
+    if (normalized.includes('already has an active trip')) {
+      return 'Este trayecto ya está activo. Se intentará reanudarlo sin crear uno nuevo.';
+    }
     if (normalized.includes('no active route assigned')) {
       return 'No hay una ruta activa asignada a este estudiante. El acudiente debe crearla y asignarla antes de iniciar el trayecto.';
     }
@@ -306,12 +300,16 @@ export default function StudentDashboardScreen() {
         return;
       }
 
-      const trip = await trackingService.startTrip({
+      // After a reload, the server trip can still be active while the browser
+      // has stopped watching location. Reuse that trip when Retry is pressed.
+      const existingTripId = activeTripId || await getActiveTripId();
+      const { trip, created: createdTrip } = await trackingService.startOrResumeTrip({
+        activeTripId: existingTripId,
         studentId: String(resolvedStudentId),
         tripStartedAt: new Date().toISOString(),
         routeId: studentProfile?.preferredRouteId || undefined,
       }, { childToken: session.childToken });
-      const tripId = String(trip.id || trip.tripId || trip.uuid || '');
+      const tripId = String(trip?.id || trip?.tripId || trip?.uuid || '');
       if (!tripId) {
         throw new Error('El backend no devolvió el identificador del trayecto.');
       }
@@ -320,13 +318,15 @@ export default function StudentDashboardScreen() {
       try {
         await startBackgroundUpdates(tripId);
       } catch (locationError) {
-        try {
-          await trackingService.updateStatus(tripId, {
-            status: 'CANCELED',
-            tripEndedAt: new Date().toISOString(),
-          }, { childToken: session.childToken });
-        } catch (statusError) {
-          console.warn('No se pudo cancelar el trayecto tras rechazar la ubicación:', statusError?.message || statusError);
+        if (createdTrip) {
+          try {
+            await trackingService.updateStatus(tripId, {
+              status: 'CANCELED',
+              tripEndedAt: new Date().toISOString(),
+            }, { childToken: session.childToken });
+          } catch (statusError) {
+            console.warn('No se pudo cancelar el trayecto tras rechazar la ubicación:', statusError?.message || statusError);
+          }
         }
         throw locationError;
       }
