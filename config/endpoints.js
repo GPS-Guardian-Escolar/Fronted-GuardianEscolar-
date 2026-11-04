@@ -237,6 +237,7 @@ export const ENDPOINTS = {
   SAFE_ZONE_BY_ID: (id) => `/safe-zones/${id}`,
 
   TRIPS: '/trips',
+  TRIP_BY_ID: (id) => `/trips/${id}`,
   TRIP_STATUS: (id) => `/trips/${id}/status`,
   TRIP_COORDINATES: (id) => `/trips/${id}/coordinates`,
 

@@ -6,6 +6,7 @@ jest.mock('./api', () => ({
   get: jest.fn(),
   post: jest.fn(),
   patch: jest.fn(),
+  delete: jest.fn(),
 }));
 
 describe('trackingService.startOrResumeTrip', () => {
@@ -61,5 +62,11 @@ describe('trackingService.startOrResumeTrip', () => {
     api.post.mockRejectedValue({ response: { status: 400 } });
     await expect(trackingService.startOrResumeTrip({ studentId: 'student-1' }))
       .resolves.toEqual({ trip: { id: 'concurrent' }, created: false });
+  });
+
+  it('removes a trip from the remote history', async () => {
+    api.delete.mockResolvedValue({ status: 204 });
+    await expect(trackingService.deleteTrip('trip-7')).resolves.toBeUndefined();
+    expect(api.delete).toHaveBeenCalledWith('/trips/trip-7');
   });
 });

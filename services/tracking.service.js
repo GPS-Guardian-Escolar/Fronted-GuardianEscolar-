@@ -18,6 +18,10 @@ export const trackingService = {
 
   startTrip: createTrip,
 
+  deleteTrip: async (tripId) => {
+    await api.delete(ENDPOINTS.TRIP_BY_ID(tripId));
+  },
+
   getActiveTrip: async (studentId, options = {}) => {
     const response = await api.get(`${ENDPOINTS.TRIPS}/active`, {
       ...buildChildAuthConfig(options), params: { studentId },

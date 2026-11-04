@@ -4,7 +4,7 @@ import { COLORS } from '../../constants/colors';
 import * as Print from 'expo-print';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { Alert, Platform, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Platform, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Avatar, Surface, Text, TextInput } from 'react-native-paper';
 import IconButton from '../../components/ui/PaperIconButton';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -71,9 +71,11 @@ export default function HistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
-  const loadData = useCallback(async () => {
-    setRefreshing(true);
-    setLoading(true);
+  const loadData = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setRefreshing(true);
+      setLoading(true);
+    }
     setLoadError(null);
     try {
       const [storedHistory, trips, notifications] = await Promise.all([
@@ -88,21 +90,35 @@ export default function HistoryScreen() {
     } catch (error) {
       setLoadError(error);
     } finally {
-      setRefreshing(false);
-      setLoading(false);
+      if (!silent) {
+        setRefreshing(false);
+        setLoading(false);
+      }
     }
   }, [lang]);
 
-  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
+  useFocusEffect(useCallback(() => {
+    loadData();
+    const refreshTimer = setInterval(() => { loadData({ silent: true }); }, 15000);
+    return () => clearInterval(refreshTimer);
+  }, [loadData]));
 
   if (loading) return <AppLoading message="Cargando historial..." />;
   if (loadError) return <AppError message="No se pudo cargar el historial." onRetry={loadData} />;
 
   function confirmDeleteHistory(item) {
     const removeItem = async () => {
-      await deleteHistory(item.id);
-      await deleteNotification(item.id);
-      await loadData();
+      try {
+        if (item.backendId) {
+          await trackingService.deleteTrip(item.backendId);
+        } else {
+          await deleteHistory(item.id);
+          await deleteNotification(item.id);
+        }
+        await loadData();
+      } catch (error) {
+        showPlatformNotice(t('error'), error?.response?.data?.message || 'No se pudo eliminar el registro.', { tone: 'error' });
+      }
     };
 
     if (Platform.OS === 'web') {
@@ -313,7 +329,7 @@ export default function HistoryScreen() {
             <Text style={[styles.itemName, { color: colors.text }]}>{item.estudiante}</Text>
             <Text style={[styles.itemDate, { color: colors.textSecondary }]}>{item.fecha}</Text>
           </View>
-          {!item.backendId && <IconButton icon="trash-can-outline" size={18} containerColor={colors.surfaceSecondary} iconColor={colors.error} onPress={() => confirmDeleteHistory(item)} />}
+          <IconButton icon="trash-can-outline" size={18} containerColor={colors.surfaceSecondary} iconColor={colors.error} onPress={() => confirmDeleteHistory(item)} />
         </View>
 
         <View style={[styles.detailsGrid, { backgroundColor: colors.surfaceSecondary }]}>
