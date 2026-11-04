@@ -10,11 +10,13 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { trackingService } from '../../services/tracking.service';
 import { notificationService } from '../../services/notification.service';
+import { studentService } from '../../services/student.service';
 import { useTrackingRealtime } from '../../hooks/useTrackingRealtime';
 import TrackingHeader from '../../features/tracking/components/TrackingHeader';
 import TrackingStudentSelector from '../../features/tracking/components/TrackingStudentSelector';
 import { calculateRouteGeometry } from '../../utils/routeGeometry';
 import { buildTrackingMarkers } from '../../utils/trackingMarkers';
+import { showPlatformNotice } from '../../utils/noticeBus';
 
 const { width } = Dimensions.get('window');
 const isWeb = width > 768;
@@ -85,6 +87,7 @@ export default function TrackingScreen() {
   const [location, setLocation] = useState(null);
   const [studentZones, setStudentZones] = useState([]);
   const [selectedRouteId, setSelectedRouteId] = useState(null);
+  const [savingPreferredRouteId, setSavingPreferredRouteId] = useState(null);
   const [routeGeometry, setRouteGeometry] = useState([]);
   const [routeGeometries, setRouteGeometries] = useState([]);
   const [assignedRouteStatus, setAssignedRouteStatus] = useState('none');
@@ -129,7 +132,7 @@ export default function TrackingScreen() {
   useEffect(() => {
     const routes = selectedStudent?.routes || [];
     setSelectedRouteId(current => routes.some(route => String(route.id) === String(current)) ? current : (routes.find(route => String(route.id) === String(selectedStudent?.preferredRouteId))?.id || routes[0]?.id || null));
-  }, [selectedStudent?.id, selectedStudent?.routes]);
+  }, [selectedStudent?.id, selectedStudent?.routes, selectedStudent?.preferredRouteId]);
 
   const refreshLocation = useCallback(async (showSpinner = true, updateGeometry = true) => {
     if (!updateGeometry && refreshInProgress.current) return;
@@ -269,6 +272,27 @@ export default function TrackingScreen() {
     setSelectedStudent(student);
   };
 
+  const choosePreferredRoute = async (route) => {
+    if (!selectedStudent?.id || savingPreferredRouteId) return;
+    const studentId = selectedStudent.id;
+    setSavingPreferredRouteId(route.id);
+    try {
+      await studentService.setPreferredRoute(studentId, route.id);
+      userSelectedRoute.current = true;
+      setSelectedStudent(current => current?.id === studentId
+        ? { ...current, preferredRouteId: route.id }
+        : current);
+      setSelectedRouteId(route.id);
+      setRouteGeometry([]);
+      setRouteGeometries([]);
+      showPlatformNotice(t('zonesPreferredRouteSaved'), route.name || t('trackAssignedRoute'), { tone: 'success' });
+    } catch (error) {
+      showPlatformNotice(t('error'), error?.response?.data?.message || t('zonesPreferredRouteFailed'), { tone: 'error' });
+    } finally {
+      setSavingPreferredRouteId(null);
+    }
+  };
+
   useEffect(() => {
     refreshLocation();
   }, [refreshLocation]);
@@ -356,6 +380,26 @@ export default function TrackingScreen() {
           colors={colors}
         />
 
+        {(selectedStudent?.routes || []).length > 1 && (
+          <Surface style={[styles.routeSelector, themed.surface]} elevation={0}>
+            <Text style={[styles.mapOptionLabel, themed.text]}>{t('trackSelectRouteToView')}</Text>
+            <View style={styles.routeSelectorButtons}>
+              {selectedStudent.routes.map(route => (
+                <Button key={route.id} mode={String(route.id) === String(selectedRouteId) ? 'contained' : 'outlined'}
+                  buttonColor={String(route.id) === String(selectedRouteId) ? colors.primary : undefined}
+                  textColor={String(route.id) === String(selectedRouteId) ? colors.textOnPrimary : colors.primary}
+                  disabled={Boolean(savingPreferredRouteId) || String(route.id) === String(selectedRouteId)}
+                  loading={String(savingPreferredRouteId) === String(route.id)}
+                  onPress={() => choosePreferredRoute(route)}
+                  accessibilityLabel={t('trackSelectRouteToView') + ': ' + route.name}>
+                  {route.name || t('trackAssignedRoute')}
+                </Button>
+              ))}
+            </View>
+            <Text style={themed.textSecondary}>{t('trackRouteViewOnly')}</Text>
+          </Surface>
+        )}
+
         {/* Tarjeta del Mapa */}
         <Surface style={[styles.mapCard, themed.surface]} elevation={1}>
           <SafeMap
@@ -412,24 +456,6 @@ export default function TrackingScreen() {
             </View>
           </View>
         </Surface>
-
-        {(selectedStudent?.routes || []).length > 1 && showAssignedRoute && (
-          <Surface style={[styles.routeSelector, themed.surface]} elevation={0}>
-            <Text style={[styles.mapOptionLabel, themed.text]}>{t('trackSelectRouteToView')}</Text>
-            <View style={styles.routeSelectorButtons}>
-              {selectedStudent.routes.map(route => (
-                <Button key={route.id} mode={String(route.id) === String(selectedRouteId) ? 'contained' : 'outlined'}
-                  buttonColor={String(route.id) === String(selectedRouteId) ? colors.primary : undefined}
-                  textColor={String(route.id) === String(selectedRouteId) ? colors.textOnPrimary : colors.primary}
-                  onPress={() => { if (String(route.id) === String(selectedRouteId)) return; userSelectedRoute.current = true; setRouteGeometry([]); setRouteGeometries([]); setSelectedRouteId(route.id); }}
-                  accessibilityLabel={t('trackSelectRouteToView') + ': ' + route.name}>
-                  {route.name || t('trackAssignedRoute')}
-                </Button>
-              ))}
-            </View>
-            <Text style={themed.textSecondary}>{t('trackRouteViewOnly')}</Text>
-          </Surface>
-        )}
 
         <Surface style={[styles.mapOptions, themed.surface]} elevation={0}>
           <View style={styles.mapOptionRow}>
