@@ -6,7 +6,6 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { COLORS } from '../../constants/colors';
 import SafeMap from '../../components/SafeMap';
 import { getStudents, addZone, updateZone, deleteZone, getInitials, addRoute, updateRoute, deleteRoute } from '../../utils/studentStorage';
-import { studentService } from '../../services/student.service';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { canManageStudent } from '../../features/students/studentActions';
@@ -287,20 +286,6 @@ export default function ZonesScreen() {
       return next;
     });
   }
-  async function choosePreferredRoute(route) {
-    if (!canManage || !selectedStudent?.id) return;
-    try {
-      await studentService.setPreferredRoute(selectedStudent.id, route.id);
-      await loadData();
-      emitNotice(t('zonesPreferredRouteSaved'), route.name, { tone: 'success' });
-    } catch (error) {
-      showZonesAlert(t('error'), requestErrorMessage(error, {
-        general: t('zonesPreferredRouteFailed'), network: t('qrNoConnection'),
-        sessionExpired: t('qrGuardianSessionExpired'), forbidden: t('zonesForbidden'),
-      }));
-    }
-  }
-
   async function handleSaveRoute() {
     if (!canManage) return;
     if (!routeForm.name.trim() || !routeForm.start.trim() || !routeForm.end.trim()) {
@@ -600,9 +585,6 @@ export default function ZonesScreen() {
                         <MaterialCommunityIcons name={'map-outline'} size={16} color={colors.primary} />
                         <Text style={[styles.viewBtnText, { color: colors.primary }]}>{t('zonesViewMap')}</Text>
                       </TouchableOpacity>
-                      {canManage && String(selectedStudent.preferredRouteId) !== String(route.id) && <TouchableOpacity style={[styles.viewBtn, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]} onPress={() => choosePreferredRoute(route)} accessibilityRole="button">
-                        <Text style={[styles.viewBtnText, { color: colors.primary }]}>{t('zonesUseNextTrip')}</Text>
-                      </TouchableOpacity>}
                       {canManage && (<TouchableOpacity style={[styles.editBtn, { backgroundColor: colors.primary }]} onPress={() => openEditRoute(route)}>
                         <Text style={[styles.editBtnText, { color: colors.textOnPrimary }]}>{t('live') === 'Live' ? 'Edit' : 'Editar'}</Text>
                       </TouchableOpacity>)}
