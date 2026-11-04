@@ -13,7 +13,8 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { Avatar, Button, FAB, Snackbar, Surface, Text } from 'react-native-paper';
+import { Avatar, FAB, Snackbar, Surface, Text } from 'react-native-paper';
+import Button from '../../components/ui/PaperButton';
 import CalendarDatePicker from '../../components/common/CalendarDatePicker';
 import { COLORS } from '../../constants/colors';
 import { useAuth } from '../../contexts/AuthContext';
@@ -25,7 +26,7 @@ import QrSection from '../../features/students/components/QrSection';
 import StudentList from '../../features/students/components/StudentList';
 import { canManageStudent as canManage, hasActiveStudentQr, validateIssuedLinkCode, mergeStudentLinkCodes, getLinkCodeErrorKey } from '../../features/students/studentActions';
 import { studentService } from '../../services/student.service';
-import { AppTouch, AppTypography } from '../../theme/tokens';
+import { AppRadius, AppTouch, AppTypography } from '../../theme/tokens';
 import { addStudent, deleteStudent, getInitials, getStudents, normalizeGrade, updateStudent } from '../../utils/studentStorage';
 import { validateInputEdit, isValidPersonName, isValidPhone } from '../../utils/validators';
 import { emitNotice, showPlatformConfirm } from '../../utils/noticeBus';
@@ -804,7 +805,7 @@ export default function StudentScreen() {
                         top: -5,
                         right: -5,
                         backgroundColor: colors.error,
-                        borderRadius: 24,
+                        borderRadius: AppRadius.button,
                         width: AppTouch.icon,
                         height: AppTouch.icon,
                         justifyContent: 'center',
@@ -1193,7 +1194,7 @@ const styles = StyleSheet.create({
   },
   unlinkDeviceButton: {
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: AppRadius.button,
     borderWidth: 1,
     flexDirection: 'row',
     gap: 8,
@@ -1233,12 +1234,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   verMapaBtn: {
-    borderRadius: 8,
+    borderRadius: AppRadius.button,
     minHeight: AppTouch.min,
     justifyContent: 'center',
   },
   shareAccessBtn: {
-    borderRadius: 8,
+    borderRadius: AppRadius.button,
     minHeight: AppTouch.min,
     justifyContent: 'center',
     marginTop: 10,
@@ -1256,7 +1257,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     backgroundColor: '#F3F4F6',
-    borderRadius: 24,
+    borderRadius: AppRadius.button,
     borderWidth: 1,
     borderColor: COLORS.GRIS_BORDE,
     alignItems: 'center',
@@ -1287,7 +1288,7 @@ const styles = StyleSheet.create({
     right: 24,
     bottom: 24,
     backgroundColor: '#84CC16',
-    borderRadius: 30,
+    borderRadius: AppRadius.button,
     width: 56,
     height: 56,
     alignItems: 'center',
@@ -1377,7 +1378,7 @@ const styles = StyleSheet.create({
   saveBtn: {
     flexDirection: 'row',
     backgroundColor: COLORS.PRIMARIO,
-    borderRadius: 12,
+    borderRadius: AppRadius.button,
     paddingVertical: 14,
     justifyContent: 'center',
     alignItems: 'center',
@@ -1434,7 +1435,7 @@ const styles = StyleSheet.create({
   },
   deleteConfirmBtn: {
     alignItems: 'center',
-    borderRadius: 6,
+    borderRadius: AppRadius.button,
     flex: 1,
     justifyContent: 'center',
     minHeight: AppTouch.min,
@@ -1450,7 +1451,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   shareButton: {
-    borderRadius: 8,
+    borderRadius: AppRadius.button,
     marginBottom: 18,
   },
   guardianTitle: {
@@ -1548,7 +1549,7 @@ const styles = StyleSheet.create({
   mockupUploadBtn: {
     borderWidth: 1,
     borderColor: '#6B7280',
-    borderRadius: 6,
+    borderRadius: AppRadius.button,
     minHeight: AppTouch.min,
     paddingVertical: 9,
     paddingHorizontal: 16,
@@ -1580,7 +1581,7 @@ const styles = StyleSheet.create({
   },
   mockupGenerateBtn: {
     backgroundColor: '#1D4ED8',
-    borderRadius: 6,
+    borderRadius: AppRadius.button,
     minHeight: AppTouch.min,
     justifyContent: 'center',
     alignItems: 'center',
@@ -1636,7 +1637,7 @@ const styles = StyleSheet.create({
     flex: 1,
     borderWidth: 1,
     borderColor: '#374151',
-    borderRadius: 6,
+    borderRadius: AppRadius.button,
     minHeight: AppTouch.min,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1647,7 +1648,7 @@ const styles = StyleSheet.create({
   },
   mockupSaveBtn: {
     flex: 1,
-    borderRadius: 6,
+    borderRadius: AppRadius.button,
     minHeight: AppTouch.min,
     alignItems: 'center',
     justifyContent: 'center',

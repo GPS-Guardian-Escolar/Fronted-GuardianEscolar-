@@ -1,6 +1,9 @@
+import { AppRadius } from '../../theme/tokens';
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Modal, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
-import { Text, Surface, Avatar, Button, IconButton } from 'react-native-paper';
+import { Text, Surface, Avatar } from 'react-native-paper';
+import IconButton from '../../components/ui/PaperIconButton';
+import Button from '../../components/ui/PaperButton';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { COLORS } from '../../constants/colors';
@@ -13,6 +16,8 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { calculateRouteGeometry } from '../../utils/routeGeometry';
 import { buildRouteMarkers } from '../../utils/trackingMarkers';
 import { emitNotice } from '../../utils/noticeBus';
+import RouteSelector from '../../components/common/RouteSelector';
+import { studentService } from '../../services/student.service';
 
 const { width } = Dimensions.get('window');
 const isWeb = width > 768;
@@ -93,6 +98,7 @@ export default function ZonesScreen() {
   };
   const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [savingPreferredRouteId, setSavingPreferredRouteId] = useState(null);
   const canManage = canManageStudent(selectedStudent, user);
   const [activeTab, setActiveTab] = useState('zones'); // 'zones' or 'routes'
   
@@ -357,10 +363,32 @@ export default function ZonesScreen() {
 
   const currentZones = selectedStudent?.zones || [];
   const currentRoutes = selectedStudent?.routes || [];
+  const selectedRouteId = currentRoutes.find(route => String(route.id) === String(selectedStudent?.preferredRouteId))?.id
+    ?? currentRoutes[0]?.id ?? null;
+
+  const choosePreferredRoute = async (route) => {
+    if (!selectedStudent?.id || !canManage || savingPreferredRouteId != null) return;
+    const studentId = selectedStudent.id;
+    setSavingPreferredRouteId(route.id);
+    try {
+      await studentService.setPreferredRoute(studentId, route.id);
+      const updatePreference = student => student?.id === studentId
+        ? { ...student, preferredRouteId: route.id } : student;
+      setSelectedStudent(updatePreference);
+      setStudents(current => current.map(updatePreference));
+      emitNotice(t('zonesPreferredRouteSaved'), route.name || t('trackAssignedRoute'), { tone: 'success' });
+    } catch (error) {
+      showZonesAlert(t('error'), error?.response?.data?.message || t('zonesPreferredRouteFailed'));
+    } finally {
+      setSavingPreferredRouteId(null);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
-    const routes = selectedStudent?.routes || [];
+    const routes = (selectedStudent?.routes || []).filter(route => String(route.id) === String(selectedRouteId));
+    setRouteGeometry([]);
+    setRouteGeometries([]);
     if (!routes.length) {
       setRouteGeometry([]);
       setRouteGeometries([]);
@@ -375,7 +403,7 @@ export default function ZonesScreen() {
       setRouteGeometry(paths[0]?.coordinates || []);
     });
     return () => { cancelled = true; };
-  }, [selectedStudent?.id, selectedStudent?.routes, colors.primary]);
+  }, [selectedStudent?.id, selectedStudent?.routes, selectedRouteId, colors.primary]);
 
   if (!selectedStudent) {
     return (
@@ -441,6 +469,9 @@ export default function ZonesScreen() {
         </View>
 
         {!canManage && <Text accessibilityRole="text" style={[styles.subtitle, themed.textSecondary]}>{t('studReadOnlyDetails')}</Text>}
+
+        <RouteSelector routes={currentRoutes} selectedRouteId={selectedRouteId}
+          savingRouteId={savingPreferredRouteId} onSelect={choosePreferredRoute} disabled={!canManage} />
 
         {/* Tabs */}
         <View style={[styles.tabsContainer, themed.surfaceSecondary]}>
@@ -564,7 +595,6 @@ export default function ZonesScreen() {
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.routeName, themed.text]}>{route.name}</Text>
                         <Text style={[styles.routeAssign, themed.textSecondary]}>{t('live') === 'Live' ? 'Assigned to:' : 'Asignada a:'} {selectedStudent.nombre}</Text>
-                        {String(selectedStudent.preferredRouteId) === String(route.id) && <Text style={{color: colors.accent}}>{t('zonesPreferredRoute')}</Text>}
                       </View>
                       <View style={styles.routeStatus}>
                          <MaterialCommunityIcons name="radiobox-marked" size={12} color={colors.accent} />
@@ -878,7 +908,7 @@ const styles = StyleSheet.create({
   headerRow: { marginTop: 10, marginBottom: 14 },
   title: { fontSize: 22, fontWeight: 'bold', color: COLORS.TEXTO_GENERAL },
   subtitle: { fontSize: 13, color: COLORS.TEXTO_SECUNDARIO, marginTop: 4 },
-  headerBtn: { backgroundColor: COLORS.BLANCO, borderRadius: 8 },
+  headerBtn: { backgroundColor: COLORS.BLANCO, borderRadius: AppRadius.button },
   tabsContainer: { flexDirection: 'row', backgroundColor: COLORS.GRIS_BORDE, borderRadius: 10, padding: 4, marginBottom: 16 },
   tab: { flex: 1, minHeight: 42, justifyContent: 'center', alignItems: 'center', borderRadius: 8 },
   tabActive: { elevation: 3, shadowColor: COLORS.NEGRO, shadowOpacity: 0.16, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
@@ -886,7 +916,7 @@ const styles = StyleSheet.create({
   tabTextActive: { color: COLORS.PRIMARIO, fontWeight: 'bold' },
   actionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 12 },
   countText: { fontSize: 12, color: COLORS.TEXTO_SECUNDARIO },
-  addBtn: { backgroundColor: COLORS.ACENTO, minHeight: 40, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, justifyContent: 'center' },
+  addBtn: { backgroundColor: COLORS.ACENTO, minHeight: 40, paddingHorizontal: 14, paddingVertical: 8, borderRadius: AppRadius.button, justifyContent: 'center' },
   addBtnText: { color: COLORS.BLANCO, fontSize: 12, fontWeight: 'bold' },
   zonesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginBottom: 18 },
   zoneCard: { width: isWeb ? '48%' : '100%', backgroundColor: COLORS.BLANCO, borderRadius: 10, padding: 0, overflow: 'hidden', shadowColor: COLORS.NEGRO, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 2 },
@@ -899,7 +929,7 @@ const styles = StyleSheet.create({
   zoneLabel: { fontSize: 11, color: COLORS.TEXTO_SECUNDARIO, marginBottom: 2 },
   zoneValue: { fontSize: 13, color: COLORS.TEXTO_GENERAL, fontWeight: '500', marginBottom: 10 },
   zoneRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  routeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, padding: 14, borderBottomWidth: 1, borderColor: COLORS.GRIS_BORDE },
+  routeHeader: { flexGrow: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, padding: 14, borderBottomWidth: 1, borderColor: COLORS.GRIS_BORDE },
   routeName: { fontSize: 16, fontWeight: 'bold', color: COLORS.NEGRO },
   routeAssign: { fontSize: 11, color: COLORS.TEXTO_SECUNDARIO, marginTop: 2 },
   routeStatus: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0 },
@@ -912,11 +942,11 @@ const styles = StyleSheet.create({
   timelineLine: { flex: 1, height: 2, backgroundColor: COLORS.GRIS_BORDE, marginHorizontal: 8 },
   timelineText: { fontSize: 12, color: COLORS.NEGRO, marginHorizontal: 6, fontWeight: '500', flexShrink: 1 },
   zoneFooter: { flexDirection: 'row', padding: 14, gap: 10, paddingTop: 8 },
-  viewBtn: { flex: 1, minHeight: 40, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 5 },
+  viewBtn: { flex: 1, minHeight: 40, borderRadius: AppRadius.button, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 5 },
   viewBtnText: { fontWeight: '700', fontSize: 13 },
-  editBtn: { flex: 1, backgroundColor: COLORS.PRIMARIO, minHeight: 40, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  editBtn: { flex: 1, backgroundColor: COLORS.PRIMARIO, minHeight: 40, borderRadius: AppRadius.button, alignItems: 'center', justifyContent: 'center' },
   editBtnText: { color: COLORS.BLANCO, fontWeight: '600', fontSize: 13 },
-  deleteBtn: { flex: 1, backgroundColor: '#FDE2E2', minHeight: 40, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  deleteBtn: { flex: 1, backgroundColor: '#FDE2E2', minHeight: 40, borderRadius: AppRadius.button, alignItems: 'center', justifyContent: 'center' },
   deleteBtnText: { color: COLORS.ALERTA, fontWeight: '600', fontSize: 13 },
   mapCard: { height: isWeb ? 520 : 330, backgroundColor: COLORS.BLANCO, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.GRIS_BORDE },
   mapCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1 },
@@ -948,15 +978,15 @@ const styles = StyleSheet.create({
   input: { backgroundColor: COLORS.FONDO_PRINCIPAL, borderWidth: 1, borderColor: COLORS.GRIS_BORDE, borderRadius: 8, paddingHorizontal: 12, minHeight: 44, fontSize: 14, color: COLORS.TEXTO_GENERAL },
   typeSelector: { marginBottom: 12 },
   typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 5 },
-  typeChip: { minHeight: 34, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 18, borderWidth: 1, borderColor: COLORS.GRIS_BORDE, justifyContent: 'center' },
+  typeChip: { minHeight: 34, paddingHorizontal: 12, paddingVertical: 7, borderRadius: AppRadius.button, borderWidth: 1, borderColor: COLORS.GRIS_BORDE, justifyContent: 'center' },
   typeChipActive: { backgroundColor: COLORS.PRIMARIO, borderColor: COLORS.PRIMARIO },
   typeChipText: { fontSize: 11, color: COLORS.TEXTO_SECUNDARIO },
   typeChipTextActive: { color: COLORS.BLANCO, fontWeight: 'bold' },
   modalFooter: { flexDirection: 'row', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 10, paddingHorizontal: 20, paddingVertical: 10, borderTopWidth: 1, flexShrink: 0 },
-  cancelBtn: { flex: isWeb ? undefined : 1, minWidth: isWeb ? 110 : 0, minHeight: 44, paddingHorizontal: 20, borderRadius: 8, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
+  cancelBtn: { flex: isWeb ? undefined : 1, minWidth: isWeb ? 110 : 0, minHeight: 44, paddingHorizontal: 20, borderRadius: AppRadius.button, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
   cancelBtnText: { color: COLORS.TEXTO_SECUNDARIO, fontWeight: 'bold' },
-  deleteActionBtn: { flex: isWeb ? undefined : 1, minWidth: isWeb ? 110 : 0, minHeight: 44, paddingHorizontal: 18, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  saveBtn: { flex: isWeb ? undefined : 1, minHeight: 44, minWidth: isWeb ? 120 : 0, borderRadius: 8, justifyContent: 'center', backgroundColor: COLORS.PRIMARIO },
+  deleteActionBtn: { flex: isWeb ? undefined : 1, minWidth: isWeb ? 110 : 0, minHeight: 44, paddingHorizontal: 18, borderRadius: AppRadius.button, justifyContent: 'center', alignItems: 'center' },
+  saveBtn: { flex: isWeb ? undefined : 1, minHeight: 44, minWidth: isWeb ? 120 : 0, borderRadius: AppRadius.button, justifyContent: 'center', backgroundColor: COLORS.PRIMARIO },
   buttonContent: { minHeight: 44 },
   routeZonePicker: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
   routeModalSheet: { height: isWeb ? '90%' : '92%', maxHeight: '96%' },
@@ -977,7 +1007,7 @@ const styles = StyleSheet.create({
   routeZoneAction: { minHeight: 32, paddingHorizontal: 10, borderRadius: 6, justifyContent: 'center', backgroundColor: COLORS.ACENTO },
   routeZoneActionText: { color: COLORS.BLANCO, fontSize: 11, fontWeight: '700' },
   routePlannerControls: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 20, paddingTop: 10 },
-  routePlannerBtn: { minHeight: 36, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: COLORS.GRIS_BORDE, justifyContent: 'center' },
+  routePlannerBtn: { minHeight: 36, paddingHorizontal: 12, borderRadius: AppRadius.button, borderWidth: 1, borderColor: COLORS.GRIS_BORDE, justifyContent: 'center' },
   routePlannerBtnActive: { backgroundColor: COLORS.PRIMARIO, borderColor: COLORS.PRIMARIO },
   routePlannerBtnDisabled: { opacity: 0.45 },
   routePlannerBtnText: { color: COLORS.TEXTO_GENERAL, fontSize: 12, fontWeight: '600' },

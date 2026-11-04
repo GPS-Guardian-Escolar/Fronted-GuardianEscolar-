@@ -1,9 +1,11 @@
+import { AppRadius } from '../../theme/tokens';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Button, Text, TextInput } from 'react-native-paper';
+import { Text, TextInput } from 'react-native-paper';
+import Button from '../../components/ui/PaperButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -134,7 +136,7 @@ const styles = StyleSheet.create({
   cardSubtitle: { fontSize: 12, textAlign: 'center', marginBottom: 14, lineHeight: 18 },
   label: { fontSize: 13, fontWeight: '600', marginBottom: 6 },
   input: { height: 44, marginBottom: 10 },
-  actionButton: { borderRadius: 8, marginTop: 10 },
+  actionButton: { borderRadius: AppRadius.button, marginTop: 10 },
   buttonContent: { height: 42 },
   errorBox: { borderRadius: 8, padding: 10, marginBottom: 10, borderWidth: 1 },
   errorText: { fontSize: 12, fontWeight: '600', textAlign: 'center' },

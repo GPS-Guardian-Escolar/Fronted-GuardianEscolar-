@@ -3,14 +3,15 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { ActivityIndicator, Button, Checkbox, Surface, Text, TextInput } from 'react-native-paper';
+import { ActivityIndicator, Checkbox, Surface, Text, TextInput } from 'react-native-paper';
+import Button from '../../components/ui/PaperButton';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { storage } from '../../utils/storage';
 import { isValidEmail } from '../../utils/validators';
-import { AppTouch } from '../../theme/tokens';
+import { AppRadius, AppTouch } from '../../theme/tokens';
 import { SUPPORTED_LANGUAGES } from '../../translations';
 
 export default function LoginScreen() {
@@ -331,7 +332,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   backButton: { padding: 8 },
-  languageButton: { minHeight: AppTouch.min, minWidth: AppTouch.min, borderWidth: 1, borderRadius: 999, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 5, paddingHorizontal: 10 },
+  languageButton: { minHeight: AppTouch.min, minWidth: AppTouch.min, borderWidth: 1, borderRadius: AppRadius.button, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 5, paddingHorizontal: 10 },
   languageButtonText: { fontSize: 12, fontWeight: '700' },
   languageOverlay: { flex: 1, justifyContent: 'center', padding: 24 },
   languageSheet: { width: '100%', maxWidth: 420, alignSelf: 'center', borderWidth: 1, borderRadius: 16, padding: 16 },
@@ -369,7 +370,7 @@ const styles = StyleSheet.create({
   forgotText: { fontSize: 13, fontWeight: '700' },
   checkboxContainer: { flexDirection: 'row', alignItems: 'center', marginLeft: -8 },
   checkboxLabel: { fontSize: 13 },
-  loginButton: { borderRadius: 8, marginTop: 10 },
+  loginButton: { borderRadius: AppRadius.button, marginTop: 10 },
   buttonContent: { height: 48 },
   footerLinks: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 20 },
   noAccountText: { fontSize: 13 },
@@ -378,7 +379,7 @@ const styles = StyleSheet.create({
   errorBoxText: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
   studentQrFab: {
     alignItems: 'center',
-    borderRadius: 999,
+    borderRadius: AppRadius.button,
     flexDirection: 'row',
     gap: 8,
     minHeight: AppTouch.min,

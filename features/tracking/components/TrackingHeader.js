@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Avatar, IconButton, Surface, Text } from 'react-native-paper';
+import { Avatar, Surface, Text } from 'react-native-paper';
+import IconButton from '../../../components/ui/PaperIconButton';
 import { getInitials } from '../../../utils/studentStorage';
 
 export default function TrackingHeader({ student, status, onRefresh, colors, t }) {

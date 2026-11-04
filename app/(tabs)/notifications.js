@@ -1,3 +1,4 @@
+import { AppRadius } from '../../theme/tokens';
 import React, { useCallback, useState } from 'react';
 import {
   View,
@@ -307,7 +308,7 @@ const styles = StyleSheet.create({
   markAllBtn: {
     borderWidth: 1,
     borderColor: COLORS.GRIS_BORDE,
-    borderRadius: 8,
+    borderRadius: AppRadius.button,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },

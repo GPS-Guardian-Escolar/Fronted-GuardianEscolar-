@@ -1,9 +1,11 @@
+import { AppRadius } from '../../theme/tokens';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Button, Text } from 'react-native-paper';
+import { Text } from 'react-native-paper';
+import Button from '../../components/ui/PaperButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../contexts/ThemeContext';
 import { authService } from '../../services/auth.service';
@@ -74,5 +76,5 @@ const styles = StyleSheet.create({
   card: { width: '100%', maxWidth: 460, alignItems: 'center', borderWidth: 1, borderRadius: 10, padding: 24 },
   title: { fontSize: 24, fontWeight: '700', textAlign: 'center', marginTop: 12 },
   message: { fontSize: 14, textAlign: 'center', lineHeight: 20, marginTop: 8 },
-  button: { marginTop: 20, borderRadius: 8, alignSelf: 'stretch' },
+  button: { marginTop: 20, borderRadius: AppRadius.button, alignSelf: 'stretch' },
 });

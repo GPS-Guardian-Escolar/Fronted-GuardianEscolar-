@@ -1,7 +1,8 @@
 import React from 'react';
 import { Alert, Linking, Platform, View, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Text, Surface, Button } from 'react-native-paper';
+import { Text, Surface } from 'react-native-paper';
+import Button from '../components/ui/PaperButton';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
@@ -24,7 +25,7 @@ import {
 } from '../services/background/locationTracking';
 import { BASE_URL } from '../config/endpoints';
 import { showPlatformConfirm, showPlatformNotice } from '../utils/noticeBus';
-import { AppTypography } from '../theme/tokens';
+import { AppRadius, AppTypography } from '../theme/tokens';
 import PermissionGate from '../features/child/components/PermissionGate';
 import SharingStatusCard from '../features/child/components/SharingStatusCard';
 import TripControls from '../features/child/components/TripControls';
@@ -693,7 +694,7 @@ const styles = StyleSheet.create({
   },
   emergencyBtn: {
     marginTop: 8,
-    borderRadius: 8,
+    borderRadius: AppRadius.button,
     paddingVertical: 4,
   },
   trackingBadge: {
@@ -720,7 +721,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   trackingButton: {
-    borderRadius: 8,
+    borderRadius: AppRadius.button,
     marginTop: 14,
     minHeight: 48,
     justifyContent: 'center',

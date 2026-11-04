@@ -1,9 +1,11 @@
+import { AppRadius } from '../../theme/tokens';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Button, Text, TextInput } from 'react-native-paper';
+import { Text, TextInput } from 'react-native-paper';
+import Button from '../../components/ui/PaperButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -161,7 +163,7 @@ const styles = StyleSheet.create({
   otpBox: { flex: 1, minWidth: 42, aspectRatio: 0.86, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   otpDigit: { fontSize: 22, fontWeight: '700' },
   hiddenInput: { width: 1, height: 1, opacity: 0, marginBottom: 12 },
-  actionButton: { borderRadius: 8, marginTop: 8 },
+  actionButton: { borderRadius: AppRadius.button, marginTop: 8 },
   buttonContent: { height: 46 },
   errorBox: { borderRadius: 8, padding: 10, marginBottom: 10, borderWidth: 1 },
   errorText: { fontSize: 12, fontWeight: '600', textAlign: 'center' },

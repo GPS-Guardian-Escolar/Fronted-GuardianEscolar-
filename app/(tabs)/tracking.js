@@ -1,6 +1,10 @@
+import { AppRadius } from '../../theme/tokens';
+import RouteSelector from '../../components/common/RouteSelector';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, StyleSheet, ActivityIndicator, Dimensions, ScrollView } from 'react-native';
-import { Text, Surface, IconButton, Button, Switch } from 'react-native-paper';
+import { Text, Surface, Switch } from 'react-native-paper';
+import IconButton from '../../components/ui/PaperIconButton';
+import Button from '../../components/ui/PaperButton';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { COLORS } from '../../constants/colors';
@@ -380,25 +384,8 @@ export default function TrackingScreen() {
           colors={colors}
         />
 
-        {(selectedStudent?.routes || []).length > 1 && (
-          <Surface style={[styles.routeSelector, themed.surface]} elevation={0}>
-            <Text style={[styles.mapOptionLabel, themed.text]}>{t('trackSelectRouteToView')}</Text>
-            <View style={styles.routeSelectorButtons}>
-              {selectedStudent.routes.map(route => (
-                <Button key={route.id} mode={String(route.id) === String(selectedRouteId) ? 'contained' : 'outlined'}
-                  buttonColor={String(route.id) === String(selectedRouteId) ? colors.primary : undefined}
-                  textColor={String(route.id) === String(selectedRouteId) ? colors.textOnPrimary : colors.primary}
-                  disabled={Boolean(savingPreferredRouteId) || String(route.id) === String(selectedRouteId)}
-                  loading={String(savingPreferredRouteId) === String(route.id)}
-                  onPress={() => choosePreferredRoute(route)}
-                  accessibilityLabel={t('trackSelectRouteToView') + ': ' + route.name}>
-                  {route.name || t('trackAssignedRoute')}
-                </Button>
-              ))}
-            </View>
-            <Text style={themed.textSecondary}>{t('trackRouteViewOnly')}</Text>
-          </Surface>
-        )}
+        <RouteSelector routes={selectedStudent?.routes || []} selectedRouteId={selectedRouteId}
+          savingRouteId={savingPreferredRouteId} onSelect={choosePreferredRoute} />
 
         {/* Tarjeta del Mapa */}
         <Surface style={[styles.mapCard, themed.surface]} elevation={1}>
@@ -592,7 +579,7 @@ const styles = StyleSheet.create({
   headerTextCol: { justifyContent: 'center' },
   studentName: { fontSize: 16, fontWeight: 'bold', color: COLORS.NEGRO },
   studentStatus: { fontSize: 12, color: COLORS.TEXTO_SECUNDARIO },
-  refreshBtn: { backgroundColor: COLORS.FONDO_PRINCIPAL, borderRadius: 8 },
+  refreshBtn: { backgroundColor: COLORS.FONDO_PRINCIPAL, borderRadius: AppRadius.button },
 
   selectorContainer: { marginBottom: 16 },
   selectorScroll: { gap: 12 },
@@ -606,8 +593,6 @@ const styles = StyleSheet.create({
   
   mapLegend: { position: 'absolute', bottom: 14, left: 14, borderWidth: 1, padding: 10, borderRadius: 12 },
   trackingNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 16 },
-  routeSelector: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12, gap: 8 },
-  routeSelectorButtons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   routeStatusNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 16 },
   trackingNoteText: { flex: 1, fontSize: 12, lineHeight: 18 },
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
@@ -635,8 +620,8 @@ const styles = StyleSheet.create({
   alertBoxSub: { fontSize: 11, color: COLORS.ACENTO_OSCURO, marginTop: 2 },
 
   actionButtons: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  historyBtn: { flex: 1, borderRadius: 8, borderColor: COLORS.PRIMARIO, borderWidth: 1, backgroundColor: COLORS.PRIMARIO_CLARO },
-  routeBtn: { flex: 1, borderRadius: 8 },
+  historyBtn: { flex: 1, borderRadius: AppRadius.button, borderColor: COLORS.PRIMARIO, borderWidth: 1, backgroundColor: COLORS.PRIMARIO_CLARO },
+  routeBtn: { flex: 1, borderRadius: AppRadius.button },
   btnContent: { height: 48 },
 });
 

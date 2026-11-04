@@ -1,3 +1,4 @@
+import { AppRadius } from '../../theme/tokens';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Tabs, usePathname, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -406,7 +407,7 @@ const styles = StyleSheet.create({
   iconBtn: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: AppRadius.button,
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
@@ -417,7 +418,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 16,
+    borderRadius: AppRadius.button,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderWidth: 1,
@@ -476,7 +477,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   applyBtn: {
-    borderRadius: 12,
+    borderRadius: AppRadius.button,
     paddingVertical: 12,
     alignItems: 'center',
     marginTop: 8,

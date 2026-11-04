@@ -646,7 +646,7 @@ function createStyles(colors) {
     floatingCodeButton: {
       alignItems: 'center',
       backgroundColor: colors.primary,
-      borderRadius: 30,
+      borderRadius: AppRadius.button,
       bottom: 42,
       elevation: 8,
       height: 58,

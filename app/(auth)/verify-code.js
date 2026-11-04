@@ -1,3 +1,4 @@
+import { AppRadius } from '../../theme/tokens';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
@@ -313,7 +314,7 @@ const styles = StyleSheet.create({
   },
   verifyBtn: {
     backgroundColor: COLORS.PRIMARIO,
-    borderRadius: 8,
+    borderRadius: AppRadius.button,
     paddingVertical: 14,
     alignItems: 'center',
     marginBottom: 16,

@@ -1,9 +1,11 @@
+import { AppRadius } from '../../theme/tokens';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
-import { Button, Checkbox, Text, TextInput } from 'react-native-paper';
+import { Checkbox, Text, TextInput } from 'react-native-paper';
+import Button from '../../components/ui/PaperButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { authService } from '../../services/auth.service';
@@ -383,7 +385,7 @@ const styles = StyleSheet.create({
   termsText: { flex: 1, fontSize: 12, lineHeight: 16 },
   errorBox: { borderRadius: 8, padding: 10, marginBottom: 12, borderWidth: 1 },
   errorBoxText: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
-  registerButton: { borderRadius: 8, marginBottom: 12 },
+  registerButton: { borderRadius: AppRadius.button, marginBottom: 12 },
   buttonContent: { height: 44 },
   footerLinks: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   hasAccountText: { fontSize: 12 },
