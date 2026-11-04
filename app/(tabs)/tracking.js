@@ -120,6 +120,9 @@ export default function TrackingScreen() {
     (location && Number.isFinite(locationTimestamp) && clockNow - locationTimestamp > 2 * 60 * 1000)
     || (!location && Number.isFinite(tripStartedAt) && tripStartedAt > 0 && clockNow - tripStartedAt > 2 * 60 * 1000)
   ));
+  // Stored coordinates describe a past trip. Do not present them as a live
+  // path or current position after the phone has stopped reporting GPS.
+  const hasLiveLocation = Boolean(activeTrip && location && !isLocationStale);
   const recentAlertEventType = String(recentAlert?.eventType || '').toUpperCase();
   const isRecentAlertWarning = ['DELAY', 'INACTIVITY', 'ROUTE_DEVIATION', 'SAFE_ZONE_EXIT', 'LOCATION_UNAVAILABLE', 'LOCATION_STOPPED'].includes(recentAlertEventType);
   const themed = {
@@ -396,7 +399,7 @@ export default function TrackingScreen() {
         <Surface style={[styles.mapCard, themed.surface]} elevation={1}>
           <SafeMap
             key={selectedStudent?.id || 'tracking-map'}
-            currentLocation={journeyCoordinates[journeyCoordinates.length - 1] || location}
+            currentLocation={hasLiveLocation ? (journeyCoordinates[journeyCoordinates.length - 1] || location) : null}
             initialRegion={INITIAL_REGION}
             style={styles.map}
             markers={buildTrackingMarkers(
@@ -409,7 +412,7 @@ export default function TrackingScreen() {
             coordinates={showAssignedRoute ? routeGeometry : []}
             showRoute={showAssignedRoute && routeGeometry.length >= 2}
             routePaths={showAssignedRoute ? routeGeometries : []}
-            journeyCoordinates={showJourneyPath ? journeyCoordinates : []}
+            journeyCoordinates={showJourneyPath && hasLiveLocation ? journeyCoordinates : []}
             primaryColor={colors.primary}
             routeColor={colors.primary}
             journeyColor={colors.primary}
