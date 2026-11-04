@@ -265,7 +265,10 @@
   "zonesRouteEnd": "Destination",
   "zonesRouteStop": "Arret",
   "zonesCancel": "Annuler",
-  "zonesSave": "Enregistrer",
+    "zonesSave": "Enregistrer",
+    "zonesConfirmLocation": "Confirmez le point de la zone avant de l'enregistrer",
+    "zonesConfirmSaveLocation": "Confirmer et enregistrer",
+    "zonesTapMapToAdjust": "Si le point ne correspond pas au lieu, touchez la carte pour l'ajuster.",
   "zonesDeleteZone": "Supprimer la zone",
   "zonesDeleteRoute": "Supprimer le trajet",
   "zonesDelete": "Supprimer",
@@ -668,5 +671,14 @@
   "zonesPreferredRouteSaved": "Itinéraire enregistré pour le prochain trajet",
   "zonesPreferredRouteFailed": "Impossible d?enregistrer l?itinéraire préféré.",
   "zonesPreferredRoute": "Choisi pour le prochain trajet",
-  "zonesUseNextTrip": "Utiliser au prochain trajet"
+  "zonesUseNextTrip": "Utiliser au prochain trajet",
+  "studentTrackingFailed": "Impossible de démarrer le suivi. Réessayez.",
+  "studentTrackingSessionExpired": "La session du téléphone a expiré. Associez-le à nouveau avec le code QR.",
+  "studentTrackingRouteMissing": "Le responsable doit sélectionner un itinéraire dans Zones avant le trajet.",
+  "studentTrackingRouteUnassigned": "Cet itinéraire ne correspond pas à cet élève.",
+  "studentTrackingDeviceUnlinked": "Ce téléphone n’est plus associé. Scannez à nouveau le code QR.",
+  "studentTrackingActiveConflict": "Un trajet est déjà actif. Réessayez pour le récupérer.",
+  "studentTrackingPermissionDenied": "Autorisez la localisation dans les paramètres du navigateur ou de l’application.",
+  "studentTrackingLocationUnavailable": "Position indisponible. Activez le GPS et réessayez.",
+  "studentTrackingConnectionFailed": "Serveur inaccessible. Vérifiez votre connexion et réessayez."
 }

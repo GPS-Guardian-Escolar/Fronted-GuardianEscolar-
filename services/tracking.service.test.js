@@ -9,17 +9,19 @@ jest.mock('./api', () => ({
 }));
 
 describe('trackingService.startOrResumeTrip', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => jest.resetAllMocks());
 
-  it('reuses the saved active trip without creating a duplicate', async () => {
+  it('recovers the server trip even when the saved identifier is stale', async () => {
+    api.get.mockResolvedValue({ data: { id: 'trip-1' } });
     await expect(trackingService.startOrResumeTrip({
-      activeTripId: 'trip-1',
+      activeTripId: 'stale-trip',
       studentId: 'student-1',
     })).resolves.toEqual({ trip: { id: 'trip-1' }, created: false });
     expect(api.post).not.toHaveBeenCalled();
   });
 
   it('creates a trip when there is no saved active trip', async () => {
+    api.get.mockResolvedValue({ status: 204 });
     api.post.mockResolvedValue({ data: { id: 'trip-2' } });
 
     await expect(trackingService.startOrResumeTrip({
@@ -35,5 +37,29 @@ describe('trackingService.startOrResumeTrip', () => {
       routeId: 'route-1',
       tripStartedAt: '2026-11-04T12:00:00Z',
     }, { skipAuth: true, headers: { Authorization: 'Bearer device-token' } });
+  });
+
+  it('recovers an active trip after local data was lost', async () => {
+    api.get.mockResolvedValue({ data: { id: 'remote-trip' } });
+    await expect(trackingService.startOrResumeTrip({ studentId: 'student-1' }, { childToken: 'device-token' }))
+      .resolves.toEqual({ trip: { id: 'remote-trip' }, created: false });
+    expect(api.get).toHaveBeenCalledWith('/trips/active', {
+      params: { studentId: 'student-1' }, skipAuth: true, headers: { Authorization: 'Bearer device-token' },
+    });
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('does not trust a cached identifier or create a trip if server verification fails', async () => {
+    api.get.mockRejectedValue(new Error('Network Error'));
+    await expect(trackingService.startOrResumeTrip({ studentId: 'student-1', activeTripId: 'cached' }))
+      .rejects.toThrow('Network Error');
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('recovers a trip created by a concurrent request', async () => {
+    api.get.mockResolvedValueOnce({ status: 204 }).mockResolvedValueOnce({ data: { id: 'concurrent' } });
+    api.post.mockRejectedValue({ response: { status: 400 } });
+    await expect(trackingService.startOrResumeTrip({ studentId: 'student-1' }))
+      .resolves.toEqual({ trip: { id: 'concurrent' }, created: false });
   });
 });

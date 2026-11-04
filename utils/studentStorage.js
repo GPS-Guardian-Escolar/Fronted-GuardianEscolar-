@@ -258,12 +258,8 @@ export async function deleteStudent(id) {
   return refreshStudents();
 }
 
-function generateLocalId(prefix) {
-  return `${prefix}-${Date.now()}`;
-}
-
 export async function addZone(studentId, zoneData) {
-  const coordinates = await mapsService.geocode(zoneData.address);
+  const coordinates = zoneData.coordinates || await mapsService.geocode(zoneData.address);
   const saved = await safeZoneService.create({
     studentId,
     zoneName: zoneData.name,
@@ -284,7 +280,7 @@ function formatCoordinates(latitude, longitude) {
 }
 
 export async function updateZone(studentId, zoneId, zoneData) {
-  const coordinates = await mapsService.geocode(zoneData.address);
+  const coordinates = zoneData.coordinates || await mapsService.geocode(zoneData.address);
   const saved = await safeZoneService.update(zoneId, {
     studentId,
     zoneName: zoneData.name,

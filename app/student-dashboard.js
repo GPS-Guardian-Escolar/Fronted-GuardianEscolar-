@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Linking, Platform, View, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
+import { Linking, Platform, View, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Text, Surface } from 'react-native-paper';
 import Button from '../components/ui/PaperButton';
@@ -13,10 +13,10 @@ import { studentService } from '../services/student.service';
 import { trackingService } from '../services/tracking.service';
 import {
   flushQueue,
-  getActiveTripId,
   getChildSession,
   clearChildSession,
   getQueueSize,
+  getTrackingError,
   isTrackingActive,
   requestPermissions,
   saveChildSession,
@@ -26,6 +26,7 @@ import {
 import { BASE_URL } from '../config/endpoints';
 import { showPlatformConfirm, showPlatformNotice } from '../utils/noticeBus';
 import { AppRadius, AppTypography } from '../theme/tokens';
+import { trackingErrorMessage } from '../features/child/trackingErrors';
 import PermissionGate from '../features/child/components/PermissionGate';
 import SharingStatusCard from '../features/child/components/SharingStatusCard';
 import TripControls from '../features/child/components/TripControls';
@@ -93,6 +94,8 @@ export default function StudentDashboardScreen() {
   const [activeTripId, setActiveTripId] = React.useState('');
   const [queueSize, setQueueSize] = React.useState(0);
   const [sentCount, setSentCount] = React.useState(0);
+  const trackingOperation = React.useRef(false);
+  const describeTrackingError = React.useCallback(error => trackingErrorMessage(error, t), [t]);
 
   // Datos del contacto de emergencia enviados por el QR.
   const parentName = studentProfile?.contactName || studentProfile?.contactoNombre || params.contacto || user?.name || t('notRegistered');
@@ -210,34 +213,40 @@ export default function StudentDashboardScreen() {
       mounted = false;
       clearInterval(timer);
     };
-  }, [linkStatus, params.codigo, params.id, router, storedSession.studentId, storedSession.studentCode]);
+  }, [linkStatus, params.codigo, params.id, router, storedSession.studentId, storedSession.studentCode, storedSession.childToken]);
   React.useEffect(() => {
+    if (linkStatus !== 'linked' || !storedSession.childToken || !storedSession.studentId) return undefined;
     let mounted = true;
     const restoreTracking = async () => {
-      const [tripId, active, size] = await Promise.all([
-        getActiveTripId(),
-        isTrackingActive(),
-        getQueueSize(),
-      ]);
-      if (!mounted) return;
-      setActiveTripId(tripId || '');
-      setQueueSize(size);
-      setTrackingStatus(active ? 'sharing' : 'paused');
-      if (tripId && !active) {
-        try {
-          // A temporary permission or browser interruption must not cancel the
-          // server trip. Keep its ID so Retry can resume it instead of creating
-          // a duplicate active trip.
+      if (trackingOperation.current) return;
+      trackingOperation.current = true;
+      setTrackingLoading(true);
+      try {
+        const trip = await trackingService.getActiveTrip(storedSession.studentId, { childToken: storedSession.childToken });
+        if (!mounted) return;
+        const tripId = trip?.id;
+        setActiveTripId(tripId || '');
+        if (tripId) {
           await startBackgroundUpdates(tripId);
           const result = await flushQueue();
           if (mounted) {
             setSentCount(count => count + result.sent);
             setQueueSize(result.remaining);
+            setPermissionError('');
+            setTrackingStatus('sharing');
           }
-          if (mounted) setTrackingStatus('sharing');
-        } catch (error) {
-          if (mounted) setPermissionError(error.message || 'No se pudo reanudar el rastreo.');
+        } else {
+          await stopBackgroundUpdates();
+          if (mounted) setTrackingStatus('paused');
         }
+      } catch (error) {
+        if (mounted) {
+          setPermissionError(describeTrackingError(error));
+          setTrackingStatus('paused');
+        }
+      } finally {
+        trackingOperation.current = false;
+        if (mounted) setTrackingLoading(false);
       }
     };
 
@@ -247,6 +256,9 @@ export default function StudentDashboardScreen() {
       if (mounted) {
         setQueueSize(size);
         setTrackingStatus(active ? 'sharing' : 'paused');
+        const locationError = getTrackingError();
+        if (locationError) setPermissionError(describeTrackingError(new Error(locationError)));
+        else if (active) setPermissionError('');
       }
     }, 15000);
 
@@ -254,41 +266,17 @@ export default function StudentDashboardScreen() {
       mounted = false;
       clearInterval(timer);
     };
-  }, []);
+  }, [linkStatus, storedSession.childToken, storedSession.studentId, describeTrackingError]);
 
-  const describeTrackingError = (error) => {
-    const raw = String(
-      error?.response?.data?.message
-        || error?.response?.data?.error
-        || error?.response?.data?.details
-        || error?.message
-        || ''
-    ).trim();
-    const normalized = raw.toLowerCase();
-    if (normalized.includes('already has an active trip')) {
-      return 'Este trayecto ya está activo. Se intentará reanudarlo sin crear uno nuevo.';
-    }
-    if (normalized.includes('no active route assigned')) {
-      return 'No hay una ruta activa asignada a este estudiante. El acudiente debe crearla y asignarla antes de iniciar el trayecto.';
-    }
-    if (normalized.includes('does not have the requested route assigned')) {
-      return 'La ruta seleccionada no está asignada a este estudiante. Asigna la ruta desde la sección Hijos y vuelve a intentarlo.';
-    }
-    if (normalized.includes('not linked') || normalized.includes('device is not linked')) {
-      return 'Este celular ya no está vinculado a ese estudiante. Escanea nuevamente el código QR del acudiente.';
-    }
-    if (error?.response?.status === 400) {
-      return raw || 'El servidor rechazó el inicio del trayecto. Verifica que el estudiante tenga una ruta activa asignada.';
-    }
-    return raw || 'No se pudo iniciar el rastreo del trayecto. Revisa los permisos e inténtalo nuevamente.';
-  };
   const handleStartTracking = async () => {
+    if (trackingOperation.current || linkStatus !== 'linked') return;
+    trackingOperation.current = true;
     setTrackingLoading(true);
     setPermissionError('');
     try {
       const permission = await requestPermissions();
       if (!permission.granted) {
-        setPermissionError(permission.reason);
+        setPermissionError(describeTrackingError(new Error(permission.reason)));
         setTrackingStatus('paused');
         return;
       }
@@ -302,9 +290,7 @@ export default function StudentDashboardScreen() {
 
       // After a reload, the server trip can still be active while the browser
       // has stopped watching location. Reuse that trip when Retry is pressed.
-      const existingTripId = activeTripId || await getActiveTripId();
       const { trip, created: createdTrip } = await trackingService.startOrResumeTrip({
-        activeTripId: existingTripId,
         studentId: String(resolvedStudentId),
         tripStartedAt: new Date().toISOString(),
         routeId: studentProfile?.preferredRouteId || undefined,
@@ -324,6 +310,8 @@ export default function StudentDashboardScreen() {
               status: 'CANCELED',
               tripEndedAt: new Date().toISOString(),
             }, { childToken: session.childToken });
+            await stopBackgroundUpdates();
+            setActiveTripId('');
           } catch (statusError) {
             console.warn('No se pudo cancelar el trayecto tras rechazar la ubicación:', statusError?.message || statusError);
           }
@@ -336,12 +324,10 @@ export default function StudentDashboardScreen() {
       setActiveTripId(tripId);
       setTrackingStatus('sharing');
     } catch (error) {
-      const status = error?.response?.status;
-      setPermissionError(status === 401
-        ? 'El dispositivo no tiene una sesión de rastreo válida. Desvincúlalo y vuelve a vincularlo desde el código QR.'
-        : describeTrackingError(error));
+      setPermissionError(describeTrackingError(error));
       setTrackingStatus('paused');
     } finally {
+      trackingOperation.current = false;
       setTrackingLoading(false);
     }
   };

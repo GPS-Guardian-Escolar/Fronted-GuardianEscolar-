@@ -18,6 +18,7 @@ import { buildRouteMarkers } from '../../utils/trackingMarkers';
 import { emitNotice } from '../../utils/noticeBus';
 import RouteSelector from '../../components/common/RouteSelector';
 import { studentService } from '../../services/student.service';
+import { mapsService } from '../../services/maps.service';
 
 const { width } = Dimensions.get('window');
 const isWeb = width > 768;
@@ -105,6 +106,8 @@ export default function ZonesScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingZone, setEditingZone] = useState(null);
   const [form, setForm] = useState(EMPTY_ZONE);
+  const [zoneCandidates, setZoneCandidates] = useState([]);
+  const [selectedZoneCandidate, setSelectedZoneCandidate] = useState(null);
 
   const [modalRouteVisible, setModalRouteVisible] = useState(false);
   const [editingRoute, setEditingRoute] = useState(null);
@@ -147,6 +150,8 @@ export default function ZonesScreen() {
   function openAddZone() {
     if (!canManage) return;
     setEditingZone(null);
+    setZoneCandidates([]);
+    setSelectedZoneCandidate(null);
     setForm({ ...EMPTY_ZONE, radius: `100 ${t('zonesMeters')}` });
     setModalVisible(true);
   }
@@ -154,6 +159,8 @@ export default function ZonesScreen() {
   function openEditZone(zone) {
     if (!canManage) return;
     setEditingZone(zone);
+    setZoneCandidates([]);
+    setSelectedZoneCandidate(null);
     setForm({ ...EMPTY_ZONE, ...zone, radius: `${parseRadiusMeters(zone.radius)} ${t('zonesMeters')}`, address: zone.address || formatCoordinates(zone.center?.latitude, zone.center?.longitude) });
     setModalVisible(true);
   }
@@ -181,9 +188,15 @@ export default function ZonesScreen() {
       showZonesAlert(t('zonesRequiredFields'), t('zonesRadiusRange'));
       return;
     }
-    const payload = normalizeZoneForm(form, t('zonesMeters'));
     setLoading(true);
     try {
+      if (!selectedZoneCandidate) {
+        const candidates = await mapsService.geocodeCandidates(form.address);
+        setZoneCandidates(candidates);
+        setSelectedZoneCandidate(candidates[0]);
+        return;
+      }
+      const payload = { ...normalizeZoneForm(form, t('zonesMeters')), coordinates: selectedZoneCandidate };
       if (editingZone) {
         await updateZone(selectedStudent.id, editingZone.id, payload);
       } else {
@@ -697,7 +710,30 @@ export default function ZonesScreen() {
               </View>
               <ScrollView style={styles.modalFormScroll} showsVerticalScrollIndicator contentContainerStyle={styles.modalScroll}>
                 <ZField label={t('zonesZoneName')} value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder={t('zonesZoneNamePlaceholder')} color={form.color} />
-                <ZField label={t('zonesAddress')} value={form.address} onChange={v => setForm(f => ({ ...f, address: v }))} placeholder={t('zonesAddressPlaceholder')} color={form.color} />
+                <ZField label={t('zonesAddress')} value={form.address} onChange={v => {
+                  setForm(f => ({ ...f, address: v }));
+                  setZoneCandidates([]);
+                  setSelectedZoneCandidate(null);
+                }} placeholder={t('zonesAddressPlaceholder')} color={form.color} />
+                {selectedZoneCandidate && (
+                  <View style={styles.zoneLocationPreview}>
+                    <Text style={[styles.fieldLabel, themed.textSecondary]}>{t('zonesConfirmLocation')}</Text>
+                    <Text style={[styles.locationAddress, themed.text]}>{selectedZoneCandidate.formattedAddress}</Text>
+                    <Text style={[styles.locationInstruction, themed.textSecondary]}>{t('zonesTapMapToAdjust')}</Text>
+                    <SafeMap
+                      style={styles.zonePreviewMap}
+                      initialRegion={{ latitude: selectedZoneCandidate.latitude, longitude: selectedZoneCandidate.longitude, latitudeDelta: 0.004, longitudeDelta: 0.004 }}
+                      markers={[{ id: 'zone-preview', latitude: selectedZoneCandidate.latitude, longitude: selectedZoneCandidate.longitude, label: 'Z', title: selectedZoneCandidate.formattedAddress, color: form.color || colors.primary }]}
+                      safeZones={[{ center: selectedZoneCandidate, radius: parseRadiusMeters(form.radius) || 100, color: form.color || colors.primary }]}
+                      onMapPress={({ latitude, longitude }) => setSelectedZoneCandidate(candidate => ({ ...candidate, latitude, longitude, manuallyPositioned: true }))}
+                    />
+                    {zoneCandidates.length > 1 && zoneCandidates.map(candidate => (
+                      <TouchableOpacity key={`${candidate.placeId}-${candidate.latitude}-${candidate.longitude}`} onPress={() => setSelectedZoneCandidate(candidate)} style={[styles.locationCandidate, { borderColor: colors.border }, candidate === selectedZoneCandidate && { borderColor: form.color || colors.primary }]}>
+                        <Text style={[styles.locationCandidateText, themed.text]}>{candidate.formattedAddress}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
                 
                 <View style={styles.formRow}>
                   <View style={styles.formHalf}>
@@ -762,7 +798,7 @@ export default function ZonesScreen() {
                   style={[styles.saveBtn, { backgroundColor: form.color || colors.primary }]}
                   contentStyle={styles.buttonContent}
                 >
-                  {editingZone ? t('zonesSave') : t('zonesCreate')}
+                  {selectedZoneCandidate ? t('zonesConfirmSaveLocation') : editingZone ? t('zonesSave') : t('zonesCreate')}
                 </Button>
               </View>
             </Surface>
@@ -965,7 +1001,7 @@ const styles = StyleSheet.create({
   deleteConfirmDelete: { flex: 1, minHeight: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7 },
   deleteConfirmDeleteText: { fontWeight: '700' },
   modalSheet: { backgroundColor: COLORS.BLANCO, borderRadius: 12, width: isWeb ? '90%' : '96%', maxWidth: 1020, height: isWeb ? '92%' : '92%', maxHeight: '94%', overflow: 'hidden' },
-  zoneModalSheet: { height: isWeb ? 470 : undefined, maxHeight: isWeb ? 470 : '92%' },
+    zoneModalSheet: { height: isWeb ? 720 : undefined, maxHeight: isWeb ? 720 : '92%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1 },
   modalTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.NEGRO },
   inputBox: { marginBottom: 16 },
@@ -975,6 +1011,12 @@ const styles = StyleSheet.create({
   formHalf: { flex: 1 },
   fieldGroup: { marginBottom: 12 },
   fieldLabel: { fontSize: 13, color: COLORS.TEXTO_SECUNDARIO, marginBottom: 6, fontWeight: '500' },
+    zoneLocationPreview: { marginBottom: 14 },
+    locationAddress: { fontSize: 13, fontWeight: '600', marginBottom: 8 },
+    locationInstruction: { fontSize: 12, marginBottom: 8 },
+    zonePreviewMap: { height: 210, borderRadius: 8, overflow: 'hidden', marginBottom: 8 },
+    locationCandidate: { borderWidth: 1, borderRadius: AppRadius.button, padding: 10, marginTop: 6 },
+    locationCandidateText: { fontSize: 12 },
   input: { backgroundColor: COLORS.FONDO_PRINCIPAL, borderWidth: 1, borderColor: COLORS.GRIS_BORDE, borderRadius: 8, paddingHorizontal: 12, minHeight: 44, fontSize: 14, color: COLORS.TEXTO_GENERAL },
   typeSelector: { marginBottom: 12 },
   typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 5 },

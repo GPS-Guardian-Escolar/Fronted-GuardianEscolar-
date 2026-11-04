@@ -265,7 +265,10 @@
   "zonesRouteEnd": "Ponto de chegada",
   "zonesRouteStop": "Parada",
   "zonesCancel": "Cancelar",
-  "zonesSave": "Salvar",
+    "zonesSave": "Salvar",
+    "zonesConfirmLocation": "Confirme o ponto da zona antes de salvar",
+    "zonesConfirmSaveLocation": "Confirmar e salvar",
+    "zonesTapMapToAdjust": "Se o ponto não corresponder ao local, toque no mapa para ajustá-lo.",
   "zonesDeleteZone": "Excluir zona",
   "zonesDeleteRoute": "Excluir rota",
   "zonesDelete": "Excluir",
@@ -670,5 +673,14 @@
   "zonesPreferredRouteSaved": "Rota salva para o próximo trajeto",
   "zonesPreferredRouteFailed": "Não foi possível salvar a rota preferida.",
   "zonesPreferredRoute": "Escolhida para o próximo trajeto",
-  "zonesUseNextTrip": "Usar no próximo trajeto"
+  "zonesUseNextTrip": "Usar no próximo trajeto",
+  "studentTrackingFailed": "Não foi possível iniciar o rastreamento. Tente novamente.",
+  "studentTrackingSessionExpired": "A sessão do celular expirou. Vincule-o novamente com o código QR.",
+  "studentTrackingRouteMissing": "O responsável deve selecionar uma rota em Zonas antes de iniciar o trajeto.",
+  "studentTrackingRouteUnassigned": "A rota selecionada não está atribuída a este estudante.",
+  "studentTrackingDeviceUnlinked": "Este celular não está mais vinculado. Leia novamente o código QR.",
+  "studentTrackingActiveConflict": "Já existe um trajeto ativo. Tente novamente para recuperá-lo.",
+  "studentTrackingPermissionDenied": "Permita o acesso à localização nas configurações do navegador ou aplicativo.",
+  "studentTrackingLocationUnavailable": "Não foi possível obter a localização. Ative o GPS e tente novamente.",
+  "studentTrackingConnectionFailed": "Não foi possível conectar ao servidor. Verifique a internet e tente novamente."
 }

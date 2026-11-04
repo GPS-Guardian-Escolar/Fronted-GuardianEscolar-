@@ -265,7 +265,10 @@
   "zonesRouteEnd": "Destination point",
   "zonesRouteStop": "Stop",
   "zonesCancel": "Cancel",
-  "zonesSave": "Save",
+    "zonesSave": "Save",
+    "zonesConfirmLocation": "Confirm the zone point before saving",
+    "zonesConfirmSaveLocation": "Confirm and save",
+    "zonesTapMapToAdjust": "If the point is not at the place, tap the map to adjust it.",
   "zonesDeleteZone": "Delete zone",
   "zonesDeleteRoute": "Delete route",
   "zonesDelete": "Delete",
@@ -670,5 +673,14 @@
   "zonesPreferredRouteSaved": "Route saved for the next trip",
   "zonesPreferredRouteFailed": "Could not save the preferred route.",
   "zonesPreferredRoute": "Selected for the next trip",
-  "zonesUseNextTrip": "Use for next trip"
+  "zonesUseNextTrip": "Use for next trip",
+  "studentTrackingFailed": "Could not start tracking. Try again.",
+  "studentTrackingSessionExpired": "The phone session expired. Link it again with the QR code.",
+  "studentTrackingRouteMissing": "The guardian must select a route in Zones before starting the trip.",
+  "studentTrackingRouteUnassigned": "The selected route is not assigned to this student.",
+  "studentTrackingDeviceUnlinked": "This phone is no longer linked. Scan the guardian QR code again.",
+  "studentTrackingActiveConflict": "A trip is already active. Tap Retry to recover it.",
+  "studentTrackingPermissionDenied": "Allow location access in your browser or app settings.",
+  "studentTrackingLocationUnavailable": "Could not get your location. Enable GPS and try again.",
+  "studentTrackingConnectionFailed": "Could not reach the server. Check your connection and try again."
 }

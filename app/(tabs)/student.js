@@ -587,63 +587,76 @@ export default function StudentScreen() {
         </Text>
       </View>
 
-      {canManage && Number(item.dispositivos_vinculados || 0) > 0 && (
-        <TouchableOpacity
-          onPress={() => handleUnlinkDevice(item)}
-          accessibilityRole="button"
-          accessibilityLabel="Desvincular dispositivo del estudiante"
-          style={[styles.cardActionButton, styles.unlinkDeviceButton, { borderColor: colors.error, marginBottom: 14 }]}
-        >
-          <MaterialCommunityIcons name="cellphone-remove" size={18} color={colors.error} />
-          <Text style={[styles.unlinkDeviceText, { color: colors.error }]}>{t('studUnlinkDevice')}</Text>
-        </TouchableOpacity>
-      )}
+      <View style={styles.cardActionStack}>
+        {canManage && Number(item.dispositivos_vinculados || 0) > 0 && (
+          <Button
+            mode="outlined"
+            icon="cellphone-remove"
+            textColor={colors.error}
+            contentStyle={styles.cardActionContent}
+            labelStyle={styles.cardActionLabel}
+            onPress={() => handleUnlinkDevice(item)}
+            accessibilityRole="button"
+            accessibilityLabel="Desvincular dispositivo del estudiante"
+            style={[styles.cardActionButton, { borderColor: colors.error }]}
+          >
+            {t('studUnlinkDevice')}
+          </Button>
+        )}
 
-      {canManage && hasActiveStudentQr(item) ? (
-        <QrSection
-          value={getStudentQrValue(item)}
-          code={item.codigo_vinculacion}
-          title={t('studLinkDevice')}
-          hint={t('studScanQrStudentPhone')}
-          colors={colors}
-        />
-      ) : (
+        {canManage && hasActiveStudentQr(item) ? (
+          <QrSection
+            style={{ marginBottom: 0 }}
+            value={getStudentQrValue(item)}
+            code={item.codigo_vinculacion}
+            title={t('studLinkDevice')}
+            hint={t('studScanQrStudentPhone')}
+            colors={colors}
+          />
+        ) : (
+          <Button
+            mode="outlined"
+            textColor={colors.primary}
+            onPress={() => manageStudent(item, issueStudentLinkCode)}
+            loading={generatingStudentId === item.id}
+            disabled={generatingLinkCode}
+            style={styles.cardActionButton}
+            contentStyle={styles.cardActionContent}
+            labelStyle={styles.cardActionLabel}
+            accessibilityRole="button"
+            accessibilityLabel={t('studGenerateQrCard')}
+          >
+            {t('studGenerateQrCard')}
+          </Button>
+        )}
+
         <Button
-          mode="outlined"
-          textColor={colors.primary}
-          onPress={() => manageStudent(item, issueStudentLinkCode)}
-          loading={generatingStudentId === item.id}
-          disabled={generatingLinkCode}
+          mode="contained"
+          buttonColor={
+            getStatusColor(item.status)
+          }
           style={styles.cardActionButton}
-          accessibilityRole="button"
-          accessibilityLabel={t('studGenerateQrCard')}
+          contentStyle={styles.cardActionContent}
+          labelStyle={styles.cardActionLabel}
+          onPress={() => router.push({ pathname: '/(tabs)/tracking', params: { id: item.id, name: item.nombre } })}
         >
-          {t('studGenerateQrCard')}
+          {t('studViewMap')}
         </Button>
-      )}
 
-      <Button 
-        mode="contained" 
-        buttonColor={
-          getStatusColor(item.status)
-        }
-        style={styles.cardActionButton}
-        onPress={() => router.push({ pathname: '/(tabs)/tracking', params: { id: item.id, name: item.nombre } })}
-      >
-        {t('studViewMap')}
-      </Button>
+        {(
+          <Button
+            mode="outlined"
+            style={styles.cardActionButton}
+            contentStyle={styles.cardActionContent}
+            labelStyle={styles.cardActionLabel}
+            textColor={colors.primary}
+            onPress={() => manageStudent(item, openShare)}
+          >
+            {t('studShareAccess')}
+          </Button>
+        )}
 
-      {(
-        <Button
-          mode="outlined"
-          style={[styles.cardActionButton, styles.shareAccessBtn]}
-          textColor={colors.primary}
-          onPress={() => manageStudent(item, openShare)}
-        >
-          {t('studShareAccess')}
-        </Button>
-      )}
-
+      </View>
       {/* Acciones flotantes */}
       {(
         <View style={styles.cardActionsFloating}>
@@ -1193,18 +1206,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  unlinkDeviceButton: {
-    alignItems: 'center',
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 8,
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-  },
-  unlinkDeviceText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
   qrCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1232,14 +1233,26 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   cardActionButton: {
+    borderWidth: 1,
     borderRadius: AppRadius.button,
     minHeight: AppTouch.min,
     width: '100%',
     alignSelf: 'stretch',
     justifyContent: 'center',
   },
-  shareAccessBtn: {
-    marginTop: 10,
+  cardActionStack: {
+    alignSelf: 'stretch',
+    gap: 10,
+  },
+  cardActionContent: {
+    minHeight: AppTouch.min - 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardActionLabel: {
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '700',
   },
   cardActionsFloating: {
     position: 'absolute',

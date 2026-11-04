@@ -18,9 +18,26 @@ export const trackingService = {
 
   startTrip: createTrip,
 
-  startOrResumeTrip: async ({ activeTripId, studentId, routeId, tripStartedAt }, options = {}) => {
-    if (activeTripId) return { trip: { id: String(activeTripId) }, created: false };
-    return { trip: await createTrip({ studentId, routeId, tripStartedAt }, options), created: true };
+  getActiveTrip: async (studentId, options = {}) => {
+    const response = await api.get(`${ENDPOINTS.TRIPS}/active`, {
+      ...buildChildAuthConfig(options), params: { studentId },
+    });
+    return response.status === 204 ? null : response.data || null;
+  },
+
+  startOrResumeTrip: async ({ studentId, routeId, tripStartedAt }, options = {}) => {
+    const active = await trackingService.getActiveTrip(studentId, options);
+    if (active?.id) return { trip: active, created: false };
+    try {
+      return { trip: await createTrip({ studentId, routeId, tripStartedAt }, options), created: true };
+    } catch (error) {
+      // Another request may have started the trip between the lookup and POST.
+      if ([400, 409].includes(error?.response?.status)) {
+        const concurrent = await trackingService.getActiveTrip(studentId, options);
+        if (concurrent?.id) return { trip: concurrent, created: false };
+      }
+      throw error;
+    }
   },
 
   updateStatus: async (tripId, data, options = {}) => {

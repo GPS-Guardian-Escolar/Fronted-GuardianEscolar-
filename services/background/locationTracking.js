@@ -22,6 +22,10 @@ const MAX_SINGLE_JUMP_METERS = 1000;
 
 let webWatchId = null;
 let webTracking = false;
+let webPollTimer = null;
+let webPollBusy = false;
+let webTrackingError = '';
+let webGeneration = 0;
 let nativeStartPromise = null;
 let queueOperation = Promise.resolve();
 
@@ -179,7 +183,7 @@ export async function requestPermissions() {
 
     return new Promise(resolve => {
       navigator.geolocation.getCurrentPosition(
-        () => resolve({ granted: true, reason: '' }),
+        position => resolve({ granted: true, reason: '', position }),
         error => resolve({
           granted: false,
           reason: error?.code === 1
@@ -226,9 +230,13 @@ export async function isTrackingActive() {
   return Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
 }
 
+export function getTrackingError() {
+  return webTrackingError;
+}
+
 export async function startBackgroundUpdates(tripId) {
   const previousTripId = await getStoredValue(ACTIVE_TRIP_ID_KEY);
-  if (previousTripId && previousTripId !== String(tripId)) {
+  if (previousTripId !== String(tripId)) {
     await writeQueue([]);
     await AsyncStorage.removeItem(LAST_COORD_KEY);
   }
@@ -238,21 +246,49 @@ export async function startBackgroundUpdates(tripId) {
     if (!permission.granted) throw new Error(permission.reason);
 
     await setStoredValue(ACTIVE_TRIP_ID_KEY, tripId);
+    webTrackingError = '';
+    if (permission.position) {
+      await enqueueCoordinate(normalizeCoordinate(permission.position));
+      await flushQueue();
+    }
+    webTracking = true;
     if (webWatchId !== null) return;
 
-    webTracking = true;
-    webWatchId = navigator.geolocation.watchPosition(
-      async position => {
+    const generation = ++webGeneration;
+    const acceptPosition = async position => {
+      if (generation !== webGeneration) return;
+      try {
         const coord = normalizeCoordinate(position);
         if (!isValidCoordinate(coord)) return;
+        webTracking = true;
+        webTrackingError = '';
         await enqueueCoordinate(coord);
         await flushQueue();
-      },
-      error => {
-        console.warn('Error en rastreo web:', error);
-      },
+      } catch (error) {
+        console.warn('Location delivery failed:', error);
+      }
+    };
+    const rejectPosition = error => {
+      if (generation !== webGeneration) return;
+      webTracking = false;
+      webTrackingError = error?.code === 1 ? 'Location permission denied' : 'GPS unavailable';
+    };
+    webWatchId = navigator.geolocation.watchPosition(
+      acceptPosition,
+      rejectPosition,
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
     );
+    // Browsers may omit watch callbacks while stationary. Refresh a real GPS
+    // fix periodically so the guardian can distinguish stationary from offline.
+    webPollTimer = setInterval(() => {
+      if (webPollBusy) return;
+      webPollBusy = true;
+      navigator.geolocation.getCurrentPosition(
+        position => { webPollBusy = false; void acceptPosition(position); },
+        error => { webPollBusy = false; rejectPosition(error); },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 12000 },
+      );
+    }, 15000);
     return;
   }
 
@@ -303,11 +339,16 @@ export async function startBackgroundUpdates(tripId) {
 
 export async function stopBackgroundUpdates({ preserveTrip = false } = {}) {
   if (Platform.OS === 'web') {
+    webGeneration += 1;
     if (webWatchId !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
       navigator.geolocation.clearWatch(webWatchId);
     }
     webWatchId = null;
     webTracking = false;
+    webTrackingError = '';
+    if (webPollTimer !== null) clearInterval(webPollTimer);
+    webPollTimer = null;
+    webPollBusy = false;
   } else {
     const active = await isTrackingActive();
     if (active) {
@@ -325,7 +366,8 @@ async function enqueueCoordinateUnlocked(coord) {
   if (!isValidCoordinate(coord)) return;
   const last = await getLastCoordinate();
   if (!isReliableCoordinate(coord, last)) return;
-  if (distanceMeters(last, coord) < MIN_DISTANCE_METERS) return;
+  const elapsed = last ? Date.parse(coord.recordedAt) - Date.parse(last.recordedAt) : Infinity;
+  if (distanceMeters(last, coord) < MIN_DISTANCE_METERS && elapsed < 30000) return;
 
   const queue = await readQueue();
   queue.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, coord });
