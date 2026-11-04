@@ -83,6 +83,7 @@ export default function TrackingScreen() {
   const [studentZones, setStudentZones] = useState([]);
   const [routeGeometry, setRouteGeometry] = useState([]);
   const [routeGeometries, setRouteGeometries] = useState([]);
+  const [assignedRouteStatus, setAssignedRouteStatus] = useState('none');
   const [journeyCoordinates, setJourneyCoordinates] = useState([]);
   const [recentAlert, setRecentAlert] = useState(null);
   const [showJourneyPath, setShowJourneyPath] = useState(true);
@@ -128,6 +129,7 @@ export default function TrackingScreen() {
       setJourneyCoordinates([]);
       setRouteGeometry([]);
       setRouteGeometries([]);
+      setAssignedRouteStatus('none');
       setStudentZones([]);
     }
     try {
@@ -137,19 +139,27 @@ export default function TrackingScreen() {
         setStudentZones([]);
         setRouteGeometry([]);
         setRouteGeometries([]);
+        setAssignedRouteStatus('none');
         setJourneyCoordinates([]);
         return;
       }
       const zones = selectedStudent.zones || [];
       const routes = selectedStudent.routes || [];
+      setAssignedRouteStatus(routes.length ? 'loading' : 'none');
       const routePaths = await Promise.all(routes.map(async (route, index) => {
-        const geometry = await calculateRouteGeometry(route).catch(() => []);
-        return { id: route.id || `route-${index}`, coordinates: geometry, color: colors.textMuted };
+        try {
+          const geometry = await calculateRouteGeometry(route);
+          return { id: route.id || `route-${index}`, name: route.name || route.routeName || t('trackAssignedRoute'), coordinates: geometry, color: colors.primary };
+        } catch {
+          return { id: route.id || `route-${index}`, name: route.name || route.routeName || t('trackAssignedRoute'), coordinates: [], color: colors.primary };
+        }
       }));
       if (sequence !== refreshSequence.current) return;
       setStudentZones(zones.filter(zone => String(zone.studentId) === String(studentId)));
-      setRouteGeometries(routePaths.filter(path => path.coordinates.length >= 2));
-      setRouteGeometry(routePaths[0]?.coordinates || []);
+      const drawableRoutes = routePaths.filter(path => path.coordinates.length >= 2);
+      setRouteGeometries(drawableRoutes);
+      setRouteGeometry(drawableRoutes[0]?.coordinates || []);
+      setAssignedRouteStatus(routes.length === 0 ? 'none' : drawableRoutes.length === routes.length ? 'ready' : 'failed');
       if (Number(selectedStudent.dispositivos_vinculados || 0) < 1) {
         setLocation(null);
         setActiveTrip(null);
@@ -202,7 +212,7 @@ export default function TrackingScreen() {
     } finally {
       if (sequence === refreshSequence.current) setIsLoading(false);
     }
-  }, [selectedStudent, colors.textMuted]);
+  }, [selectedStudent, colors.primary, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -324,6 +334,20 @@ export default function TrackingScreen() {
                 const zoneName = zone.name || zone.zoneName || zone.nombre || zone.type || zone.zoneType || 'Zona';
                 return { ...center, label: getInitials(zoneName), title: zoneName, color: getZoneColor({ ...zone, type: zone.type || zone.zoneType }, colors) };
               }),
+              ...(showAssignedRoute ? (selectedStudent?.routes || []).flatMap((route, index, routes) => {
+                const points = [
+                  { latitude: route.originLatitude == null ? Number.NaN : Number(route.originLatitude), longitude: route.originLongitude == null ? Number.NaN : Number(route.originLongitude), role: 'origin', label: t('zonesRouteStart') },
+                  { latitude: route.destinationLatitude == null ? Number.NaN : Number(route.destinationLatitude), longitude: route.destinationLongitude == null ? Number.NaN : Number(route.destinationLongitude), role: 'destination', label: t('zonesRouteEnd') },
+                ];
+                return points.filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude))
+                  .map((point, pointIndex) => ({
+                    id: `${route.id || index}-${pointIndex}`,
+                    ...point,
+                    label: point.role === 'origin' ? 'I' : 'D',
+                    title: `${route.name || route.routeName || t('trackAssignedRoute')} · ${point.label}`,
+                    color: colors.primary,
+                  }));
+              }) : []),
             ]}
             safeZones={(studentZones || []).map(zone => ({ ...zone, color: getZoneColor(zone, colors), center: zone.center || { latitude: Number(zone.latitude), longitude: Number(zone.longitude) } }))}
             coordinates={showAssignedRoute ? routeGeometry : []}
@@ -376,6 +400,15 @@ export default function TrackingScreen() {
             <Switch value={showAssignedRoute} onValueChange={setShowAssignedRoute} color={colors.primary} />
           </View>
         </Surface>
+
+        {selectedStudent && showAssignedRoute && ['none', 'failed'].includes(assignedRouteStatus) && (
+          <View accessibilityRole="alert" style={[styles.routeStatusNotice, { backgroundColor: colors.surfaceSecondary, borderColor: assignedRouteStatus === 'failed' ? colors.warning : colors.border }]}>
+            <MaterialCommunityIcons name={assignedRouteStatus === 'failed' ? 'map-marker-alert-outline' : 'map-marker-path'} size={18} color={assignedRouteStatus === 'failed' ? colors.warning : colors.info} />
+            <Text style={[styles.trackingNoteText, themed.textSecondary]}>
+              {t(assignedRouteStatus === 'failed' ? 'trackAssignedRouteUnavailable' : 'trackNoAssignedRouteHint')}
+            </Text>
+          </View>
+        )}
 
         <View style={[styles.trackingNote, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
           <MaterialCommunityIcons name="information-outline" size={18} color={colors.info} />
@@ -506,6 +539,7 @@ const styles = StyleSheet.create({
   
   mapLegend: { position: 'absolute', bottom: 14, left: 14, borderWidth: 1, padding: 10, borderRadius: 12 },
   trackingNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 16 },
+  routeStatusNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 16 },
   trackingNoteText: { flex: 1, fontSize: 12, lineHeight: 18 },
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },

@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Button, Checkbox, Text, TextInput } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
@@ -11,7 +11,6 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import LanguageSelector from '../../components/common/LanguageSelector';
 import { validateInputEdit, isValidEmail, isValidPersonName, isValidPhone, normalizeColombianPhoneInput, passwordChecks } from '../../utils/validators';
-import { emitNotice } from '../../utils/noticeBus';
 
 const TERMS_VERSION = '2026-08-20';
 const TERMS_SECTION_KEYS = Array.from({ length: 9 }, (_, index) => index + 1);
@@ -112,12 +111,7 @@ export default function RegisterScreen() {
     setIsSubmitting(true);
     try {
       await authService.register({ name: name.trim(), email: email.trim(), password, phone: phoneDigits, acceptedTerms: true, termsVersion: TERMS_VERSION });
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        emitNotice(t('success'), t('authRegisterSuccess'), { tone: 'success' });
-      } else {
-        Alert.alert(t('success'), t('authRegisterSuccess'));
-      }
-      router.replace('/(auth)/login');
+      router.replace({ pathname: '/(auth)/login', params: { notice: 'registration-email', email: email.trim().toLowerCase() } });
     } catch (error) {
       const message = String(error?.response?.data?.message || error?.message || '').toLowerCase();
       const key = /email|correo|mail/.test(message) && /delivery|send|enviar|proveedor/.test(message)

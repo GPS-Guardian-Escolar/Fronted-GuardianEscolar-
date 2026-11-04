@@ -20,7 +20,7 @@ Fecha: 3 de noviembre de 2026.
 
 ## Evidencia local
 
-- Frontend: 18 pruebas unitarias aprobadas en 4 suites.
+- Frontend: 20 pruebas unitarias aprobadas en 4 suites.
 - Verificador funcional existente: aprobado; comprueba validaciones, preferencias, QR, autenticación del estudiante, cola GPS, traducciones, historial y geometría de rutas. Es una comprobación automatizada local, no un recorrido completo en dispositivos reales.
 - ESLint: sin errores en los archivos JavaScript modificados.
 - Exportación web de Expo: correcta, 41 rutas, incluidas `/student`, `/scan-qr` y `/login`. Se usaron direcciones locales de prueba; el artefacto no es un despliegue de producción.
@@ -32,3 +32,9 @@ Fecha: 3 de noviembre de 2026.
 Estos resultados no certifican que todo el aplicativo funcione al 100% en producción. Falta probar la versión desplegada con una cuenta autorizada: generar QR en tarjeta y formulario, escanear con un teléfono real, conceder ubicación, iniciar trayecto, observar actualizaciones en el acudiente y verificar desconexión/reconexión y alertas. El fallo específico del botón de la tarjeta en Render no se reprodujo contra su servidor real; los nuevos mensajes permiten identificar la causa si persiste.
 
 Los permisos compartidos no se ampliaron. Un acceso de solo lectura no puede emitir códigos ni modificar o eliminar al estudiante.
+
+## Avisos de correo y ruta asignada
+
+- Tras registrarse, el acudiente llega al inicio de sesión con un aviso persistente que confirma el envío del correo de verificación e indica la dirección usada. La confirmación de dispositivo y el restablecimiento de contraseña también muestran avisos visibles; los textos están traducidos a español, inglés, francés y portugués.
+- En seguimiento, las rutas entregadas por la API se trazan sobre calles. Se marcan sus puntos de inicio y destino y se informa si no hay ruta asignada o si no se pudo calcular la geometría. Las coordenadas vacías ya no se interpretan como `0,0`.
+- Suite frontend actualizada: 20 pruebas unitarias aprobadas. El export web incluye `/tracking`, `/zones`, registro, inicio de sesión y verificación.

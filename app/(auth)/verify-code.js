@@ -149,7 +149,7 @@ export default function VerifyCodeScreen() {
           <View style={[styles.card, isWeb && styles.cardWeb, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.title, { color: colors.text }]}>{t('authVerifyCode')}</Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Enviamos un código de verificación a tu {destination}{'\n'}
+              {t('twoFACodeSentTo')} {destination}{'\n'}
               <Text style={[styles.email, { color: colors.text }]}>{params.email || method}</Text>
             </Text>
 

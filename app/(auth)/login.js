@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ActivityIndicator, Button, Checkbox, Surface, Text, TextInput } from 'react-native-paper';
@@ -16,6 +16,7 @@ import { SUPPORTED_LANGUAGES } from '../../translations';
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const params = useLocalSearchParams();
   const { login } = useAuth();
   const { t, lang, setLanguage } = useLanguage();
   const { theme, isDark, toggleTheme } = useTheme();
@@ -27,7 +28,16 @@ export default function LoginScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [secureText, setSecureText] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
+  const [infoMsg, setInfoMsg] = useState('');
+  const [infoEmail, setInfoEmail] = useState('');
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
+
+  useEffect(() => {
+    if (params.notice === 'registration-email') {
+      setInfoMsg('authRegisterSuccess');
+      setInfoEmail(String(params.email || ''));
+    }
+  }, [params.notice, params.email]);
 
   useEffect(() => {
     let isMounted = true;
@@ -82,7 +92,8 @@ export default function LoginScreen() {
       const normalizedEmail = email.trim().toLowerCase();
       const result = await login(normalizedEmail, password);
       if (result?.requiresDeviceConfirmation) {
-        setErrorMsg('authDeviceConfirmRequired');
+        setInfoMsg('authDeviceConfirmRequired');
+        setInfoEmail(normalizedEmail);
         return;
       }
       if (rememberMe) {
@@ -215,6 +226,11 @@ export default function LoginScreen() {
                   {errorMsg ? (
                     <View style={[styles.errorBox, { backgroundColor: colors.errorLight, borderColor: colors.error }]}>
                       <Text style={[styles.errorBoxText, { color: colors.error }]}>{t(errorMsg)}</Text>
+                    </View>
+                  ) : null}
+                  {infoMsg ? (
+                    <View accessibilityRole="alert" style={[styles.errorBox, { backgroundColor: colors.surfaceSecondary, borderColor: colors.info }]}>
+                      <Text style={[styles.errorBoxText, { color: colors.info }]}>{t(infoMsg)}{infoEmail ? `\n${t('authEmail')}: ${infoEmail}` : ''}</Text>
                     </View>
                   ) : null}
 

@@ -86,7 +86,11 @@ export default function ForgotPasswordScreen() {
                   <Text style={[styles.errorText, { color: colors.error }]}>{errorMsg}</Text>
                 </View>
               ) : null}
-              {successMsg ? <Text style={{ color: colors.accent, marginBottom: 12 }}>{successMsg}</Text> : null}
+              {successMsg ? (
+                <View accessibilityRole="alert" style={[styles.errorBox, { backgroundColor: colors.surfaceSecondary, borderColor: colors.accent }]}>
+                  <Text style={[styles.errorText, { color: colors.accent }]}>{successMsg}</Text>
+                </View>
+              ) : null}
 
               <Button
                 mode="contained"
