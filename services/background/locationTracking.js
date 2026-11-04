@@ -16,7 +16,10 @@ export const ACTIVE_TRIP_ID_KEY = 'guardian_active_trip_id';
 const QUEUE_KEY = '@guardian_location_queue';
 const LAST_COORD_KEY = '@guardian_last_location_coord';
 const MAX_FLUSH_ATTEMPTS = 3;
-const MIN_DISTANCE_METERS = 25;
+// GPS can drift several metres while a phone is sitting still. Keep a
+// heartbeat for availability, but do not treat less than this as movement.
+const MIN_DISTANCE_METERS = 50;
+const HEARTBEAT_INTERVAL_MS = 30000;
 const MAX_ACCURACY_METERS = 80;
 const MAX_SINGLE_JUMP_METERS = 1000;
 
@@ -378,8 +381,13 @@ async function enqueueCoordinateUnlocked(coord) {
   if (!isValidCoordinate(coord)) return;
   const last = await getLastCoordinate();
   if (!isReliableCoordinate(coord, last)) return;
-  const elapsed = last ? Date.parse(coord.recordedAt) - Date.parse(last.recordedAt) : Infinity;
-  if (distanceMeters(last, coord) < MIN_DISTANCE_METERS && elapsed < 30000) return;
+  const elapsed = last ? Math.max(0, Date.parse(coord.recordedAt) - Date.parse(last.recordedAt)) : Infinity;
+  if (last && elapsed < HEARTBEAT_INTERVAL_MS) return;
+
+  const stationary = last && distanceMeters(last, coord) < MIN_DISTANCE_METERS;
+  coord.stoppedSeconds = stationary
+    ? Math.max(0, Math.round(elapsed / 1000) + Number(last.stoppedSeconds || 0))
+    : 0;
 
   const queue = await readQueue();
   queue.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, coord });

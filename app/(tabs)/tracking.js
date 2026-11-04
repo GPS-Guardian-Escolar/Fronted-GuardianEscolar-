@@ -59,6 +59,9 @@ function filterJourneyCoordinates(points) {
   });
   const accepted = [];
   for (const point of withoutIsolatedJumps) {
+    // Stationary heartbeats keep the guardian's connection fresh, but GPS
+    // drift while the phone is still must never be painted as a journey.
+    if (Number(point.stoppedSeconds || 0) > 0) continue;
     if (!accepted.length) {
       accepted.push(point);
       continue;
@@ -223,6 +226,7 @@ export default function TrackingScreen() {
           longitude: Number(point.longitude),
           timestamp: new Date(point.recordedAt || point.createdAt || point.timestamp || 0).getTime(),
           accuracy: point.accuracy,
+          stoppedSeconds: point.stoppedSeconds,
           recordedAt: point.recordedAt,
         }))
         .filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && Number.isFinite(point.timestamp)));
@@ -339,6 +343,7 @@ export default function TrackingScreen() {
         longitude: Number(point.longitude),
         timestamp: new Date(point.recordedAt || point.createdAt || Date.now()).getTime(),
         accuracy: point.accuracy,
+        stoppedSeconds: point.stoppedSeconds,
         recordedAt: point.recordedAt,
       };
       if (!Number.isFinite(normalized.latitude) || !Number.isFinite(normalized.longitude)) return;
@@ -391,7 +396,7 @@ export default function TrackingScreen() {
         <Surface style={[styles.mapCard, themed.surface]} elevation={1}>
           <SafeMap
             key={selectedStudent?.id || 'tracking-map'}
-            currentLocation={location}
+            currentLocation={journeyCoordinates[journeyCoordinates.length - 1] || location}
             initialRegion={INITIAL_REGION}
             style={styles.map}
             markers={buildTrackingMarkers(

@@ -60,6 +60,7 @@ describe('web tracking recovery and delivery', () => {
     expect(trackingService.addCoordinate).toHaveBeenCalledTimes(2);
     const calls = trackingService.addCoordinate.mock.calls;
     expect(Date.parse(calls[1][1].recordedAt) - Date.parse(calls[0][1].recordedAt)).toBe(30000);
+    expect(calls[1][1].stoppedSeconds).toBe(30);
   });
 
   it('reports a GPS permission failure and recovers on a valid position', async () => {
