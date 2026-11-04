@@ -586,6 +586,7 @@
   "qrGuardianSessionExpired": "The guardian session expired. Sign in again.",
   "qrNoConnection": "No connection. Check your internet and try again.",
   "qrLinkFailed": "Could not link the device. Check the code and try again.",
+  "qrLinkCodeInvalid": "The linking code was already used, expired, or does not match the student. Generate a new QR code and try once.",
   "qrCameraPermissionFailed": "Could not request camera permission. Check system permissions.",
   "qrCameraSlow": "The camera is taking too long to start. Check permission and try again.",
   "qrLinkedSuccess": "Device linked successfully.",

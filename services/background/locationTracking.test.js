@@ -1,7 +1,7 @@
 import { beforeEach, afterEach, describe, expect, it, jest } from '@jest/globals';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { trackingService } from '../tracking.service';
-import { saveChildSession, startBackgroundUpdates, stopBackgroundUpdates, isTrackingActive, getTrackingError } from './locationTracking';
+import { getChildSession, replaceChildSession, saveChildSession, startBackgroundUpdates, stopBackgroundUpdates, isTrackingActive, getTrackingError } from './locationTracking';
 
 jest.mock('react-native', () => ({ Platform: { OS: 'web' } }));
 jest.mock('expo-location', () => ({}));
@@ -80,5 +80,15 @@ describe('web tracking recovery and delivery', () => {
     expect(await isTrackingActive()).toBe(false);
     expect(trackingService.addCoordinate).toHaveBeenCalledTimes(1);
     expect(navigator.geolocation.clearWatch).toHaveBeenCalledWith(1);
+  });
+
+  it('clears an old trip and queued tracking state when a new QR link replaces the child session', async () => {
+    await startBackgroundUpdates('old-trip');
+    await replaceChildSession({ studentId: 'next-student', childToken: 'next-token', code: 'next-code' });
+
+    await expect(isTrackingActive()).resolves.toBe(false);
+    await expect(getChildSession()).resolves.toEqual(expect.objectContaining({
+      studentId: 'next-student', childToken: 'next-token', studentCode: 'next-code', activeTripId: null,
+    }));
   });
 });

@@ -584,6 +584,7 @@
   "qrGuardianSessionExpired": "La sesion del acudiente vencio. Inicia sesion nuevamente.",
   "qrNoConnection": "No hay conexion. Revisa internet e intenta de nuevo.",
   "qrLinkFailed": "No se pudo vincular el dispositivo. Verifica el codigo e intenta de nuevo.",
+  "qrLinkCodeInvalid": "El codigo de vinculacion ya fue usado, vencio o no corresponde al estudiante. Genera un codigo QR nuevo e intentalo una sola vez.",
   "qrCameraPermissionFailed": "No se pudo solicitar el permiso de camara. Revisa los permisos del sistema.",
   "qrCameraSlow": "La camara esta tardando en iniciar. Revisa el permiso e intenta de nuevo.",
   "qrLinkedSuccess": "Dispositivo vinculado correctamente.",

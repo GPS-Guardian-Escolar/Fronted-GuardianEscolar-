@@ -586,6 +586,7 @@
   "qrGuardianSessionExpired": "La session du responsable a expire. Reconnectez-vous.",
   "qrNoConnection": "Aucune connexion. Verifiez Internet et reessayez.",
   "qrLinkFailed": "Impossible d’associer l’appareil. Vérifiez le code et réessayez.",
+  "qrLinkCodeInvalid": "Le code de liaison a déjà été utilisé, a expiré ou ne correspond pas à l’élève. Générez un nouveau code QR et réessayez une seule fois.",
   "qrCameraPermissionFailed": "Impossible de demander l’accès à la caméra. Vérifiez les autorisations du système.",
   "qrCameraSlow": "Le démarrage de la caméra prend trop de temps. Vérifiez l’autorisation et réessayez.",
   "qrLinkedSuccess": "Appareil associe.",

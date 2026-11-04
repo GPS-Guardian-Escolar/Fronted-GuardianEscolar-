@@ -12,7 +12,7 @@ import AppLoading from '../../components/ui/AppLoading';
 import LanguageSelector from '../../components/common/LanguageSelector';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { studentService } from '../../services/student.service';
-import { saveChildSession as persistChildSession } from '../../services/background/locationTracking';
+import { replaceChildSession as persistChildSession } from '../../services/background/locationTracking';
 import { useTheme } from '../../theme/useTheme';
 import { AppRadius, AppSpacing, AppTouch, AppTypography } from '../../theme/tokens';
 import { getDeviceId, getDeviceName, getPlatform } from './deviceHelpers';
@@ -43,6 +43,9 @@ function linkErrorMessage(error, t) {
   }
   if (raw.includes('already linked to another student') || raw.includes('celular ya está vinculado')) {
     return t('qrPhoneLinkedElsewhere');
+  }
+  if (raw.includes('invalid or expired link code') || raw.includes('invalid link code') || raw.includes('link code attempts exceeded')) {
+    return t('qrLinkCodeInvalid');
   }
   if (error?.response?.status === 401) {
     return t('qrGuardianSessionExpired');
@@ -158,14 +161,6 @@ export default function ScanQrScreen() {
       scanLock.current = false;
     }
   }, [router, t]);
-
-  useEffect(() => {
-    const studentId = String(params?.studentId || '').trim();
-    const code = String(params?.code || '').trim();
-    if (!code || params?.relink || isProcessing || success) return;
-
-    linkDevice({ studentId: studentId || undefined, code });
-  }, [isProcessing, linkDevice, params?.code, params?.relink, params?.studentId, success]);
 
   const handleQrValue = useCallback((value) => {
     if (isProcessing || success || scanLock.current) return;

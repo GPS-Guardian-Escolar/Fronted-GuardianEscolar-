@@ -138,6 +138,18 @@ export async function saveChildSession({ childToken, studentId, code }) {
   await Promise.all(entries);
 }
 
+// A QR link can belong to a different student than the previous browser
+// session. Clear the old trip and queued coordinates before storing it.
+export async function replaceChildSession({ childToken, studentId, code }) {
+  await stopBackgroundUpdates();
+  await Promise.all([
+    removeStoredValue(ACTIVE_TRIP_ID_KEY),
+    AsyncStorage.removeItem(QUEUE_KEY),
+    AsyncStorage.removeItem(LAST_COORD_KEY),
+  ]);
+  await saveChildSession({ childToken, studentId, code });
+}
+
 export async function getChildSession() {
   const [childToken, studentId, studentCode, activeTripId] = await Promise.all([
     getStoredValue(CHILD_TOKEN_KEY),
