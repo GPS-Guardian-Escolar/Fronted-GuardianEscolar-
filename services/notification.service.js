@@ -1,7 +1,9 @@
+import { collectPages } from './pagination';
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import api from './api';
+import { ENDPOINTS } from '../config/endpoints';
 
 const projectId =
   Constants.expoConfig?.extra?.eas?.projectId ||
@@ -53,7 +55,7 @@ export const notificationService = {
       ? await Notifications.getExpoPushTokenAsync({ projectId })
       : await Notifications.getExpoPushTokenAsync();
 
-    const response = await api.post('/devices', {
+    const response = await api.post(ENDPOINTS.DEVICES, {
       expoPushToken: tokenResult.data,
       platform: platformName(),
       deviceName: getDeviceName(),
@@ -62,22 +64,25 @@ export const notificationService = {
   },
 
   listNotifications: async () => {
-    const response = await api.get('/notifications');
-    return response.data;
+    return collectPages(async page => (await api.get(ENDPOINTS.NOTIFICATIONS, { params: { page, size: 100 } })).data);
+  },
+
+  deleteNotification: async (receiptId) => {
+    await api.delete(ENDPOINTS.NOTIFICATION_BY_ID(receiptId));
   },
 
   markAsRead: async (receiptId) => {
-    const response = await api.patch(`/notifications/${receiptId}/read`);
+    const response = await api.patch(ENDPOINTS.MARK_READ(receiptId));
     return response.data;
   },
 
   markAllAsRead: async () => {
-    const response = await api.patch('/notifications/read-all');
+    const response = await api.patch(ENDPOINTS.MARK_ALL_READ);
     return response.data;
   },
 
   getPreferences: async () => {
-    const response = await api.get('/notifications/settings');
+    const response = await api.get(ENDPOINTS.NOTIFICATION_SETTINGS);
     return {
       alertaInactividad: response.data.inactivityAlert,
       canalEmail: response.data.emailChannel,
@@ -85,7 +90,7 @@ export const notificationService = {
   },
 
   updatePreferences: async (preferences) => {
-    const response = await api.put('/notifications/settings', {
+    const response = await api.put(ENDPOINTS.NOTIFICATION_SETTINGS, {
       inactivityAlert: preferences.alertaInactividad,
       emailChannel: preferences.canalEmail,
     });

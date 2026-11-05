@@ -12,7 +12,7 @@ import AppLoading from '../../components/ui/AppLoading';
 import LanguageSelector from '../../components/common/LanguageSelector';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { studentService } from '../../services/student.service';
-import { saveChildSession as persistChildSession } from '../../services/background/locationTracking';
+import { replaceChildSession as persistChildSession } from '../../services/background/locationTracking';
 import { useTheme } from '../../theme/useTheme';
 import { AppRadius, AppSpacing, AppTouch, AppTypography } from '../../theme/tokens';
 import { getDeviceId, getDeviceName, getPlatform } from './deviceHelpers';
@@ -43,6 +43,9 @@ function linkErrorMessage(error, t) {
   }
   if (raw.includes('already linked to another student') || raw.includes('celular ya está vinculado')) {
     return t('qrPhoneLinkedElsewhere');
+  }
+  if (raw.includes('invalid or expired link code') || raw.includes('invalid link code') || raw.includes('link code attempts exceeded')) {
+    return t('qrLinkCodeInvalid');
   }
   if (error?.response?.status === 401) {
     return t('qrGuardianSessionExpired');
@@ -147,6 +150,8 @@ export default function ScanQrScreen() {
         params: {
           id: String(linkedStudentId),
           codigo: String(payload.code),
+          nombre: payload.name || '',
+          telefono: payload.contactPhone || '',
         },
       });
     } catch (error) {
@@ -181,13 +186,11 @@ export default function ScanQrScreen() {
     const scanFrame = () => {
       const video = cameraContainerRef.current?.querySelector?.('video');
       if (!video || video.readyState < 2 || video.videoWidth < 1 || video.videoHeight < 1) return;
-      const sourceSize = Math.min(video.videoWidth, video.videoHeight);
-      const sourceX = Math.max(0, (video.videoWidth - sourceSize) / 2);
-      const sourceY = Math.max(0, (video.videoHeight - sourceSize) / 2);
-      canvas.width = sourceSize;
-      canvas.height = sourceSize;
+      const scale = Math.min(1, 1280 / video.videoWidth, 1280 / video.videoHeight);
+      canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+      canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
       const context = canvas.getContext('2d', { willReadFrequently: true });
-      context.drawImage(video, sourceX, sourceY, sourceSize, sourceSize, 0, 0, sourceSize, sourceSize);
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
       const image = context.getImageData(0, 0, canvas.width, canvas.height);
       const result = jsQR(image.data, canvas.width, canvas.height, {
         inversionAttempts: 'attemptBoth',
@@ -299,6 +302,7 @@ export default function ScanQrScreen() {
             ref={cameraRef}
             key={`${permission.granted ? 'camera-enabled' : 'camera-disabled'}-${cameraKey}`}
             style={styles.camera}
+            // Use the rear camera for QR scanning on both native and web.
             facing="back"
             active={isFocused && !cameraError}
             barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
@@ -637,7 +641,7 @@ function createStyles(colors) {
     floatingCodeButton: {
       alignItems: 'center',
       backgroundColor: colors.primary,
-      borderRadius: 30,
+      borderRadius: AppRadius.button,
       bottom: 42,
       elevation: 8,
       height: 58,

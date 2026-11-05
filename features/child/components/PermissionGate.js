@@ -3,12 +3,13 @@ import { Linking, Platform } from 'react-native';
 
 export default function PermissionGate({ message, onRetry }) {
   if (!message) return null;
+  const needsSettings = /permiso|ubicaci[oó]n|gps|location|permission|geolocation/i.test(message);
 
   return (
     <AppError
-      message={`${message} Abre Ajustes del sistema si ya negaste el permiso.`}
+      message={message}
       onRetry={onRetry}
-      onOpenSettings={Platform.OS === 'web' ? undefined : () => Linking.openSettings().catch(() => null)}
+      onOpenSettings={needsSettings && Platform.OS !== 'web' ? () => Linking.openSettings().catch(() => null) : undefined}
     />
   );
 }

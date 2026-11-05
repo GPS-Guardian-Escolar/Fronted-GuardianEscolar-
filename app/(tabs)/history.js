@@ -1,9 +1,12 @@
+import { AppRadius } from '../../theme/tokens';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { COLORS } from '../../constants/colors';
 import * as Print from 'expo-print';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { Alert, Platform, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
-import { Avatar, IconButton, Surface, Text, TextInput } from 'react-native-paper';
+import { Platform, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Avatar, Surface, Text, TextInput } from 'react-native-paper';
+import IconButton from '../../components/ui/PaperIconButton';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isAvailableAsync, shareAsync } from 'expo-sharing';
 import CalendarDatePicker from '../../components/common/CalendarDatePicker';
@@ -13,6 +16,9 @@ import { deleteHistory, deleteNotification, getHistory } from '../../utils/stude
 import { trackingService } from '../../services/tracking.service';
 import { notificationService } from '../../services/notification.service';
 import { getHistoryStatusKind, matchesHistoryStatus, toLocalDateKey } from '../../utils/tripHistory';
+import AppError from '../../components/ui/AppError';
+import AppLoading from '../../components/ui/AppLoading';
+import { showPlatformConfirm, showPlatformNotice } from '../../utils/noticeBus';
 
 const DATE_LOCALES = { es: 'es-CO', en: 'en-US', fr: 'fr-FR', pt: 'pt-BR' };
 
@@ -62,41 +68,60 @@ export default function HistoryScreen() {
   const [filterStudent, setFilterStudent] = useState('');
   const [filterDate, setFilterDate] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
-  const loadData = useCallback(async () => {
-    setRefreshing(true);
+  const loadData = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setRefreshing(true);
+      setLoading(true);
+    }
+    setLoadError(null);
     try {
       const [storedHistory, trips, notifications] = await Promise.all([
         getHistory(),
-        trackingService.listTrips().catch(() => []),
-        notificationService.listNotifications().catch(() => []),
+        trackingService.listTrips(),
+        notificationService.listNotifications(),
       ]);
       const remoteHistory = (trips || []).map(trip => normalizeTrip(trip, notifications || [], lang));
       const remoteIds = new Set(remoteHistory.map(item => item.backendId));
       const localOnly = storedHistory.filter(item => !item.backendId && !remoteIds.has(item.id));
       setHistory([...remoteHistory, ...localOnly]);
     } catch (error) {
-      Alert.alert(t('error'), error.message || 'No se pudo cargar el historial.');
+      setLoadError(error);
     } finally {
-      setRefreshing(false);
+      if (!silent) {
+        setRefreshing(false);
+        setLoading(false);
+      }
     }
-  }, [t, lang]);
+  }, [lang]);
 
-  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
+  useFocusEffect(useCallback(() => {
+    loadData();
+    const refreshTimer = setInterval(() => { loadData({ silent: true }); }, 15000);
+    return () => clearInterval(refreshTimer);
+  }, [loadData]));
+
+  if (loading) return <AppLoading message="Cargando historial..." />;
+  if (loadError) return <AppError message="No se pudo cargar el historial." onRetry={loadData} />;
 
   function confirmDeleteHistory(item) {
     const removeItem = async () => {
-      await deleteHistory(item.id);
-      await deleteNotification(item.id);
-      await loadData();
+      try {
+        if (item.backendId) {
+          await trackingService.deleteTrip(item.backendId);
+        } else {
+          await deleteHistory(item.id);
+          await deleteNotification(item.id);
+        }
+        await loadData();
+      } catch (error) {
+        showPlatformNotice(t('error'), error?.response?.data?.message || 'No se pudo eliminar el registro.', { tone: 'error' });
+      }
     };
 
-    if (Platform.OS === 'web') {
-      if (window.confirm(t('histDeleteConfirm'))) removeItem();
-      return;
-    }
-
-    Alert.alert(t('histDelete'), t('histDeleteConfirm'), [
+    showPlatformConfirm(t('histDelete'), t('histDeleteConfirm'), [
       { text: t('cancel'), style: 'cancel' },
       { text: t('delete'), style: 'destructive', onPress: removeItem },
     ]);
@@ -247,16 +272,16 @@ export default function HistoryScreen() {
           });
           return;
         }
-        Alert.alert(t('histPdfTitle'), `${t('histPdfGenerated')}: ${uri}`);
+        showPlatformNotice(t('histPdfTitle'), `${t('histPdfGenerated')}: ${uri}`, { tone: 'success' });
       } catch (error) {
-        Alert.alert(t('histPdfTitle'), error.message || t('histPdfFailed'));
+        showPlatformNotice(t('histPdfTitle'), error.message || t('histPdfFailed'), { tone: 'error' });
       }
       return;
     }
 
     const reportWindow = window.open('', '_blank', 'width=980,height=720');
     if (!reportWindow) {
-      Alert.alert(t('histPdfTitle'), t('histPdfAllowPopups'));
+      showPlatformNotice(t('histPdfTitle'), t('histPdfAllowPopups'), { tone: 'warning' });
       return;
     }
     reportWindow.document.open();
@@ -294,12 +319,12 @@ export default function HistoryScreen() {
     return (
       <Surface key={item.id} style={[styles.historyCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: statusColor }]} elevation={1}>
         <View style={styles.cardHeader}>
-          <Avatar.Text size={44} label={item.estudiante.substring(0, 2).toUpperCase()} style={{ backgroundColor: statusColor }} color={colors.textOnPrimary} />
+          <Avatar.Text size={44} label={item.estudiante.substring(0, 2).toUpperCase()} style={{ backgroundColor: COLORS.PRIMARIO }} color={COLORS.TEXTO_CONTRASTE} />
           <View style={styles.headerInfo}>
             <Text style={[styles.itemName, { color: colors.text }]}>{item.estudiante}</Text>
             <Text style={[styles.itemDate, { color: colors.textSecondary }]}>{item.fecha}</Text>
           </View>
-          {!item.backendId && <IconButton icon="trash-can-outline" size={18} containerColor={colors.surfaceSecondary} iconColor={colors.error} onPress={() => confirmDeleteHistory(item)} />}
+          <IconButton icon="trash-can-outline" size={18} containerColor={colors.surfaceSecondary} iconColor={colors.error} onPress={() => confirmDeleteHistory(item)} />
         </View>
 
         <View style={[styles.detailsGrid, { backgroundColor: colors.surfaceSecondary }]}>
@@ -401,14 +426,14 @@ const styles = StyleSheet.create({
   headerText: { flex: 1 },
   title: { fontSize: 22, fontWeight: 'bold' },
   subtitle: { fontSize: 12 },
-  reportBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 9, borderRadius: 8, gap: 6 },
+  reportBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 9, borderRadius: AppRadius.button, gap: 6 },
   reportBtnText: { fontWeight: 'bold', fontSize: 13 },
   filterBar: { borderRadius: 12, padding: 16, marginBottom: 20, borderWidth: 1 },
   filterGrid: { gap: 12 },
   filterCol: { flex: 1 },
   filterLabel: { fontSize: 12, fontWeight: 'bold', marginBottom: 4 },
   filterInput: { height: 45 },
-  clearBtn: { borderWidth: 1, paddingHorizontal: 20, height: 45, justifyContent: 'center', borderRadius: 8, alignItems: 'center' },
+  clearBtn: { borderWidth: 1, paddingHorizontal: 20, height: 45, justifyContent: 'center', borderRadius: AppRadius.button, alignItems: 'center' },
   clearBtnText: { fontSize: 13, fontWeight: '500' },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 25 },
   statCard: { flex: 1, minWidth: 150, borderRadius: 10, padding: 12, borderWidth: 1, borderLeftWidth: 4 },

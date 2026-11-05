@@ -1,3 +1,4 @@
+import { AppRadius } from '../../theme/tokens';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
@@ -184,7 +185,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 12 },
   title: { fontSize: 22, fontWeight: '800' },
   subtitle: { fontSize: 12, marginTop: 2 },
-  refreshButton: { width: 42, height: 42, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  refreshButton: { width: 42, height: 42, borderRadius: AppRadius.button, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 16 },
   statCard: { flex: 1, minWidth: 150, borderRadius: 8, borderWidth: 1, borderLeftWidth: 4, padding: 14 },
   statIcon: { width: 34, height: 34, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
@@ -202,6 +203,6 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 13, fontWeight: '600' },
   lockTitle: { fontSize: 18, fontWeight: '800', marginTop: 12 },
   lockText: { fontSize: 13, marginTop: 4, textAlign: 'center' },
-  primaryButton: { marginTop: 16, borderRadius: 8, paddingHorizontal: 18, paddingVertical: 10 },
+  primaryButton: { marginTop: 16, borderRadius: AppRadius.button, paddingHorizontal: 18, paddingVertical: 10 },
   primaryButtonText: { fontWeight: '800', fontSize: 13 },
 });

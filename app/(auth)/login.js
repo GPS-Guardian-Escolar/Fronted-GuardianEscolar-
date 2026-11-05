@@ -1,21 +1,23 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { ActivityIndicator, Button, Checkbox, Surface, Text, TextInput } from 'react-native-paper';
+import { ActivityIndicator, Checkbox, Surface, Text, TextInput } from 'react-native-paper';
+import Button from '../../components/ui/PaperButton';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { storage } from '../../utils/storage';
 import { isValidEmail } from '../../utils/validators';
-import { AppTouch } from '../../theme/tokens';
+import { AppRadius, AppTouch } from '../../theme/tokens';
 import { SUPPORTED_LANGUAGES } from '../../translations';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const params = useLocalSearchParams();
   const { login } = useAuth();
   const { t, lang, setLanguage } = useLanguage();
   const { theme, isDark, toggleTheme } = useTheme();
@@ -27,7 +29,22 @@ export default function LoginScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [secureText, setSecureText] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
+  const [infoMsg, setInfoMsg] = useState('');
+  const [infoEmail, setInfoEmail] = useState('');
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
+
+  useEffect(() => {
+    if (params.notice === 'registration-email') {
+      setInfoMsg('authRegisterSuccess');
+      setInfoEmail(String(params.email || ''));
+    } else if (params.notice === 'email-verified') {
+      setInfoMsg('authEmailVerifiedLogin');
+      setInfoEmail('');
+    } else if (params.notice === 'device-confirmed') {
+      setInfoMsg('authDeviceConfirmedLogin');
+      setInfoEmail('');
+    }
+  }, [params.notice, params.email]);
 
   useEffect(() => {
     let isMounted = true;
@@ -82,7 +99,8 @@ export default function LoginScreen() {
       const normalizedEmail = email.trim().toLowerCase();
       const result = await login(normalizedEmail, password);
       if (result?.requiresDeviceConfirmation) {
-        setErrorMsg('authDeviceConfirmRequired');
+        setInfoMsg('authDeviceConfirmRequired');
+        setInfoEmail(normalizedEmail);
         return;
       }
       if (rememberMe) {
@@ -217,6 +235,11 @@ export default function LoginScreen() {
                       <Text style={[styles.errorBoxText, { color: colors.error }]}>{t(errorMsg)}</Text>
                     </View>
                   ) : null}
+                  {infoMsg ? (
+                    <View accessibilityRole="alert" style={[styles.errorBox, { backgroundColor: colors.surfaceSecondary, borderColor: colors.info }]}>
+                      <Text style={[styles.errorBoxText, { color: colors.info }]}>{t(infoMsg)}{infoEmail ? `\n${t('authEmail')}: ${infoEmail}` : ''}</Text>
+                    </View>
+                  ) : null}
 
                   <Button
                     mode="contained"
@@ -309,7 +332,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   backButton: { padding: 8 },
-  languageButton: { minHeight: AppTouch.min, minWidth: AppTouch.min, borderWidth: 1, borderRadius: 999, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 5, paddingHorizontal: 10 },
+  languageButton: { minHeight: AppTouch.min, minWidth: AppTouch.min, borderWidth: 1, borderRadius: AppRadius.button, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 5, paddingHorizontal: 10 },
   languageButtonText: { fontSize: 12, fontWeight: '700' },
   languageOverlay: { flex: 1, justifyContent: 'center', padding: 24 },
   languageSheet: { width: '100%', maxWidth: 420, alignSelf: 'center', borderWidth: 1, borderRadius: 16, padding: 16 },
@@ -347,7 +370,7 @@ const styles = StyleSheet.create({
   forgotText: { fontSize: 13, fontWeight: '700' },
   checkboxContainer: { flexDirection: 'row', alignItems: 'center', marginLeft: -8 },
   checkboxLabel: { fontSize: 13 },
-  loginButton: { borderRadius: 8, marginTop: 10 },
+  loginButton: { borderRadius: AppRadius.button, marginTop: 10 },
   buttonContent: { height: 48 },
   footerLinks: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 20 },
   noAccountText: { fontSize: 13 },
@@ -356,7 +379,7 @@ const styles = StyleSheet.create({
   errorBoxText: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
   studentQrFab: {
     alignItems: 'center',
-    borderRadius: 999,
+    borderRadius: AppRadius.button,
     flexDirection: 'row',
     gap: 8,
     minHeight: AppTouch.min,

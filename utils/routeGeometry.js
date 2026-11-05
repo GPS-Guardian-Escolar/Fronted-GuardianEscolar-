@@ -20,15 +20,16 @@ export function decodePolyline(encoded = '') {
 }
 
 function routePoints(route) {
-  const origin = { latitude: Number(route?.originLatitude), longitude: Number(route?.originLongitude) };
-  const destination = { latitude: Number(route?.destinationLatitude), longitude: Number(route?.destinationLongitude) };
+  const toCoordinate = value => value == null || String(value).trim() === '' ? Number.NaN : Number(value);
+  const origin = { latitude: toCoordinate(route?.originLatitude), longitude: toCoordinate(route?.originLongitude) };
+  const destination = { latitude: toCoordinate(route?.destinationLatitude), longitude: toCoordinate(route?.destinationLongitude) };
   const isValidPoint = point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude)
     && Math.abs(point.latitude) <= 90 && Math.abs(point.longitude) <= 180;
   if (!isValidPoint(origin) || !isValidPoint(destination)) return [];
   const stops = (route?.stops || [])
     .slice()
     .sort((a, b) => Number(a.stopOrder || 0) - Number(b.stopOrder || 0))
-    .map(stop => ({ latitude: Number(stop.latitude), longitude: Number(stop.longitude) }))
+    .map(stop => ({ latitude: toCoordinate(stop.latitude), longitude: toCoordinate(stop.longitude) }))
     .filter(isValidPoint);
   return [origin, ...stops, destination];
 }
