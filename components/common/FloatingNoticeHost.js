@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Button, Portal, Snackbar, Text } from 'react-native-paper';
+import { Portal, Snackbar, Text } from 'react-native-paper';
+import Button from '../ui/PaperButton';
 import { useTheme } from '../../contexts/ThemeContext';
 import { subscribeNotice } from '../../utils/noticeBus';
 

@@ -50,4 +50,10 @@ describe('studentService', () => {
     expect(payload).toEqual(expect.objectContaining({ code: 'ABCD2345EFGH6789' }));
     expect(payload).not.toHaveProperty('studentId');
   });
+  it('saves the preferred route for the next student trip', async () => {
+    api.put.mockResolvedValue({ data: null });
+    await studentService.setPreferredRoute('student-7', 'route-3');
+    expect(api.put).toHaveBeenCalledWith('/students/student-7/preferred-route/route-3');
+  });
+
 });

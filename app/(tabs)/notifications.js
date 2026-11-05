@@ -1,3 +1,4 @@
+import { AppRadius } from '../../theme/tokens';
 import React, { useCallback, useState } from 'react';
 import {
   View,
@@ -70,6 +71,8 @@ export default function NotificationsScreen() {
       || eventType === 'SAFE_ZONE_EXIT'
       || eventType === 'ROUTE_DEVIATION'
       || eventType === 'INACTIVITY'
+      || eventType === 'LOCATION_UNAVAILABLE'
+      || eventType === 'LOCATION_STOPPED'
       || searchableText.includes('SALIÓ DE LA ZONA')
       || searchableText.includes('SALIO DE LA ZONA')
       || searchableText.includes('DESVÍO DE RUTA')
@@ -305,7 +308,7 @@ const styles = StyleSheet.create({
   markAllBtn: {
     borderWidth: 1,
     borderColor: COLORS.GRIS_BORDE,
-    borderRadius: 8,
+    borderRadius: AppRadius.button,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },

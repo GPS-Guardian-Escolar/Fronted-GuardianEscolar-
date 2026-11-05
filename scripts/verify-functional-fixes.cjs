@@ -112,6 +112,7 @@ async function main() {
     },
   };
   const { notificationService } = loadModule('services/notification.service.js', {
+    './pagination': loadModule('services/pagination.js'),
     'react-native': { Platform: { OS: 'web' } },
     'expo-device': { isDevice: false },
     'expo-constants': { expoConfig: {} },
@@ -146,6 +147,7 @@ async function main() {
 
   const trackingCalls = [];
   const { trackingService } = loadModule('services/tracking.service.js', {
+    './pagination': loadModule('services/pagination.js'),
     './api': { __esModule: true, default: {
       get: async (...args) => { trackingCalls.push(args); return { data: [] }; },
       post: async (...args) => { trackingCalls.push(args); return { data: {} }; },

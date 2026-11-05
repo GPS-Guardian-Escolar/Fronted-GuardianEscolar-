@@ -37,7 +37,7 @@ export function normalizeRegion(initialRegion, currentLocation, markers = []) {
   };
 }
 
-export function normalizeMarkers(markers = []) {
+export function normalizeMarkers(markers = [], defaultColor = COLORS.PRIMARIO) {
   return markers
     .map((marker, index) => {
       const coordinate = normalizeCoordinate(marker);
@@ -45,7 +45,7 @@ export function normalizeMarkers(markers = []) {
       return {
         ...marker,
         id: marker.id ?? `marker-${index}`,
-        color: marker.color || COLORS.PRIMARIO,
+        color: marker.color || defaultColor,
         label: marker.label || marker.title?.slice(0, 2).toUpperCase() || '',
         coordinate,
       };

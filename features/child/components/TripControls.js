@@ -1,4 +1,4 @@
-import { Button } from 'react-native-paper';
+import Button from '../../../components/ui/PaperButton';
 import { StyleSheet } from 'react-native';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { AppTouch } from '../../../theme/tokens';
