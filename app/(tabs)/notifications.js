@@ -84,7 +84,8 @@ export default function NotificationsScreen() {
       receiptId,
       notificationId: item.notificationId,
       type: mappedType,
-      name: item.estudianteNombre || item.name || t('notifDetail'),
+      name: item.estudianteNombre || item.name
+        || (eventType === 'DEVICE_LINKED' ? t('studentPhoneLinked') : t('notifDetail')),
       message,
       time: item.receivedAt || item.eventDateTime || item.recibidoEn || item.creadoEn || item.time || '',
       color: mappedType === 'Advertencias' ? colors.error : mappedType === 'Exitosas' ? colors.success : colors.primary,

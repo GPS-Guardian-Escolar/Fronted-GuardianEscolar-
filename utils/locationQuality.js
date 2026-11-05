@@ -47,3 +47,7 @@ export function journeyPoints(points) {
     && distanceMeters(points[index - 1], point) >= 1
   ));
 }
+
+export function shouldDrawJourneyPath(isLive, location) {
+  return Boolean(isLive && location && Number(location.stoppedSeconds || 0) === 0);
+}

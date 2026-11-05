@@ -44,6 +44,17 @@ export const trackingService = {
     }
   },
 
+  startOrResumeMonitoring: async ({ studentId, routeId }, options = {}) => {
+    const existing = await trackingService.getActiveTrip(studentId, options);
+    if (existing?.id) return { trip: existing, created: false };
+    const response = await api.post(`${ENDPOINTS.TRIPS}/monitoring`, {
+      studentId,
+      routeId,
+      tripStartedAt: new Date().toISOString(),
+    }, buildChildAuthConfig(options));
+    return { trip: response.data, created: true };
+  },
+
   addCoordinate: async (tripId, data, options = {}) => {
     const response = await api.post(ENDPOINTS.TRIP_COORDINATES(tripId), data, buildChildAuthConfig(options));
     return response.data;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { filterLocation, journeyPoints } from './locationQuality';
+import { filterLocation, journeyPoints, shouldDrawJourneyPath } from './locationQuality';
 
 const fix = (meters, seconds, accuracy = 5) => ({ latitude: meters / 111195,
   longitude: 0, accuracy, recordedAt: new Date(1700000000000 + seconds * 1000).toISOString() });
@@ -45,5 +45,11 @@ describe('GPS quality and displacement', () => {
     for (const input of [fix(0, 10), fix(0, 30), fix(0, 60, 200), fix(0, 60, null)]) {
       expect(filterLocation(input, last)).toEqual({ last });
     }
+  });
+
+  it('draws a live path only while the latest GPS fix confirms movement', () => {
+    expect(shouldDrawJourneyPath(true, { stoppedSeconds: 0 })).toBe(true);
+    expect(shouldDrawJourneyPath(true, { stoppedSeconds: 30 })).toBe(false);
+    expect(shouldDrawJourneyPath(false, { stoppedSeconds: 0 })).toBe(false);
   });
 });

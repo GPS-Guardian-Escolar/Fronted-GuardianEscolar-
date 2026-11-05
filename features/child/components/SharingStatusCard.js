@@ -2,21 +2,24 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StyleSheet, View } from 'react-native';
 import { Surface, Text } from 'react-native-paper';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { useLanguage } from '../../../contexts/LanguageContext';
 import { AppSpacing, AppTypography } from '../../../theme/tokens';
 
 export default function SharingStatusCard({ status, queueSize, sentCount, activeTripId }) {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const colors = theme.colors;
   const sharing = status === 'sharing';
+  const waiting = status === 'waiting';
 
   return (
     <Surface style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]} elevation={2}>
       <View style={styles.cardHeader}>
         <MaterialCommunityIcons
-          name={sharing ? 'map-marker-check' : 'map-marker-off-outline'}
+          name={sharing ? 'map-marker-check' : waiting ? 'map-marker-radius' : 'map-marker-off-outline'}
           size={24}
-          color={sharing ? colors.success : colors.textSecondary}
-          accessibilityLabel={sharing ? 'Compartiendo ubicación' : 'Ubicación pausada'}
+          color={sharing ? colors.success : waiting ? colors.primary : colors.textSecondary}
+          accessibilityLabel={sharing ? t('studentTrackingStarted') : waiting ? t('studentTrackingWaiting') : t('studentTrackingPaused')}
         />
         <Text style={[styles.cardTitle, { color: colors.text }]}>Rastreo del trayecto</Text>
       </View>
@@ -24,17 +27,17 @@ export default function SharingStatusCard({ status, queueSize, sentCount, active
       <View style={[
         styles.badge,
         {
-          backgroundColor: sharing ? colors.accentLight : colors.surfaceSecondary,
-          borderColor: sharing ? colors.accent : colors.border,
+          backgroundColor: sharing ? colors.accentLight : waiting ? colors.surface : colors.surfaceSecondary,
+          borderColor: sharing ? colors.accent : waiting ? colors.primary : colors.border,
         },
       ]}>
-        <Text style={[styles.badgeText, { color: sharing ? colors.accentDark : colors.textSecondary }]}>
-          {sharing ? 'Compartiendo ubicación' : 'Pausado'}
+        <Text style={[styles.badgeText, { color: sharing ? colors.accentDark : waiting ? colors.primary : colors.textSecondary }]}>
+          {sharing ? t('studentTrackingStarted') : waiting ? t('studentTrackingWaiting') : t('studentTrackingPaused')}
         </Text>
       </View>
 
       <Text style={[styles.description, { color: colors.textSecondary }]}>
-        Comparte tu ubicación solo durante el trayecto escolar. Verás una notificación activa mientras el rastreo esté encendido.
+        {waiting ? t('studentTrackingWaitingDescription') : t('studentTrackingSharingDescription')}
       </Text>
 
       <View style={[styles.debugBox, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>

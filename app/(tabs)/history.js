@@ -15,7 +15,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { deleteHistory, deleteNotification, getHistory } from '../../utils/studentStorage';
 import { trackingService } from '../../services/tracking.service';
 import { notificationService } from '../../services/notification.service';
-import { getHistoryStatusKind, matchesHistoryStatus, toLocalDateKey } from '../../utils/tripHistory';
+import { getHistoryObservationKey, getHistoryStatusKind, hasTrackingIncident, matchesHistoryStatus, toLocalDateKey } from '../../utils/tripHistory';
 import AppError from '../../components/ui/AppError';
 import AppLoading from '../../components/ui/AppLoading';
 import { showPlatformConfirm, showPlatformNotice } from '../../utils/noticeBus';
@@ -37,8 +37,11 @@ function formatTripTime(value, lang = 'es') {
 function normalizeTrip(trip, notifications = [], lang = 'es') {
   const status = String(trip.status || '').toUpperCase();
   const tripEvents = notifications.filter(notification => String(notification.tripId) === String(trip.id));
-  const alerta = Boolean(trip.hadDeviation)
-    || tripEvents.some(notification => notification.eventType === 'ROUTE_DEVIATION');
+  const alerta = hasTrackingIncident(trip, tripEvents);
+  const incidentEventType = tripEvents.find(notification => [
+    'LOCATION_UNAVAILABLE', 'LOCATION_STOPPED', 'SAFE_ZONE_EXIT', 'ROUTE_DEVIATION',
+  ].includes(String(notification.eventType || '').toUpperCase()))?.eventType
+    || (trip.hadDeviation ? 'ROUTE_DEVIATION' : null);
   const advertencia = tripEvents.some(notification => notification.eventType === 'INACTIVITY');
   return {
     id: `trip-${trip.id}`,
@@ -52,6 +55,7 @@ function normalizeTrip(trip, notifications = [], lang = 'es') {
     ruta: trip.route || 'Ruta asignada',
     estado: status === 'IN_PROGRESS' ? 'En Proceso' : status === 'COMPLETED' ? 'Completado' : status === 'CANCELED' ? 'Cancelado' : 'Pendiente',
     alerta,
+    incidentEventType,
     advertencia: !alerta && advertencia,
     duracion: trip.tripStartedAt && trip.tripEndedAt ? Math.max(0, Math.round((new Date(trip.tripEndedAt) - new Date(trip.tripStartedAt)) / 60000)) : 0,
   };
@@ -84,7 +88,9 @@ export default function HistoryScreen() {
         trackingService.listTrips(),
         notificationService.listNotifications(),
       ]);
-      const remoteHistory = (trips || []).map(trip => normalizeTrip(trip, notifications || [], lang));
+      const remoteHistory = (trips || [])
+        .filter(trip => String(trip.status || '').toUpperCase() !== 'PENDING')
+        .map(trip => normalizeTrip(trip, notifications || [], lang));
       const remoteIds = new Set(remoteHistory.map(item => item.backendId));
       const localOnly = storedHistory.filter(item => !item.backendId && !remoteIds.has(item.id));
       setHistory([...remoteHistory, ...localOnly]);
@@ -181,7 +187,7 @@ export default function HistoryScreen() {
         <td>${escapeHtml(item.horaInicio)}${item.horaFin && item.horaFin !== '--' ? ` - ${escapeHtml(item.horaFin)}` : ''}</td>
         <td>${escapeHtml(item.ruta)}</td>
         <td><span class="status">${escapeHtml(getDisplayedStatus(item))}</span></td>
-        <td>${escapeHtml(item.alerta ? t('histObsAlert') : item.advertencia ? t('histObsInactivity') : t('histObsNormal'))}</td>
+        <td>${escapeHtml(t(getHistoryObservationKey(item)))}</td>
       </tr>
     `).join('');
 
@@ -335,10 +341,15 @@ export default function HistoryScreen() {
             <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
               <Text style={[styles.statusBadgeText, { color: statusColor }]}>{getDisplayedStatus(item)}</Text>
             </View>
+            {item.estado === 'En Proceso' && item.alerta && (
+              <Text style={[styles.detailValue, { color: colors.error, marginTop: 4 }]}>
+                {t('histActiveIncidentHint')}
+              </Text>
+            )}
           </View>
           <Detail
             label={t('histObservation')}
-            value={item.alerta ? t('histObsAlert') : item.advertencia ? t('histObsInactivity') : t('histObsNormal')}
+            value={t(getHistoryObservationKey(item))}
             danger={item.alerta}
             warning={item.advertencia}
           />

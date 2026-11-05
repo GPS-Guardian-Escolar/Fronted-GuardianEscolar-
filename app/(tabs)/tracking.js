@@ -19,7 +19,7 @@ import { useTrackingRealtime } from '../../hooks/useTrackingRealtime';
 import TrackingHeader from '../../features/tracking/components/TrackingHeader';
 import TrackingStudentSelector from '../../features/tracking/components/TrackingStudentSelector';
 import { calculateRouteGeometry } from '../../utils/routeGeometry';
-import { journeyPoints } from '../../utils/locationQuality';
+import { journeyPoints, shouldDrawJourneyPath } from '../../utils/locationQuality';
 import { buildTrackingMarkers } from '../../utils/trackingMarkers';
 import { showPlatformNotice } from '../../utils/noticeBus';
 
@@ -166,7 +166,8 @@ export default function TrackingScreen() {
         .sort((a, b) => new Date(b.tripStartedAt || 0) - new Date(a.tripStartedAt || 0));
       setRecentTripId(studentTrips[0]?.id || null);
       setRefreshFailed(false);
-      const selectedTrip = studentTrips.find(trip => trip.status === 'IN_PROGRESS');
+      const selectedTrip = studentTrips.find(trip => trip.status === 'IN_PROGRESS')
+        || studentTrips.find(trip => trip.status === 'PENDING');
       setActiveTrip(selectedTrip || null);
       if (!userSelectedRoute.current && selectedTrip?.routeId && (selectedStudent.routes || []).some(route => String(route.id) === String(selectedTrip.routeId))) {
         setSelectedRouteId(selectedTrip.routeId);
@@ -193,7 +194,7 @@ export default function TrackingScreen() {
           recordedAt: point.recordedAt,
         }))
         .filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && Number.isFinite(point.timestamp));
-      setJourneyCoordinates(journeyPoints(validCoordinates));
+      setJourneyCoordinates(selectedTrip.status === 'IN_PROGRESS' ? journeyPoints(validCoordinates) : []);
       const latest = validCoordinates[validCoordinates.length - 1];
       if (!latest) {
         setLocation(null);
@@ -337,7 +338,8 @@ export default function TrackingScreen() {
             !activeTrip && Number(selectedStudent?.dispositivos_vinculados || 0) < 1
               ? t('trackNoDevice')
               : activeTrip && isLocationStale ? t('trackOffline')
-                : activeTrip && location ? t('trackOnline')
+                : activeTrip?.status === 'PENDING' && location ? t('trackWaitingMovement')
+                  : activeTrip && location ? t('trackOnline')
                   : activeTrip ? t('trackWaitingLocation') : t('trackWaitingTrip')
           }
           onRefresh={() => refreshLocation(false)}
@@ -372,7 +374,8 @@ export default function TrackingScreen() {
             coordinates={showAssignedRoute ? routeGeometry : []}
             showRoute={showAssignedRoute && routeGeometry.length >= 2}
             routePaths={showAssignedRoute ? routeGeometries : []}
-            journeyCoordinates={showJourneyPath && hasLiveLocation ? journeyCoordinates : []}
+            journeyCoordinates={showJourneyPath && activeTrip?.status === 'IN_PROGRESS'
+              && shouldDrawJourneyPath(hasLiveLocation, location) ? journeyCoordinates : []}
             primaryColor={colors.primary}
             routeColor={colors.primary}
             journeyColor={colors.primary}

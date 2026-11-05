@@ -145,6 +145,15 @@ async function main() {
   assert.equal(qr.parseQrValue('{"v":1,"s":"student-1","c":"link-code"}').payload.code, 'link-code');
   assert.equal(qr.parseQrValue('{"v":1,"s":"student-1"}').ok, false);
 
+  const qrScreen = fs.readFileSync(path.join(__dirname, '..', 'features/child-link/ScanQrScreen.js'), 'utf8');
+  const studentDashboard = fs.readFileSync(path.join(__dirname, '..', 'app/student-dashboard.js'), 'utf8');
+  assert.match(qrScreen, /autoTrack:\s*'1'/);
+  assert.match(studentDashboard, /params\.autoTrack === '1'/);
+  assert.match(studentDashboard, /startOrResumeMonitoring/);
+  assert.doesNotMatch(studentDashboard, /TripControls|Iniciar trayecto|Detener trayecto/);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'app/(tabs)/tracking.js'), 'utf8'), /trackWaitingMovement/);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'features/child/components/SharingStatusCard.js'), 'utf8'), /studentTrackingWaiting/);
+
   const trackingCalls = [];
   const { trackingService } = loadModule('services/tracking.service.js', {
     './pagination': loadModule('services/pagination.js'),
