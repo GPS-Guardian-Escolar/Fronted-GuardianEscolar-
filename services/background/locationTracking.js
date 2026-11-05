@@ -6,6 +6,7 @@ import * as TaskManager from 'expo-task-manager';
 import { Platform } from 'react-native';
 import { trackingService } from '../tracking.service';
 import { lightColors } from '../../theme/tokens';
+import { filterLocation } from '../../utils/locationQuality';
 
 export const LOCATION_TASK_NAME = 'gps-guardian-background-location';
 export const CHILD_TOKEN_KEY = 'guardian_child_token';
@@ -16,13 +17,6 @@ export const ACTIVE_TRIP_ID_KEY = 'guardian_active_trip_id';
 const QUEUE_KEY = '@guardian_location_queue';
 const LAST_COORD_KEY = '@guardian_last_location_coord';
 const MAX_FLUSH_ATTEMPTS = 3;
-// GPS can drift several metres while a phone is sitting still. Keep a
-// heartbeat for availability, but do not treat less than this as movement.
-const MIN_DISTANCE_METERS = 100;
-const HEARTBEAT_INTERVAL_MS = 30000;
-const MAX_ACCURACY_METERS = 80;
-const MAX_SINGLE_JUMP_METERS = 1000;
-
 let webWatchId = null;
 let webTracking = false;
 let webPollTimer = null;
@@ -81,31 +75,6 @@ function normalizeCoordinate(location) {
 function isValidCoordinate(coord) {
   return Number.isFinite(coord.latitude) && Math.abs(coord.latitude) <= 90
     && Number.isFinite(coord.longitude) && Math.abs(coord.longitude) <= 180;
-}
-
-function isReliableCoordinate(coord, previous) {
-  if (Number.isFinite(coord.accuracy) && coord.accuracy > MAX_ACCURACY_METERS) return false;
-  if (!previous) return true;
-
-  const jump = distanceMeters(previous, coord);
-  const elapsedSeconds = Math.max(
-    1,
-    (Date.parse(coord.recordedAt) - Date.parse(previous.recordedAt)) / 1000,
-  );
-  return jump <= MAX_SINGLE_JUMP_METERS || jump / elapsedSeconds <= 30;
-}
-
-function distanceMeters(from, to) {
-  if (!from || !to) return Number.POSITIVE_INFINITY;
-  const earthRadius = 6371000;
-  const toRadians = value => (value * Math.PI) / 180;
-  const lat1 = toRadians(from.latitude);
-  const lat2 = toRadians(to.latitude);
-  const deltaLat = toRadians(to.latitude - from.latitude);
-  const deltaLon = toRadians(to.longitude - from.longitude);
-  const a = Math.sin(deltaLat / 2) ** 2
-    + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
-  return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 async function getLastCoordinate() {
@@ -331,9 +300,9 @@ export async function startBackgroundUpdates(tripId) {
 
     await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
       accuracy: Location.Accuracy.High,
-      distanceInterval: 25,
-      timeInterval: 15000,
-      deferredUpdatesInterval: 15000,
+      distanceInterval: 0,
+      timeInterval: 5000,
+      deferredUpdatesInterval: 5000,
       pausesUpdatesAutomatically: false,
       showsBackgroundLocationIndicator: true,
       foregroundService: {
@@ -380,18 +349,13 @@ export function enqueueCoordinate(coord) {
 async function enqueueCoordinateUnlocked(coord) {
   if (!isValidCoordinate(coord)) return;
   const last = await getLastCoordinate();
-  if (!isReliableCoordinate(coord, last)) return;
-  const elapsed = last ? Math.max(0, Date.parse(coord.recordedAt) - Date.parse(last.recordedAt)) : Infinity;
-  if (last && elapsed < HEARTBEAT_INTERVAL_MS) return;
-
-  const stationary = last && distanceMeters(last, coord) < MIN_DISTANCE_METERS;
-  coord.stoppedSeconds = stationary
-    ? Math.max(0, Math.round(elapsed / 1000) + Number(last.stoppedSeconds || 0))
-    : 0;
+  const result = filterLocation(coord, last);
+  if (result.last) await AsyncStorage.setItem(LAST_COORD_KEY, JSON.stringify(result.last));
+  if (!result.coordinate) return;
+  coord = result.coordinate;
 
   const queue = await readQueue();
   queue.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, coord });
-  await AsyncStorage.setItem(LAST_COORD_KEY, JSON.stringify(coord));
   await writeQueue(queue.slice(-500));
 }
 

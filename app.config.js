@@ -5,11 +5,29 @@ const baseConfig = require('./app.json');
 const googleMapsApiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
   || process.env.GOOGLE_MAPS_API_KEY
   || '';
+const studentLinkHost = (() => {
+  const configuredUrl = process.env.EXPO_PUBLIC_STUDENT_LINK_BASE_URL || '';
+  try {
+    return new URL(configuredUrl).hostname;
+  } catch {
+    // Render serves the production QR links from the same web service.
+    return 'gps-guardian-escolar-frontend.onrender.com';
+  }
+})();
 
 module.exports = {
   ...baseConfig.expo,
   android: {
     ...baseConfig.expo.android,
+    intentFilters: [
+      ...(baseConfig.expo.android?.intentFilters || []),
+      {
+        action: 'VIEW',
+        autoVerify: true,
+        data: [{ scheme: 'https', host: studentLinkHost, pathPrefix: '/scan-qr' }],
+        category: ['BROWSABLE', 'DEFAULT'],
+      },
+    ],
     config: {
       ...(baseConfig.expo.android?.config || {}),
       googleMaps: {

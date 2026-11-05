@@ -16,8 +16,8 @@ export function useTrackingRealtime(tripId, { onCoordinate, onError } = {}) {
 
     createTrackingSocket({
       tripId,
-      onCoordinate: (point) => callbacks.current.onCoordinate?.(point),
-      onError: (error) => callbacks.current.onError?.(error),
+      onCoordinate: (point) => { if (!disposed) callbacks.current.onCoordinate?.(point); },
+      onError: (error) => { if (!disposed) callbacks.current.onError?.(error); },
     }).then((connectedClient) => {
       if (disposed) {
         connectedClient.deactivate();

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Linking, Platform, View, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
+import { AppState, Linking, Platform, View, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Text, Surface } from 'react-native-paper';
 import Button from '../components/ui/PaperButton';
@@ -29,7 +29,6 @@ import { AppRadius, AppTypography } from '../theme/tokens';
 import { trackingErrorMessage } from '../features/child/trackingErrors';
 import PermissionGate from '../features/child/components/PermissionGate';
 import SharingStatusCard from '../features/child/components/SharingStatusCard';
-import TripControls from '../features/child/components/TripControls';
 import LanguageSelector from '../components/common/LanguageSelector';
 
 const DEVICE_ID_KEY = '@guardian_student_device_id';
@@ -89,12 +88,14 @@ export default function StudentDashboardScreen() {
   const [linkedCount, setLinkedCount] = React.useState(null);
   const [linkError, setLinkError] = React.useState('');
   const [trackingStatus, setTrackingStatus] = React.useState('paused');
-  const [trackingLoading, setTrackingLoading] = React.useState(false);
   const [permissionError, setPermissionError] = React.useState('');
   const [activeTripId, setActiveTripId] = React.useState('');
   const [queueSize, setQueueSize] = React.useState(0);
   const [sentCount, setSentCount] = React.useState(0);
   const trackingOperation = React.useRef(false);
+  const autoMonitoringAttempted = React.useRef(false);
+  const startTrackingRef = React.useRef(null);
+  const previousAppState = React.useRef(AppState.currentState);
   const describeTrackingError = React.useCallback(error => trackingErrorMessage(error, t), [t]);
 
   // Datos del contacto de emergencia enviados por el QR.
@@ -220,7 +221,6 @@ export default function StudentDashboardScreen() {
     const restoreTracking = async () => {
       if (trackingOperation.current) return;
       trackingOperation.current = true;
-      setTrackingLoading(true);
       try {
         const trip = await trackingService.getActiveTrip(storedSession.studentId, { childToken: storedSession.childToken });
         if (!mounted) return;
@@ -233,11 +233,15 @@ export default function StudentDashboardScreen() {
             setSentCount(count => count + result.sent);
             setQueueSize(result.remaining);
             setPermissionError('');
-            setTrackingStatus('sharing');
+            setTrackingStatus(String(trip.status || '').toUpperCase() === 'IN_PROGRESS' ? 'sharing' : 'waiting');
           }
         } else {
           await stopBackgroundUpdates();
           if (mounted) setTrackingStatus('paused');
+          if (params.autoTrack === '1' && !autoMonitoringAttempted.current) {
+            autoMonitoringAttempted.current = true;
+            setTimeout(() => startTrackingRef.current?.(), 0);
+          }
         }
       } catch (error) {
         if (mounted) {
@@ -246,19 +250,29 @@ export default function StudentDashboardScreen() {
         }
       } finally {
         trackingOperation.current = false;
-        if (mounted) setTrackingLoading(false);
       }
     };
 
     restoreTracking();
     const timer = setInterval(async () => {
-      const [size, active] = await Promise.all([getQueueSize(), isTrackingActive()]);
-      if (mounted) {
+      try {
+        const [size, active, trip] = await Promise.all([
+          getQueueSize(),
+          isTrackingActive(),
+          trackingService.getActiveTrip(storedSession.studentId, { childToken: storedSession.childToken }),
+        ]);
+        if (!mounted) return;
+        if (!trip && active) await stopBackgroundUpdates();
         setQueueSize(size);
-        setTrackingStatus(active ? 'sharing' : 'paused');
+        setActiveTripId(trip?.id || '');
+        setTrackingStatus(active && trip
+          ? String(trip?.status || '').toUpperCase() === 'IN_PROGRESS' ? 'sharing' : 'waiting'
+          : 'paused');
         const locationError = getTrackingError();
         if (locationError) setPermissionError(describeTrackingError(new Error(locationError)));
-        else if (active) setPermissionError('');
+        else if (active && trip) setPermissionError('');
+      } catch {
+        // Keep the last known monitoring status during brief network outages.
       }
     }, 15000);
 
@@ -266,12 +280,11 @@ export default function StudentDashboardScreen() {
       mounted = false;
       clearInterval(timer);
     };
-  }, [linkStatus, storedSession.childToken, storedSession.studentId, describeTrackingError]);
+  }, [linkStatus, params.autoTrack, storedSession.childToken, storedSession.studentId, describeTrackingError]);
 
-  const handleStartTracking = async () => {
+  const ensureLocationMonitoring = async () => {
     if (trackingOperation.current || linkStatus !== 'linked') return;
     trackingOperation.current = true;
-    setTrackingLoading(true);
     setPermissionError('');
     try {
       const permission = await requestPermissions();
@@ -288,11 +301,9 @@ export default function StudentDashboardScreen() {
         return;
       }
 
-      // After a reload, the server trip can still be active while the browser
-      // has stopped watching location. Reuse that trip when Retry is pressed.
-      const { trip, created: createdTrip } = await trackingService.startOrResumeTrip({
+      // Reuse an active server trip if the child app was reopened.
+      const { trip } = await trackingService.startOrResumeMonitoring({
         studentId: String(resolvedStudentId),
-        tripStartedAt: new Date().toISOString(),
         routeId: studentProfile?.preferredRouteId || undefined,
       }, { childToken: session.childToken });
       const tripId = String(trip?.id || trip?.tripId || trip?.uuid || '');
@@ -304,22 +315,41 @@ export default function StudentDashboardScreen() {
       try {
         await startBackgroundUpdates(tripId);
       } catch (locationError) {
-        if (createdTrip) console.warn('El trayecto recién creado quedó disponible para gestión del acudiente tras fallar el inicio del rastreo.');
         throw locationError;
       }
       const result = await flushQueue();
       setSentCount(count => count + result.sent);
       setQueueSize(result.remaining);
       setActiveTripId(tripId);
-      setTrackingStatus('sharing');
+      setTrackingStatus(String(trip.status || '').toUpperCase() === 'IN_PROGRESS' ? 'sharing' : 'waiting');
     } catch (error) {
       setPermissionError(describeTrackingError(error));
       setTrackingStatus('paused');
     } finally {
       trackingOperation.current = false;
-      setTrackingLoading(false);
     }
   };
+
+  React.useEffect(() => {
+    startTrackingRef.current = ensureLocationMonitoring;
+  });
+
+  React.useEffect(() => {
+    if (linkStatus !== 'linked' || !permissionError || !/ubicaci|gps|location|permission|geolocation|permiso/i.test(permissionError)) {
+      return undefined;
+    }
+    const subscription = AppState.addEventListener('change', nextState => {
+      const returnedToApp = previousAppState.current !== 'active' && nextState === 'active';
+      previousAppState.current = nextState;
+      if (returnedToApp) setTimeout(() => startTrackingRef.current?.(), 0);
+    });
+    const handleBrowserFocus = () => setTimeout(() => startTrackingRef.current?.(), 0);
+    if (Platform.OS === 'web') window.addEventListener('focus', handleBrowserFocus);
+    return () => {
+      subscription.remove();
+      if (Platform.OS === 'web') window.removeEventListener('focus', handleBrowserFocus);
+    };
+  }, [linkStatus, permissionError]);
 
   const callEmergencyContact = async () => {
     const phoneDigits = String(parentPhone).replace(/[^\d+]/g, '');
@@ -371,7 +401,11 @@ export default function StudentDashboardScreen() {
                 </Text>
                 <Text style={styles.connectionSubtitle}>
                   {linkStatus === 'linked'
-                    ? `${t('studentPhoneCanSendLocation')} ${t('studentLinkedDevices')}: ${linkedCount ?? 1}.`
+                    ? trackingStatus === 'sharing'
+                      ? `${t('studentPhoneSharingLocation')} ${t('studentLinkedDevices')}: ${linkedCount ?? 1}.`
+                      : trackingStatus === 'waiting'
+                        ? `${t('studentPhoneWaitingMovement')} ${t('studentLinkedDevices')}: ${linkedCount ?? 1}.`
+                        : `${t('studentPhoneCanSendLocation')} ${t('studentLinkedDevices')}: ${linkedCount ?? 1}.`
                     : linkError || t('studentVerifyQr')}
                 </Text>
                 {linkStatus === 'error' && (
@@ -389,14 +423,8 @@ export default function StudentDashboardScreen() {
             sentCount={sentCount}
             activeTripId={activeTripId}
           />
-          <PermissionGate message={permissionError} onRetry={handleStartTracking} />
-          {!permissionError && (
-            <TripControls
-              status={trackingStatus}
-              loading={trackingLoading}
-              onStart={handleStartTracking}
-            />
-          )}{/* Card 1: Mi Información */}
+          <PermissionGate message={permissionError} />
+          {/* Card 1: Mi Información */}
           <Surface style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]} elevation={2}>
             <View style={styles.cardHeader}>
               <MaterialCommunityIcons name="account" size={24} color={colors.primary} />

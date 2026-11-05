@@ -378,6 +378,15 @@ export async function deleteNotification(id) {
   return updated;
 }
 
+export async function markLocalNotificationAsRead(id) {
+  const current = await getNotifications();
+  const updated = current.map(notification => notification.id === id
+    ? { ...notification, read: true }
+    : notification);
+  await AsyncStorage.setItem(NOTIF_KEY, JSON.stringify(updated));
+  return updated;
+}
+
 export async function getHistory() {
   const data = await AsyncStorage.getItem(HISTORY_KEY);
   return data ? JSON.parse(data) : [];
