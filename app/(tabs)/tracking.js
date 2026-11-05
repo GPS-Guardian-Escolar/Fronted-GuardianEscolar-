@@ -19,6 +19,7 @@ import { useTrackingRealtime } from '../../hooks/useTrackingRealtime';
 import TrackingHeader from '../../features/tracking/components/TrackingHeader';
 import TrackingStudentSelector from '../../features/tracking/components/TrackingStudentSelector';
 import { calculateRouteGeometry } from '../../utils/routeGeometry';
+import { journeyPoints } from '../../utils/locationQuality';
 import { buildTrackingMarkers } from '../../utils/trackingMarkers';
 import { showPlatformNotice } from '../../utils/noticeBus';
 
@@ -37,55 +38,6 @@ function getZoneColor(zone, colors) {
   if (zone?.type === 'Escuela') return colors.primary;
   if (zone?.type === 'Casa') return colors.accent;
   return colors.error;
-}
-
-function distanceMeters(a, b) {
-  const earthRadius = 6371000;
-  const toRadians = value => (value * Math.PI) / 180;
-  const latitudeDelta = toRadians(b.latitude - a.latitude);
-  const longitudeDelta = toRadians(b.longitude - a.longitude);
-  const haversine = Math.sin(latitudeDelta / 2) ** 2
-    + Math.cos(toRadians(a.latitude)) * Math.cos(toRadians(b.latitude)) * Math.sin(longitudeDelta / 2) ** 2;
-  return earthRadius * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
-}
-
-function filterJourneyCoordinates(points) {
-  const minimumMovementMeters = 100;
-  const movingPoints = points.filter(point => Number(point.stoppedSeconds || 0) === 0);
-  const accepted = [];
-  if (movingPoints.length) accepted.push(movingPoints[0]);
-
-  // A path is drawn only after the following GPS fix confirms that the
-  // candidate continued away from the previous point. This avoids painting
-  // stationary GPS drift or a one-off incorrect fix as a trip.
-  for (let index = 1; index < movingPoints.length - 1; index += 1) {
-    const previous = accepted[accepted.length - 1];
-    const candidate = movingPoints[index];
-    const confirmation = movingPoints[index + 1];
-    const travelled = distanceMeters(previous, candidate);
-    const netDistance = distanceMeters(previous, confirmation);
-    const nextDistance = distanceMeters(candidate, confirmation);
-    const elapsedSeconds = Math.max(1, (candidate.timestamp - previous.timestamp) / 1000);
-    const previousToCandidate = {
-      latitude: candidate.latitude - previous.latitude,
-      longitude: candidate.longitude - previous.longitude,
-    };
-    const candidateToNext = {
-      latitude: confirmation.latitude - candidate.latitude,
-      longitude: confirmation.longitude - candidate.longitude,
-    };
-    const continuesForward = (previousToCandidate.latitude * candidateToNext.latitude)
-      + (previousToCandidate.longitude * candidateToNext.longitude) > 0;
-    const settlesAtNewPlace = nextDistance <= minimumMovementMeters;
-
-    if (travelled >= minimumMovementMeters
-      && netDistance >= minimumMovementMeters
-      && travelled / elapsedSeconds <= 30
-      && (continuesForward || settlesAtNewPlace)) {
-      accepted.push(candidate);
-    }
-  }
-  return accepted;
 }
 
 const RECENT_ALERT_TRANSLATION_KEYS = {
@@ -207,12 +159,6 @@ export default function TrackingScreen() {
       setRouteGeometry(drawableRoutes[0]?.coordinates || []);
       setAssignedRouteStatus(routes.length === 0 ? 'none' : drawableRoutes.length === routes.length ? 'ready' : 'failed');
       }
-      if (Number(selectedStudent.dispositivos_vinculados || 0) < 1) {
-        setLocation(null);
-        setActiveTrip(null);
-        setJourneyCoordinates([]);
-        return;
-      }
       const trips = await trackingService.listTrips();
       if (sequence !== refreshSequence.current) return;
       const studentTrips = trips
@@ -237,7 +183,7 @@ export default function TrackingScreen() {
         const timeB = new Date(b.recordedAt || b.createdAt || b.timestamp || 0).getTime();
         return timeA - timeB;
       });
-      const validCoordinates = filterJourneyCoordinates(orderedCoordinates
+      const validCoordinates = orderedCoordinates
         .map(point => ({
           latitude: Number(point.latitude),
           longitude: Number(point.longitude),
@@ -246,8 +192,8 @@ export default function TrackingScreen() {
           stoppedSeconds: point.stoppedSeconds,
           recordedAt: point.recordedAt,
         }))
-        .filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && Number.isFinite(point.timestamp)));
-      setJourneyCoordinates(validCoordinates.map(({ latitude, longitude, timestamp }) => ({ latitude, longitude, timestamp })));
+        .filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && Number.isFinite(point.timestamp));
+      setJourneyCoordinates(journeyPoints(validCoordinates));
       const latest = validCoordinates[validCoordinates.length - 1];
       if (!latest) {
         setLocation(null);
@@ -364,14 +310,14 @@ export default function TrackingScreen() {
         recordedAt: point.recordedAt,
       };
       if (!Number.isFinite(normalized.latitude) || !Number.isFinite(normalized.longitude)) return;
-      setLocation(normalized);
+      setLocation(current => !current || normalized.timestamp > current.timestamp ? normalized : current);
       setJourneyCoordinates(current => {
         const ordered = [...current, normalized]
           .filter(point => Number.isFinite(point.timestamp))
           .sort((a, b) => a.timestamp - b.timestamp)
           .filter((point, index, all) => index === 0 || point.timestamp !== all[index - 1].timestamp)
           .slice(-500);
-        return filterJourneyCoordinates(ordered);
+        return journeyPoints(ordered);
       });
     },
     onError: (error) => console.warn(
@@ -388,7 +334,7 @@ export default function TrackingScreen() {
         <TrackingHeader
           student={selectedStudent}
           status={
-            Number(selectedStudent?.dispositivos_vinculados || 0) < 1
+            !activeTrip && Number(selectedStudent?.dispositivos_vinculados || 0) < 1
               ? t('trackNoDevice')
               : activeTrip && isLocationStale ? t('trackOffline')
                 : activeTrip && location ? t('trackOnline')
@@ -413,7 +359,7 @@ export default function TrackingScreen() {
         <Surface style={[styles.mapCard, themed.surface]} elevation={1}>
           <SafeMap
             key={selectedStudent?.id || 'tracking-map'}
-            currentLocation={hasLiveLocation ? (journeyCoordinates[journeyCoordinates.length - 1] || location) : null}
+            currentLocation={hasLiveLocation ? location : null}
             initialRegion={INITIAL_REGION}
             style={styles.map}
             markers={buildTrackingMarkers(

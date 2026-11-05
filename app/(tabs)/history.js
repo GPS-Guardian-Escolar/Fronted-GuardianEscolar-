@@ -43,6 +43,7 @@ function normalizeTrip(trip, notifications = [], lang = 'es') {
   return {
     id: `trip-${trip.id}`,
     backendId: trip.id,
+    events: [...tripEvents].sort((a, b) => new Date(b.eventDateTime || b.receivedAt) - new Date(a.eventDateTime || a.receivedAt)),
     estudiante: trip.student || 'Estudiante',
     fecha: formatTripDate(trip.tripStartedAt, lang),
     fechaKey: toLocalDateKey(trip.tripStartedAt),
@@ -88,7 +89,7 @@ export default function HistoryScreen() {
       const localOnly = storedHistory.filter(item => !item.backendId && !remoteIds.has(item.id));
       setHistory([...remoteHistory, ...localOnly]);
     } catch (error) {
-      setLoadError(error);
+      if (!silent) setLoadError(error);
     } finally {
       if (!silent) {
         setRefreshing(false);
@@ -343,6 +344,14 @@ export default function HistoryScreen() {
           />
           <Detail label={t('histRoute')} value={item.ruta} />
         </View>
+        {(item.events || []).map(event => (
+          <View key={event.receiptId || event.notificationId} style={{ marginTop: 10 }}>
+            <Text style={{ color: colors.textSecondary }}>
+              {formatTripDate(event.eventDateTime || event.receivedAt, lang)} - {formatTripTime(event.eventDateTime || event.receivedAt, lang)}
+            </Text>
+            <Text style={{ color: colors.text }}>{event.message}</Text>
+          </View>
+        ))}
       </Surface>
     );
   };

@@ -92,10 +92,8 @@ export default function NotificationsScreen() {
     };
   }, [colors, t]);
 
-  const loadNotifications = useCallback(async () => {
-    setRefreshing(true);
-    setLoading(true);
-    setLoadError(null);
+  const loadNotifications = useCallback(async (silent = false) => {
+    if (!silent) { setRefreshing(true); setLoading(true); setLoadError(null); }
     try {
       const [backendNotifs, storedNotifs] = await Promise.all([
         notificationService.listNotifications(),
@@ -103,7 +101,7 @@ export default function NotificationsScreen() {
       ]);
       setNotifications([...backendNotifs.map(normalizeNotification), ...storedNotifs.map(normalizeNotification)]);
     } catch (error) {
-      setLoadError(error);
+      if (!silent) setLoadError(error);
     } finally {
       setRefreshing(false);
       setLoading(false);
@@ -113,6 +111,8 @@ export default function NotificationsScreen() {
   useFocusEffect(
     useCallback(() => {
       loadNotifications();
+      const timer = setInterval(() => loadNotifications(true), 15000);
+      return () => clearInterval(timer);
     }, [loadNotifications])
   );
 

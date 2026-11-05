@@ -177,6 +177,7 @@ async function main() {
   };
   const delivered = [];
   const location = loadModule('services/background/locationTracking.js', {
+    '../../utils/locationQuality': loadModule('utils/locationQuality.js'),
     '@react-native-async-storage/async-storage': { __esModule: true, default: storage },
     'expo-location': {}, 'expo-notifications': {}, 'expo-secure-store': {}, 'expo-task-manager': {},
     'react-native': { Platform: { OS: 'web' } }, '../../theme/tokens': { lightColors: {} },
@@ -188,10 +189,11 @@ async function main() {
   await location.saveChildSession({ childToken: 'device-token', studentId: 'student-1', code: 'link-code' });
   assert.equal((await location.getChildSession()).studentCode, 'link-code');
   await storage.setItem(location.ACTIVE_TRIP_ID_KEY, 'trip-1');
-  const point = index => ({ latitude: 4 + index * 0.001, longitude: -74, accuracy: 10, recordedAt: new Date(1700000000000 + index * 60000).toISOString() });
+  const point = index => ({ latitude: 4 + index * 0.001, longitude: -74, accuracy: 10, recordedAt: new Date(1700000000000 + index * 10000).toISOString() });
   await location.enqueueCoordinate(point(0));
+  await location.enqueueCoordinate(point(1));
   // GPS callbacks arriving during HTTP delivery must not be overwritten by the flush.
-  await Promise.all([location.flushQueue(), location.enqueueCoordinate(point(1)), location.enqueueCoordinate(point(2))]);
+  await Promise.all([location.flushQueue(), location.enqueueCoordinate(point(2)), location.enqueueCoordinate(point(3)), location.enqueueCoordinate(point(4))]);
   await location.stopBackgroundUpdates({ preserveTrip: true });
   assert.equal(await location.getActiveTripId(), 'trip-1');
   await location.flushQueue();
@@ -234,7 +236,7 @@ async function main() {
   const date = new Date(2026, 9, 24, 12, 0, 0);
   assert.equal(history.toLocalDateKey(date), '2026-10-24');
   assert.equal(history.matchesHistoryStatus({ estado: 'En Proceso', alerta: false }, 'En Proceso'), true);
-  assert.equal(history.matchesHistoryStatus({ estado: 'En Proceso', alerta: true }, 'En Proceso'), false);
+  assert.equal(history.matchesHistoryStatus({ estado: 'En Proceso', alerta: true }, 'En Proceso'), true);
   assert.equal(history.matchesHistoryStatus({ estado: 'En Proceso', alerta: true }, 'Con Incidente'), true);
   assert.equal(history.getHistoryStatusKind({ estado: 'Completado' }), 'completed');
 

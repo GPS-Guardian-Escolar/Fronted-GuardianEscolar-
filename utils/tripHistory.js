@@ -17,6 +17,8 @@ export function getHistoryStatusKind(item) {
 
 export function matchesHistoryStatus(item, filter) {
   if (filter === 'all') return true;
+  // Completion and incidents overlap: a completed trip may have an alert.
+  if (filter === 'Completado' || filter === 'En Proceso') return item?.estado === filter;
   const expected = filter === 'Con Incidente'
     ? 'incident'
     : filter === 'Completado' ? 'completed' : filter === 'En Proceso' ? 'inProgress' : 'other';
