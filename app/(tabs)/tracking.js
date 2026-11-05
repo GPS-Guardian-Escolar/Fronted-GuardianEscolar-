@@ -72,6 +72,7 @@ export default function TrackingScreen() {
   const [refreshFailed, setRefreshFailed] = useState(false);
   const refreshInProgress = useRef(false);
   const [activeTrip, setActiveTrip] = useState(null);
+  const journeyCoordinateHistory = useRef([]);
   const [isLoading, setIsLoading] = useState(true);
   const [clockNow, setClockNow] = useState(0);
   const refreshSequence = useRef(0);
@@ -124,6 +125,7 @@ export default function TrackingScreen() {
       setRecentTripId(null);
       setRecentAlert(null);
       setJourneyCoordinates([]);
+      journeyCoordinateHistory.current = [];
       setRouteGeometry([]);
       setRouteGeometries([]);
       setAssignedRouteStatus('none');
@@ -138,6 +140,7 @@ export default function TrackingScreen() {
         setRouteGeometries([]);
         setAssignedRouteStatus('none');
         setJourneyCoordinates([]);
+        journeyCoordinateHistory.current = [];
         return;
       }
       if (updateGeometry) {
@@ -175,6 +178,7 @@ export default function TrackingScreen() {
       if (!selectedTrip) {
         setLocation(null);
         setJourneyCoordinates([]);
+        journeyCoordinateHistory.current = [];
         return;
       }
       const coordinates = await trackingService.listCoordinates(selectedTrip.id);
@@ -194,6 +198,7 @@ export default function TrackingScreen() {
           recordedAt: point.recordedAt,
         }))
         .filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && Number.isFinite(point.timestamp));
+      journeyCoordinateHistory.current = validCoordinates;
       setJourneyCoordinates(selectedTrip.status === 'IN_PROGRESS' ? journeyPoints(validCoordinates) : []);
       const latest = validCoordinates[validCoordinates.length - 1];
       if (!latest) {
@@ -312,12 +317,13 @@ export default function TrackingScreen() {
       };
       if (!Number.isFinite(normalized.latitude) || !Number.isFinite(normalized.longitude)) return;
       setLocation(current => !current || normalized.timestamp > current.timestamp ? normalized : current);
-      setJourneyCoordinates(current => {
-        const ordered = [...current, normalized]
+      setJourneyCoordinates(() => {
+        const ordered = [...journeyCoordinateHistory.current, normalized]
           .filter(point => Number.isFinite(point.timestamp))
           .sort((a, b) => a.timestamp - b.timestamp)
           .filter((point, index, all) => index === 0 || point.timestamp !== all[index - 1].timestamp)
           .slice(-500);
+        journeyCoordinateHistory.current = ordered;
         return journeyPoints(ordered);
       });
     },
@@ -375,7 +381,7 @@ export default function TrackingScreen() {
             showRoute={showAssignedRoute && routeGeometry.length >= 2}
             routePaths={showAssignedRoute ? routeGeometries : []}
             journeyCoordinates={showJourneyPath && activeTrip?.status === 'IN_PROGRESS'
-              && shouldDrawJourneyPath(hasLiveLocation, location) ? journeyCoordinates : []}
+              && shouldDrawJourneyPath(hasLiveLocation, journeyCoordinates) ? journeyCoordinates : []}
             primaryColor={colors.primary}
             routeColor={colors.primary}
             journeyColor={colors.primary}

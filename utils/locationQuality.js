@@ -42,12 +42,34 @@ export function filterLocation(fix, last) {
 }
 
 export function journeyPoints(points) {
-  return points.filter((point, index) => index === 0 || (
-    !Number(point.stoppedSeconds || 0)
-    && distanceMeters(points[index - 1], point) >= 1
-  ));
+  if (!Array.isArray(points) || points.length < 3) return [];
+
+  const origin = points[0];
+  let movementStart = -1;
+  for (let index = 2; index < points.length; index += 1) {
+    const previous = points[index - 1];
+    const current = points[index];
+    const previousDistance = distanceMeters(origin, previous);
+    const currentDistance = distanceMeters(origin, current);
+    const stepDistance = distanceMeters(previous, current);
+    if (previousDistance >= 30 && currentDistance >= 40
+      && currentDistance - previousDistance >= 5 && stepDistance >= 5
+      && !Number(previous.stoppedSeconds || 0) && !Number(current.stoppedSeconds || 0)) {
+      movementStart = index - 1;
+      break;
+    }
+  }
+
+  if (movementStart < 0) return [];
+  const confirmed = [points[movementStart]];
+  for (let index = movementStart + 1; index < points.length; index += 1) {
+    const point = points[index];
+    if (Number(point.stoppedSeconds || 0)) continue;
+    if (distanceMeters(confirmed[confirmed.length - 1], point) >= 5) confirmed.push(point);
+  }
+  return confirmed.length >= 2 ? confirmed : [];
 }
 
-export function shouldDrawJourneyPath(isLive, location) {
-  return Boolean(isLive && location && Number(location.stoppedSeconds || 0) === 0);
+export function shouldDrawJourneyPath(isLive, points) {
+  return Boolean(isLive && Array.isArray(points) && points.length >= 2);
 }

@@ -16,7 +16,22 @@ describe('GPS quality and displacement', () => {
     expect(last.latitude).toBe(0);
     expect(last.recordedAt).toBe(fix(6, 90).recordedAt);
     expect(last.stoppedSeconds).toBe(90);
-    expect(journeyPoints(points)).toHaveLength(1);
+    expect(journeyPoints(points)).toHaveLength(0);
+  });
+
+  it('does not draw a legacy path made of stationary GPS drift', () => {
+    const points = [fix(0, 0), fix(12, 5), fix(-8, 10), fix(18, 15), fix(4, 20)];
+    const path = journeyPoints(points);
+    expect(path).toHaveLength(0);
+    expect(shouldDrawJourneyPath(true, path)).toBe(false);
+  });
+
+  it('draws the path only after consecutive fixes confirm real displacement', () => {
+    const points = [fix(0, 0), fix(20, 5), fix(35, 10), fix(43, 15), fix(65, 20)];
+    const path = journeyPoints(points);
+    expect(path.length).toBeGreaterThanOrEqual(2);
+    expect(path[0]).toEqual(points[2]);
+    expect(shouldDrawJourneyPath(true, path)).toBe(true);
   });
 
   it('detects gradual walking against the anchor, including less than 100 metres', () => {
@@ -47,9 +62,10 @@ describe('GPS quality and displacement', () => {
     }
   });
 
-  it('draws a live path only while the latest GPS fix confirms movement', () => {
-    expect(shouldDrawJourneyPath(true, { stoppedSeconds: 0 })).toBe(true);
-    expect(shouldDrawJourneyPath(true, { stoppedSeconds: 30 })).toBe(false);
-    expect(shouldDrawJourneyPath(false, { stoppedSeconds: 0 })).toBe(false);
+  it('keeps the confirmed path available while the phone is stationary', () => {
+    const points = [fix(0, 0), fix(35, 5), fix(43, 10), fix(43, 40, 30)];
+    const path = journeyPoints(points);
+    expect(shouldDrawJourneyPath(true, path)).toBe(true);
+    expect(shouldDrawJourneyPath(false, path)).toBe(false);
   });
 });
