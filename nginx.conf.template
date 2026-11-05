@@ -15,6 +15,12 @@ server {
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=(self)" always;
 
+    location = /.well-known/assetlinks.json {
+        default_type application/json;
+        add_header Cache-Control "no-cache" always;
+        try_files $uri =404;
+    }
+
     location / {
         try_files $uri $uri/ /index.html;
     }

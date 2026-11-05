@@ -11,6 +11,7 @@ export function toLocalDateKey(value) {
 export function getHistoryStatusKind(item) {
   if (item?.rowType === 'event') {
     const eventType = String(item.eventType || item.event?.eventType || item.event?.event_type || '').toUpperCase();
+    if (eventType === 'DEVICE_LINKED') return 'informational';
     if (['DELAY', 'INACTIVITY', 'ROUTE_DEVIATION', 'SAFE_ZONE_EXIT', 'LOCATION_UNAVAILABLE', 'LOCATION_STOPPED'].includes(eventType)) return 'incident';
     if (eventType === 'TRIP_COMPLETED') return 'completed';
     return 'inProgress';
@@ -56,6 +57,7 @@ export function matchesHistoryStatus(item, filter) {
   if (filter === 'all') return true;
   const expected = filter === 'Con Incidente'
     ? 'incident'
+    : filter === 'Informativo' ? 'informational'
     : filter === 'Completado' ? 'completed' : filter === 'En Proceso' ? 'inProgress' : 'other';
   return getHistoryStatusKind(item) === expected;
 }

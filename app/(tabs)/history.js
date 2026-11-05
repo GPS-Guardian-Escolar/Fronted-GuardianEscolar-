@@ -62,6 +62,31 @@ function normalizeTrip(trip, notifications = [], lang = 'es') {
   };
 }
 
+function normalizeDeviceLinkedEvent(event, index, lang, t) {
+  const message = event.message || event.mensaje || t('studentPhoneLinked');
+  const nameMatch = String(message).match(/(?:celular|tel.?fono) de\s+(.+?)\s+qued.?\s+vinculado/i);
+  const eventTime = event.eventDateTime || event.receivedAt;
+  const receiptId = event.receiptId || event.id || event.notificationId || `device-linked-${index}`;
+  return {
+    id: `device-linked-${receiptId}`,
+    rowType: 'event',
+    event,
+    eventType: 'DEVICE_LINKED',
+    message,
+    estudiante: nameMatch?.[1]?.trim() || t('studentLabel'),
+    fecha: formatTripDate(eventTime, lang),
+    fechaKey: toLocalDateKey(eventTime),
+    sortTimestamp: new Date(eventTime || 0).getTime(),
+    horaInicio: formatTripTime(eventTime, lang),
+    horaFin: '--',
+    ruta: t('histNoTripYet'),
+    estado: 'Informativo',
+    alerta: false,
+    advertencia: false,
+    backendId: null,
+  };
+}
+
 export default function HistoryScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 769;
@@ -94,7 +119,11 @@ export default function HistoryScreen() {
         .map(trip => normalizeTrip(trip, notifications || [], lang));
       const remoteIds = new Set(remoteHistory.map(item => item.backendId));
       const localOnly = storedHistory.filter(item => !item.backendId && !remoteIds.has(item.id));
-      setHistory([...remoteHistory, ...localOnly]);
+      const linkedDeviceEvents = (notifications || [])
+        .filter(event => String(event.eventType || event.event_type || '').toUpperCase() === 'DEVICE_LINKED'
+          && !event.tripId)
+        .map((event, index) => normalizeDeviceLinkedEvent(event, index, lang, t));
+      setHistory([...remoteHistory, ...linkedDeviceEvents, ...localOnly]);
     } catch (error) {
       if (!silent) setLoadError(error);
     } finally {
@@ -103,7 +132,7 @@ export default function HistoryScreen() {
         setLoading(false);
       }
     }
-  }, [lang]);
+  }, [lang, t]);
 
   useFocusEffect(useCallback(() => {
     loadData();
@@ -114,7 +143,7 @@ export default function HistoryScreen() {
   if (loading) return <AppLoading message="Cargando historial..." />;
   if (loadError) return <AppError message="No se pudo cargar el historial." onRetry={loadData} />;
 
-  const historyRows = history.flatMap(item => [
+  const historyRows = history.flatMap(item => item.rowType === 'event' ? [item] : [
     { ...item, rowType: 'trip' },
     ...(item.events || []).map((event, index) => {
       const eventType = String(event.eventType || event.event_type || '').toUpperCase();
@@ -191,6 +220,7 @@ export default function HistoryScreen() {
     completados: historyRows.filter(item => getHistoryStatusKind(item) === 'completed').length,
     incidentes: historyRows.filter(item => getHistoryStatusKind(item) === 'incident').length,
     enProceso: historyRows.filter(item => getHistoryStatusKind(item) === 'inProgress').length,
+    informativos: historyRows.filter(item => getHistoryStatusKind(item) === 'informational').length,
     horas: history.reduce((acc, item) => acc + (parseInt(item.duracion, 10) || 0), 0) / 60,
   };
 
@@ -206,6 +236,7 @@ export default function HistoryScreen() {
     if (kind === 'incident') return t('histIncident');
     if (kind === 'inProgress') return t('histInProcess');
     if (kind === 'completed') return t('histCompleted');
+    if (kind === 'informational') return t('histInformational');
     return item.estado;
   };
 
@@ -214,6 +245,7 @@ export default function HistoryScreen() {
     if (kind === 'inProgress') return colors.primary;
     if (kind === 'completed') return colors.accent;
     if (kind === 'incident') return colors.error;
+    if (kind === 'informational') return colors.primary;
     if (item.advertencia) return colors.warning;
     return colors.textSecondary;
   };
@@ -230,7 +262,7 @@ export default function HistoryScreen() {
     const activeFilters = [
       [t('tabStudent'), filterStudent || t('histFilterAll')],
       [t('histDate'), filterDate || t('histFilterAll')],
-      [t('histStatus'), statusFilter === 'all' ? t('histFilterAll') : statusFilter === 'En Proceso' ? t('histInProcess') : statusFilter === 'Completado' ? t('histCompleted') : t('histIncident')],
+      [t('histStatus'), statusFilter === 'all' ? t('histFilterAll') : statusFilter === 'En Proceso' ? t('histInProcess') : statusFilter === 'Completado' ? t('histCompleted') : statusFilter === 'Informativo' ? t('histInformational') : t('histIncident')],
     ];
     const rows = filteredHistory.map((item) => `
       <tr>
@@ -287,6 +319,7 @@ export default function HistoryScreen() {
           <div class="card"><div class="metric">${stats.completados}</div><div class="label">${escapeHtml(t('histCompleted'))}</div></div>
           <div class="card"><div class="metric">${stats.enProceso}</div><div class="label">${escapeHtml(t('histInProcess'))}</div></div>
           <div class="card"><div class="metric">${stats.incidentes}</div><div class="label">${escapeHtml(t('histIncident'))}</div></div>
+          <div class="card"><div class="metric">${stats.informativos}</div><div class="label">${escapeHtml(t('histInformational'))}</div></div>
         </section>
 
         <section class="filters">
@@ -493,6 +526,7 @@ export default function HistoryScreen() {
           <StatCard title={t('histFilterCompleted')} value={stats.completados} icon="check-circle" color={colors.accent} type="Completado" />
           <StatCard title={t('histInProcess')} value={stats.enProceso} icon="bus-clock" color={colors.primary} type="En Proceso" />
           <StatCard title={t('histFilterIncident')} value={stats.incidentes} icon="alert-circle" color={colors.error} type="Con Incidente" />
+          <StatCard title={t('histInformational')} value={stats.informativos} icon="information" color={colors.primary} type="Informativo" />
         </View>
 
         <View style={styles.listContainer}>

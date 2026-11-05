@@ -34,6 +34,11 @@ describe('GPS quality and displacement', () => {
     expect(shouldDrawJourneyPath(true, path)).toBe(true);
   });
 
+  it('does not draw a line when the GPS jumps away and then returns', () => {
+    const points = [fix(0, 0), fix(20, 5), fix(35, 10), fix(43, 15), fix(12, 20)];
+    expect(journeyPoints(points)).toHaveLength(0);
+  });
+
   it('detects gradual walking against the anchor, including less than 100 metres', () => {
     let last = filterLocation(fix(0, 0)).last;
     const accepted = [];
@@ -57,7 +62,7 @@ describe('GPS quality and displacement', () => {
 
   it('does not refresh availability with invalid, inaccurate or old fixes', () => {
     const last = filterLocation(fix(0, 30)).last;
-    for (const input of [fix(0, 10), fix(0, 30), fix(0, 60, 200), fix(0, 60, null)]) {
+    for (const input of [fix(0, 10), fix(0, 30), fix(0, 60, 51), fix(0, 60, 200), fix(0, 60, null)]) {
       expect(filterLocation(input, last)).toEqual({ last });
     }
   });

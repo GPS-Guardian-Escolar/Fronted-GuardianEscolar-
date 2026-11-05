@@ -148,6 +148,26 @@ async function main() {
   const qrScreen = fs.readFileSync(path.join(__dirname, '..', 'features/child-link/ScanQrScreen.js'), 'utf8');
   const studentDashboard = fs.readFileSync(path.join(__dirname, '..', 'app/student-dashboard.js'), 'utf8');
   assert.match(qrScreen, /autoTrack:\s*'1'/);
+  const previousStudentLinkBaseUrl = process.env.EXPO_PUBLIC_STUDENT_LINK_BASE_URL;
+  process.env.EXPO_PUBLIC_STUDENT_LINK_BASE_URL = 'https://gps-guardian-escolar-frontend.onrender.com';
+  delete require.cache[require.resolve('../app.config.js')];
+  const nativeConfig = require('../app.config.js');
+  if (previousStudentLinkBaseUrl === undefined) delete process.env.EXPO_PUBLIC_STUDENT_LINK_BASE_URL;
+  else process.env.EXPO_PUBLIC_STUDENT_LINK_BASE_URL = previousStudentLinkBaseUrl;
+  const qrAppLink = nativeConfig.android.intentFilters.find(filter => filter.data?.some(data => data.pathPrefix === '/scan-qr'));
+  assert.ok(qrAppLink, 'Android must route the QR URL to the installed app');
+  assert.equal(qrAppLink.autoVerify, true);
+  assert.equal(qrAppLink.data[0].host, 'gps-guardian-escolar-frontend.onrender.com');
+  assert.ok(nativeConfig.android.permissions.includes('ACCESS_BACKGROUND_LOCATION'));
+  assert.ok(nativeConfig.android.permissions.includes('FOREGROUND_SERVICE_LOCATION'));
+  const locationPlugin = nativeConfig.plugins.find(plugin => Array.isArray(plugin) && plugin[0] === 'expo-location');
+  assert.equal(locationPlugin?.[1]?.isAndroidBackgroundLocationEnabled, true);
+  assert.equal(locationPlugin?.[1]?.isAndroidForegroundServiceEnabled, true);
+  const rootLayout = fs.readFileSync(path.join(__dirname, '..', 'app/_layout.js'), 'utf8');
+  const locationTask = fs.readFileSync(path.join(__dirname, '..', 'services/background/locationTracking.js'), 'utf8');
+  assert.match(rootLayout, /TaskManager\.defineTask\(LOCATION_TASK_NAME, handleLocationTask\)/);
+  assert.match(locationTask, /Location\.startLocationUpdatesAsync\(LOCATION_TASK_NAME/);
+  assert.match(locationTask, /foregroundService:/);
   assert.match(studentDashboard, /params\.autoTrack === '1'/);
   assert.match(studentDashboard, /startOrResumeMonitoring/);
   assert.doesNotMatch(studentDashboard, /TripControls|Iniciar trayecto|Detener trayecto/);
@@ -216,7 +236,7 @@ async function main() {
 
   for (const locale of ['es', 'en', 'fr', 'pt']) {
     const translations = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'translations', `${locale}.json`), 'utf8'));
-    for (const key of ['inputNameBlocked', 'inputPhoneBlocked', 'trackingPendingLocations']) {
+    for (const key of ['inputNameBlocked', 'inputPhoneBlocked', 'trackingPendingLocations', 'notifMarkRead', 'histInformational', 'histNoTripYet']) {
       assert.equal(typeof translations[key], 'string');
       assert.equal(/[\p{L}]\?[\p{L}]|\uFFFD/u.test(translations[key]), false);
     }
@@ -251,6 +271,8 @@ async function main() {
   assert.equal(history.matchesHistoryStatus({ rowType: 'event', eventType: 'LOCATION_UNAVAILABLE' }, 'En Proceso'), false);
   assert.equal(history.matchesHistoryStatus({ rowType: 'event', eventType: 'TRIP_STARTED' }, 'En Proceso'), true);
   assert.equal(history.getHistoryStatusKind({ estado: 'Completado' }), 'completed');
+  assert.equal(history.getHistoryStatusKind({ rowType: 'event', eventType: 'DEVICE_LINKED' }), 'informational');
+  assert.equal(history.matchesHistoryStatus({ rowType: 'event', eventType: 'DEVICE_LINKED' }, 'Informativo'), true);
 
   console.log('Input validation, email preferences, QR, child authentication, concurrent GPS queue, translations, history and route geometry: passed.');
 }

@@ -1,5 +1,5 @@
 import { it, expect } from '@jest/globals';
-import { getHistoryObservationKey, hasTrackingIncident, matchesHistoryStatus } from './tripHistory';
+import { getHistoryObservationKey, getHistoryStatusKind, hasTrackingIncident, matchesHistoryStatus } from './tripHistory';
 
 it('keeps a completed trip in the completed category while the incident is a separate event card', () => {
   const trip = { estado: 'Completado', alerta: true };
@@ -22,4 +22,12 @@ it('marks a trip as an incident when location was unavailable or tracking stoppe
   expect(hasTrackingIncident({}, [{ eventType: 'TRIP_STARTED' }])).toBe(false);
   expect(getHistoryObservationKey({ incidentEventType: 'LOCATION_UNAVAILABLE', alerta: true }))
     .toBe('histObsLocationUnavailable');
+});
+
+it('keeps device-link events informational and separate from trip status filters', () => {
+  const linked = { rowType: 'event', eventType: 'DEVICE_LINKED' };
+  expect(getHistoryStatusKind(linked)).toBe('informational');
+  expect(matchesHistoryStatus(linked, 'Informativo')).toBe(true);
+  expect(matchesHistoryStatus(linked, 'En Proceso')).toBe(false);
+  expect(matchesHistoryStatus(linked, 'Con Incidente')).toBe(false);
 });

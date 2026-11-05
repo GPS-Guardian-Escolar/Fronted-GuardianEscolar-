@@ -11,14 +11,14 @@ import {
 } from 'react-native';
 import { COLORS } from '../../constants/colors';
 import { useFocusEffect } from 'expo-router';
-import { getNotifications, deleteNotification, deleteHistory } from '../../utils/studentStorage';
+import { getNotifications, markLocalNotificationAsRead } from '../../utils/studentStorage';
 import { notificationService } from '../../services/notification.service';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import AppError from '../../components/ui/AppError';
 import AppLoading from '../../components/ui/AppLoading';
-import { showPlatformConfirm, showPlatformNotice } from '../../utils/noticeBus';
+import { showPlatformNotice } from '../../utils/noticeBus';
 
 const isWeb = Dimensions.get('window').width > 768;
 
@@ -120,43 +120,38 @@ export default function NotificationsScreen() {
   if (loading) return <AppLoading message="Cargando notificaciones..." />;
   if (loadError) return <AppError message="No se pudieron cargar las notificaciones." onRetry={loadNotifications} />;
 
-  function confirmDeleteNotif(item) {
-    const removeNotification = async () => {
-      const isRemoteReceipt = item.receiptId && !String(item.receiptId).startsWith('notif-');
-      if (isRemoteReceipt) await notificationService.deleteNotification(item.receiptId);
-      else await deleteNotification(item.id);
-      await deleteHistory(item.id);
-      setNotifications(prev => prev.filter(n => n.id !== item.id));
-    };
-
-    showPlatformConfirm(
-      t('delete'),
-      t('delete') + '?',
-      [
-        { text: t('cancel'), style: 'cancel' },
-        { 
-          text: t('delete'), 
-          style: 'destructive',
-          onPress: removeNotification
-        }
-      ]
-    );
+  async function markNotificationAsRead(item) {
+    const isRemoteReceipt = item.receiptId && !String(item.receiptId).startsWith('notif-');
+    try {
+      if (isRemoteReceipt) await notificationService.markAsRead(item.receiptId);
+      else await markLocalNotificationAsRead(item.id);
+      setNotifications(previous => previous.map(notification => notification.id === item.id
+        ? { ...notification, read: true }
+        : notification));
+      showPlatformNotice(t('notifDetail'), item.message, { tone: 'info' });
+    } catch (error) {
+      showPlatformNotice(t('error'), error.message || 'No se pudo marcar como leída.', { tone: 'error' });
+    }
   }
 
+  const pendingNotifications = notifications.filter(item => !item.read);
   const filterCounts = {
-    all: notifications.length,
-    Exitosas:     notifications.filter(n => n.type === 'Exitosas').length,
-    Advertencias: notifications.filter(n => n.type === 'Advertencias').length,
-    Informativas: notifications.filter(n => n.type === 'Informativas').length,
+    all: pendingNotifications.length,
+    Exitosas:     pendingNotifications.filter(n => n.type === 'Exitosas').length,
+    Advertencias: pendingNotifications.filter(n => n.type === 'Advertencias').length,
+    Informativas: pendingNotifications.filter(n => n.type === 'Informativas').length,
   };
 
   const filteredNotifications = filter === 'all'
-    ? notifications
-    : notifications.filter(n => n.type === filter);
+    ? pendingNotifications
+    : pendingNotifications.filter(n => n.type === filter);
 
   const markAllAsRead = async () => {
     try {
       await notificationService.markAllAsRead();
+      await Promise.all(pendingNotifications
+        .filter(item => String(item.id).startsWith('notif-'))
+        .map(item => markLocalNotificationAsRead(item.id)));
       setNotifications(previous => previous.map(item => ({ ...item, read: true })));
     } catch (error) {
       showPlatformNotice(t('error'), error.message || 'No se pudieron marcar las notificaciones.', { tone: 'error' });
@@ -176,7 +171,7 @@ export default function NotificationsScreen() {
         <View style={styles.titleRow}>
           <View>
             <RNText style={[styles.pageTitle, themed.text]}>{t('notifTitle')}</RNText>
-            <RNText style={[styles.pageSubtitle, themed.textSecondary]}>{notifications.length} {t('notifSubtitle')}</RNText>
+            <RNText style={[styles.pageSubtitle, themed.textSecondary]}>{pendingNotifications.length} {t('notifSubtitle')}</RNText>
           </View>
           <TouchableOpacity 
             style={[styles.markAllBtn, themed.surfaceSecondary]}
@@ -217,21 +212,9 @@ export default function NotificationsScreen() {
             <TouchableOpacity 
               key={item.id} 
               style={[styles.notifCard, themed.surface]}
-              onPress={async () => {
-                const isRemoteReceipt = item.receiptId && !String(item.receiptId).startsWith('notif-');
-                if (!item.read && isRemoteReceipt) {
-                  try {
-                    await notificationService.markAsRead(item.receiptId);
-                    setNotifications(previous => previous.map(notification => notification.id === item.id
-                      ? { ...notification, read: true }
-                      : notification));
-                  } catch (error) {
-                    showPlatformNotice(t('error'), error.message || 'No se pudo marcar la notificación.', { tone: 'error' });
-                    return;
-                  }
-                }
-                showPlatformNotice(t('notifDetail'), item.message, { tone: 'info' });
-              }}
+              accessibilityRole="button"
+              accessibilityLabel={`${t('notifMarkRead')}: ${item.name}`}
+              onPress={() => markNotificationAsRead(item)}
             >
               <View style={styles.notifRow}>
                 <View style={[styles.colorCircle, { backgroundColor: item.color }]} />
@@ -244,12 +227,7 @@ export default function NotificationsScreen() {
                     {item.time || t('live')}
                   </RNText>
                 </View>
-                <TouchableOpacity 
-                  style={{ padding: 8, justifyContent: 'center' }} 
-                  onPress={() => confirmDeleteNotif(item)}
-                >
-                  <MaterialCommunityIcons name="trash-can-outline" size={20} color={colors.error} />
-                </TouchableOpacity>
+                <MaterialCommunityIcons name="check-circle-outline" size={20} color={colors.primary} />
               </View>
             </TouchableOpacity>
           ))
