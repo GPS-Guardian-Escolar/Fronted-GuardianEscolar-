@@ -145,6 +145,35 @@ async function main() {
   assert.equal(qr.parseQrValue('{"v":1,"s":"student-1","c":"link-code"}').payload.code, 'link-code');
   assert.equal(qr.parseQrValue('{"v":1,"s":"student-1"}').ok, false);
 
+  const qrScreen = fs.readFileSync(path.join(__dirname, '..', 'features/child-link/ScanQrScreen.js'), 'utf8');
+  const studentDashboard = fs.readFileSync(path.join(__dirname, '..', 'app/student-dashboard.js'), 'utf8');
+  assert.match(qrScreen, /autoTrack:\s*'1'/);
+  const previousStudentLinkBaseUrl = process.env.EXPO_PUBLIC_STUDENT_LINK_BASE_URL;
+  process.env.EXPO_PUBLIC_STUDENT_LINK_BASE_URL = 'https://gps-guardian-escolar-frontend.onrender.com';
+  delete require.cache[require.resolve('../app.config.js')];
+  const nativeConfig = require('../app.config.js');
+  if (previousStudentLinkBaseUrl === undefined) delete process.env.EXPO_PUBLIC_STUDENT_LINK_BASE_URL;
+  else process.env.EXPO_PUBLIC_STUDENT_LINK_BASE_URL = previousStudentLinkBaseUrl;
+  const qrAppLink = nativeConfig.android.intentFilters.find(filter => filter.data?.some(data => data.pathPrefix === '/scan-qr'));
+  assert.ok(qrAppLink, 'Android must route the QR URL to the installed app');
+  assert.equal(qrAppLink.autoVerify, true);
+  assert.equal(qrAppLink.data[0].host, 'gps-guardian-escolar-frontend.onrender.com');
+  assert.ok(nativeConfig.android.permissions.includes('ACCESS_BACKGROUND_LOCATION'));
+  assert.ok(nativeConfig.android.permissions.includes('FOREGROUND_SERVICE_LOCATION'));
+  const locationPlugin = nativeConfig.plugins.find(plugin => Array.isArray(plugin) && plugin[0] === 'expo-location');
+  assert.equal(locationPlugin?.[1]?.isAndroidBackgroundLocationEnabled, true);
+  assert.equal(locationPlugin?.[1]?.isAndroidForegroundServiceEnabled, true);
+  const rootLayout = fs.readFileSync(path.join(__dirname, '..', 'app/_layout.js'), 'utf8');
+  const locationTask = fs.readFileSync(path.join(__dirname, '..', 'services/background/locationTracking.js'), 'utf8');
+  assert.match(rootLayout, /TaskManager\.defineTask\(LOCATION_TASK_NAME, handleLocationTask\)/);
+  assert.match(locationTask, /Location\.startLocationUpdatesAsync\(LOCATION_TASK_NAME/);
+  assert.match(locationTask, /foregroundService:/);
+  assert.match(studentDashboard, /params\.autoTrack === '1'/);
+  assert.match(studentDashboard, /startOrResumeMonitoring/);
+  assert.doesNotMatch(studentDashboard, /TripControls|Iniciar trayecto|Detener trayecto/);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'app/(tabs)/tracking.js'), 'utf8'), /trackWaitingMovement/);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'features/child/components/SharingStatusCard.js'), 'utf8'), /studentTrackingWaiting/);
+
   const trackingCalls = [];
   const { trackingService } = loadModule('services/tracking.service.js', {
     './pagination': loadModule('services/pagination.js'),
@@ -177,6 +206,7 @@ async function main() {
   };
   const delivered = [];
   const location = loadModule('services/background/locationTracking.js', {
+    '../../utils/locationQuality': loadModule('utils/locationQuality.js'),
     '@react-native-async-storage/async-storage': { __esModule: true, default: storage },
     'expo-location': {}, 'expo-notifications': {}, 'expo-secure-store': {}, 'expo-task-manager': {},
     'react-native': { Platform: { OS: 'web' } }, '../../theme/tokens': { lightColors: {} },
@@ -188,10 +218,11 @@ async function main() {
   await location.saveChildSession({ childToken: 'device-token', studentId: 'student-1', code: 'link-code' });
   assert.equal((await location.getChildSession()).studentCode, 'link-code');
   await storage.setItem(location.ACTIVE_TRIP_ID_KEY, 'trip-1');
-  const point = index => ({ latitude: 4 + index * 0.001, longitude: -74, accuracy: 10, recordedAt: new Date(1700000000000 + index * 60000).toISOString() });
+  const point = index => ({ latitude: 4 + index * 0.001, longitude: -74, accuracy: 10, recordedAt: new Date(1700000000000 + index * 10000).toISOString() });
   await location.enqueueCoordinate(point(0));
+  await location.enqueueCoordinate(point(1));
   // GPS callbacks arriving during HTTP delivery must not be overwritten by the flush.
-  await Promise.all([location.flushQueue(), location.enqueueCoordinate(point(1)), location.enqueueCoordinate(point(2))]);
+  await Promise.all([location.flushQueue(), location.enqueueCoordinate(point(2)), location.enqueueCoordinate(point(3)), location.enqueueCoordinate(point(4))]);
   await location.stopBackgroundUpdates({ preserveTrip: true });
   assert.equal(await location.getActiveTripId(), 'trip-1');
   await location.flushQueue();
@@ -205,7 +236,7 @@ async function main() {
 
   for (const locale of ['es', 'en', 'fr', 'pt']) {
     const translations = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'translations', `${locale}.json`), 'utf8'));
-    for (const key of ['inputNameBlocked', 'inputPhoneBlocked', 'trackingPendingLocations']) {
+    for (const key of ['inputNameBlocked', 'inputPhoneBlocked', 'trackingPendingLocations', 'notifMarkRead', 'histInformational', 'histNoTripYet']) {
       assert.equal(typeof translations[key], 'string');
       assert.equal(/[\p{L}]\?[\p{L}]|\uFFFD/u.test(translations[key]), false);
     }
@@ -234,9 +265,14 @@ async function main() {
   const date = new Date(2026, 9, 24, 12, 0, 0);
   assert.equal(history.toLocalDateKey(date), '2026-10-24');
   assert.equal(history.matchesHistoryStatus({ estado: 'En Proceso', alerta: false }, 'En Proceso'), true);
-  assert.equal(history.matchesHistoryStatus({ estado: 'En Proceso', alerta: true }, 'En Proceso'), false);
-  assert.equal(history.matchesHistoryStatus({ estado: 'En Proceso', alerta: true }, 'Con Incidente'), true);
+  assert.equal(history.matchesHistoryStatus({ estado: 'En Proceso', alerta: true }, 'En Proceso'), true);
+  assert.equal(history.matchesHistoryStatus({ estado: 'En Proceso', alerta: true }, 'Con Incidente'), false);
+  assert.equal(history.matchesHistoryStatus({ rowType: 'event', eventType: 'LOCATION_UNAVAILABLE' }, 'Con Incidente'), true);
+  assert.equal(history.matchesHistoryStatus({ rowType: 'event', eventType: 'LOCATION_UNAVAILABLE' }, 'En Proceso'), false);
+  assert.equal(history.matchesHistoryStatus({ rowType: 'event', eventType: 'TRIP_STARTED' }, 'En Proceso'), true);
   assert.equal(history.getHistoryStatusKind({ estado: 'Completado' }), 'completed');
+  assert.equal(history.getHistoryStatusKind({ rowType: 'event', eventType: 'DEVICE_LINKED' }), 'informational');
+  assert.equal(history.matchesHistoryStatus({ rowType: 'event', eventType: 'DEVICE_LINKED' }, 'Informativo'), true);
 
   console.log('Input validation, email preferences, QR, child authentication, concurrent GPS queue, translations, history and route geometry: passed.');
 }
