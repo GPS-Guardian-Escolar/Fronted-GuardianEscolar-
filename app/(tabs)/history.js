@@ -376,28 +376,30 @@ export default function HistoryScreen() {
   const renderHistoryItem = (item) => {
     const statusColor = getStatusColor(item);
     if (item.rowType === 'event') {
-      const statusKind = getHistoryStatusKind(item);
-      const icon = statusKind === 'incident' ? 'alert-circle'
-        : statusKind === 'completed' ? 'check-circle' : 'bell-outline';
       return (
-        <Surface key={item.id} style={[styles.eventCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: statusColor }]} elevation={1}>
-          <View style={styles.eventHeader}>
-            <MaterialCommunityIcons name={icon} size={22} color={statusColor} />
-            <View style={styles.eventInfo}>
+        <Surface key={item.id} style={[styles.historyCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: statusColor }]} elevation={1}>
+          <View style={styles.cardHeader}>
+            <Avatar.Text size={44} label={item.estudiante.substring(0, 2).toUpperCase()} style={{ backgroundColor: COLORS.PRIMARIO }} color={COLORS.TEXTO_CONTRASTE} />
+            <View style={styles.headerInfo}>
               <Text style={[styles.itemName, { color: colors.text }]}>{item.estudiante}</Text>
-              <Text style={[styles.itemDate, { color: colors.textSecondary }]}>
-                {item.fecha} · {item.horaInicio}
-              </Text>
-            </View>
-            <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
-              <Text style={[styles.statusBadgeText, { color: statusColor }]}>{getDisplayedStatus(item)}</Text>
+              <Text style={[styles.itemDate, { color: colors.textSecondary }]}>{item.fecha}</Text>
             </View>
             {(item.event?.receiptId || item.event?.id) && (
               <IconButton icon="trash-can-outline" size={18} containerColor={colors.surfaceSecondary} iconColor={colors.error} onPress={() => confirmDeleteEvent(item.event)} />
             )}
           </View>
-          <Text style={[styles.eventMessage, { color: statusColor }]}>{item.message}</Text>
-          <Text style={[styles.eventRoute, { color: colors.textSecondary }]}>{t('histRoute')}: {item.ruta}</Text>
+
+          <View style={[styles.detailsGrid, { backgroundColor: colors.surfaceSecondary }]}>
+            <Detail label={t('histRegTime')} value={item.horaInicio} />
+            <View style={styles.detailItem}>
+              <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>{t('histStatus')}</Text>
+              <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
+                <Text style={[styles.statusBadgeText, { color: statusColor }]}>{getDisplayedStatus(item)}</Text>
+              </View>
+            </View>
+            <Detail label={t('histObservation')} value={item.message} danger={item.alerta} />
+            <Detail label={t('histRoute')} value={item.ruta} />
+          </View>
         </Surface>
       );
     }
@@ -532,12 +534,7 @@ const styles = StyleSheet.create({
   statTitle: { fontSize: 11, fontWeight: '500' },
   listContainer: { gap: 12 },
   historyCard: { borderRadius: 12, padding: 12, borderWidth: 1, borderLeftWidth: 4 },
-  eventCard: { borderRadius: 12, padding: 12, borderWidth: 1, borderLeftWidth: 4, marginTop: -4 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  eventHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
-  eventInfo: { flex: 1 },
-  eventMessage: { fontSize: 14, lineHeight: 20, marginLeft: 30 },
-  eventRoute: { fontSize: 12, marginTop: 6, marginLeft: 30 },
   headerInfo: { marginLeft: 12, flex: 1 },
   itemName: { fontSize: 15, fontWeight: 'bold' },
   itemDate: { fontSize: 12 },
