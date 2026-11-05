@@ -9,9 +9,15 @@ export function toLocalDateKey(value) {
 }
 
 export function getHistoryStatusKind(item) {
-  if (item?.alerta || item?.estado === 'Con Incidente') return 'incident';
+  if (item?.rowType === 'event') {
+    const eventType = String(item.eventType || item.event?.eventType || item.event?.event_type || '').toUpperCase();
+    if (['DELAY', 'INACTIVITY', 'ROUTE_DEVIATION', 'SAFE_ZONE_EXIT', 'LOCATION_UNAVAILABLE', 'LOCATION_STOPPED'].includes(eventType)) return 'incident';
+    if (eventType === 'TRIP_COMPLETED') return 'completed';
+    return 'inProgress';
+  }
   if (item?.estado === 'Completado') return 'completed';
   if (item?.estado === 'En Proceso') return 'inProgress';
+  if (item?.alerta || item?.estado === 'Con Incidente') return 'incident';
   return 'other';
 }
 
@@ -30,6 +36,15 @@ export function hasTrackingIncident(trip, notifications = []) {
 }
 
 export function getHistoryObservationKey(item) {
+  if (item?.rowType === 'trip' && item?.events?.length) return 'histObsNormal';
+  if (item?.rowType === 'event') {
+    if (item.eventType === 'LOCATION_UNAVAILABLE') return 'histObsLocationUnavailable';
+    if (item.eventType === 'LOCATION_STOPPED') return 'histObsTrackingStopped';
+    if (item.eventType === 'SAFE_ZONE_EXIT') return 'histObsZoneExit';
+    if (item.eventType === 'ROUTE_DEVIATION') return 'histObsAlert';
+    if (item.eventType === 'INACTIVITY') return 'histObsInactivity';
+    return 'histObsNormal';
+  }
   if (item?.incidentEventType === 'LOCATION_UNAVAILABLE') return 'histObsLocationUnavailable';
   if (item?.incidentEventType === 'LOCATION_STOPPED') return 'histObsTrackingStopped';
   if (item?.incidentEventType === 'SAFE_ZONE_EXIT') return 'histObsZoneExit';
@@ -39,8 +54,6 @@ export function getHistoryObservationKey(item) {
 
 export function matchesHistoryStatus(item, filter) {
   if (filter === 'all') return true;
-  // Completion and incidents overlap: a completed trip may have an alert.
-  if (filter === 'Completado' || filter === 'En Proceso') return item?.estado === filter;
   const expected = filter === 'Con Incidente'
     ? 'incident'
     : filter === 'Completado' ? 'completed' : filter === 'En Proceso' ? 'inProgress' : 'other';

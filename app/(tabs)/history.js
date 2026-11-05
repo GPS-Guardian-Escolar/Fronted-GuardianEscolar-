@@ -58,6 +58,7 @@ function normalizeTrip(trip, notifications = [], lang = 'es') {
     incidentEventType,
     advertencia: !alerta && advertencia,
     duracion: trip.tripStartedAt && trip.tripEndedAt ? Math.max(0, Math.round((new Date(trip.tripEndedAt) - new Date(trip.tripStartedAt)) / 60000)) : 0,
+    sortTimestamp: new Date(trip.tripStartedAt || 0).getTime(),
   };
 }
 
@@ -113,6 +114,37 @@ export default function HistoryScreen() {
   if (loading) return <AppLoading message="Cargando historial..." />;
   if (loadError) return <AppError message="No se pudo cargar el historial." onRetry={loadData} />;
 
+  const historyRows = history.flatMap(item => [
+    { ...item, rowType: 'trip' },
+    ...(item.events || []).map((event, index) => {
+      const eventType = String(event.eventType || event.event_type || '').toUpperCase();
+      const eventTime = event.eventDateTime || event.receivedAt;
+      const isIncident = ['DELAY', 'INACTIVITY', 'ROUTE_DEVIATION', 'SAFE_ZONE_EXIT', 'LOCATION_UNAVAILABLE', 'LOCATION_STOPPED'].includes(eventType);
+      const status = eventType === 'TRIP_COMPLETED' ? 'Completado'
+        : eventType === 'TRIP_STARTED' ? 'En Proceso'
+          : isIncident ? 'Con Incidente' : t('notifDetail');
+      const eventId = event.receiptId || event.id || event.notificationId || `${item.id}-event-${index}`;
+      return {
+        id: `event-${item.backendId || item.id}-${eventId}`,
+        rowType: 'event',
+        event,
+        eventType,
+        message: event.message || t('notifDetail'),
+        estudiante: item.estudiante,
+        fecha: formatTripDate(eventTime, lang),
+        fechaKey: toLocalDateKey(eventTime),
+        sortTimestamp: new Date(eventTime || 0).getTime(),
+        horaInicio: formatTripTime(eventTime, lang),
+        horaFin: '--',
+        ruta: item.ruta,
+        estado: status,
+        alerta: isIncident,
+        advertencia: false,
+        backendId: null,
+      };
+    }),
+  ]).sort((a, b) => (b.sortTimestamp || 0) - (a.sortTimestamp || 0));
+
   function confirmDeleteHistory(item) {
     const removeItem = async () => {
       try {
@@ -155,14 +187,14 @@ export default function HistoryScreen() {
   }
 
   const stats = {
-    total: history.length,
-    completados: history.filter(item => item.estado === 'Completado').length,
-    incidentes: history.filter(item => (item.alerta && !item.advertencia) || item.estado === 'Con Incidente').length,
-    enProceso: history.filter(item => item.estado === 'En Proceso').length,
+    total: historyRows.length,
+    completados: historyRows.filter(item => getHistoryStatusKind(item) === 'completed').length,
+    incidentes: historyRows.filter(item => getHistoryStatusKind(item) === 'incident').length,
+    enProceso: historyRows.filter(item => getHistoryStatusKind(item) === 'inProgress').length,
     horas: history.reduce((acc, item) => acc + (parseInt(item.duracion, 10) || 0), 0) / 60,
   };
 
-  const filteredHistory = history.filter((item) => {
+  const filteredHistory = historyRows.filter((item) => {
     const matchesStudent = !filterStudent || item.estudiante.toLowerCase().includes(filterStudent.toLowerCase());
     const matchesDate = !filterDate || item.fechaKey === filterDate;
     const matchesStatus = matchesHistoryStatus(item, statusFilter);
@@ -207,7 +239,7 @@ export default function HistoryScreen() {
         <td>${escapeHtml(item.horaInicio)}${item.horaFin && item.horaFin !== '--' ? ` - ${escapeHtml(item.horaFin)}` : ''}</td>
         <td>${escapeHtml(item.ruta)}</td>
         <td><span class="status">${escapeHtml(getDisplayedStatus(item))}</span></td>
-        <td>${escapeHtml(t(getHistoryObservationKey(item)))}</td>
+        <td>${escapeHtml(item.rowType === 'event' ? item.message : t(getHistoryObservationKey(item)))}</td>
       </tr>
     `).join('');
 
@@ -343,9 +375,34 @@ export default function HistoryScreen() {
 
   const renderHistoryItem = (item) => {
     const statusColor = getStatusColor(item);
+    if (item.rowType === 'event') {
+      const statusKind = getHistoryStatusKind(item);
+      const icon = statusKind === 'incident' ? 'alert-circle'
+        : statusKind === 'completed' ? 'check-circle' : 'bell-outline';
+      return (
+        <Surface key={item.id} style={[styles.eventCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: statusColor }]} elevation={1}>
+          <View style={styles.eventHeader}>
+            <MaterialCommunityIcons name={icon} size={22} color={statusColor} />
+            <View style={styles.eventInfo}>
+              <Text style={[styles.itemName, { color: colors.text }]}>{item.estudiante}</Text>
+              <Text style={[styles.itemDate, { color: colors.textSecondary }]}>
+                {item.fecha} · {item.horaInicio}
+              </Text>
+            </View>
+            <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
+              <Text style={[styles.statusBadgeText, { color: statusColor }]}>{getDisplayedStatus(item)}</Text>
+            </View>
+            {(item.event?.receiptId || item.event?.id) && (
+              <IconButton icon="trash-can-outline" size={18} containerColor={colors.surfaceSecondary} iconColor={colors.error} onPress={() => confirmDeleteEvent(item.event)} />
+            )}
+          </View>
+          <Text style={[styles.eventMessage, { color: statusColor }]}>{item.message}</Text>
+          <Text style={[styles.eventRoute, { color: colors.textSecondary }]}>{t('histRoute')}: {item.ruta}</Text>
+        </Surface>
+      );
+    }
     return (
-      <React.Fragment key={item.id}>
-      <Surface style={[styles.historyCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: statusColor }]} elevation={1}>
+      <Surface key={item.id} style={[styles.historyCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: statusColor }]} elevation={1}>
         <View style={styles.cardHeader}>
           <Avatar.Text size={44} label={item.estudiante.substring(0, 2).toUpperCase()} style={{ backgroundColor: COLORS.PRIMARIO }} color={COLORS.TEXTO_CONTRASTE} />
           <View style={styles.headerInfo}>
@@ -362,7 +419,7 @@ export default function HistoryScreen() {
             <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
               <Text style={[styles.statusBadgeText, { color: statusColor }]}>{getDisplayedStatus(item)}</Text>
             </View>
-            {item.estado === 'En Proceso' && item.alerta && (
+            {item.estado === 'En Proceso' && item.alerta && !item.events?.length && (
               <Text style={[styles.detailValue, { color: colors.error, marginTop: 4 }]}>
                 {t('histActiveIncidentHint')}
               </Text>
@@ -371,37 +428,12 @@ export default function HistoryScreen() {
           <Detail
             label={t('histObservation')}
             value={t(getHistoryObservationKey(item))}
-            danger={item.alerta}
-            warning={item.advertencia}
+            danger={item.alerta && !item.events?.length}
+            warning={item.advertencia && !item.events?.length}
           />
           <Detail label={t('histRoute')} value={item.ruta} />
         </View>
       </Surface>
-      {(item.events || []).map((event, index) => {
-        const eventType = String(event.eventType || event.event_type || '').toUpperCase();
-        const isWarning = ['DELAY', 'INACTIVITY', 'ROUTE_DEVIATION', 'SAFE_ZONE_EXIT', 'LOCATION_UNAVAILABLE', 'LOCATION_STOPPED'].includes(eventType);
-        const eventColor = isWarning ? colors.error : colors.primary;
-        const eventId = event.receiptId || event.id || event.notificationId || `${item.id}-event-${index}`;
-        const eventTime = event.eventDateTime || event.receivedAt;
-        return (
-          <Surface key={eventId} style={[styles.eventCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: eventColor }]} elevation={1}>
-            <View style={styles.eventHeader}>
-              <MaterialCommunityIcons name={isWarning ? 'alert-circle' : 'bell-outline'} size={20} color={eventColor} />
-              <View style={styles.eventInfo}>
-                <Text style={[styles.itemName, { color: colors.text }]}>{t('notifDetail')} · {item.estudiante}</Text>
-                <Text style={[styles.itemDate, { color: colors.textSecondary }]}>
-                  {formatTripDate(eventTime, lang)} · {formatTripTime(eventTime, lang)}
-                </Text>
-              </View>
-              {(event.receiptId || event.id) && (
-                <IconButton icon="trash-can-outline" size={18} containerColor={colors.surfaceSecondary} iconColor={colors.error} onPress={() => confirmDeleteEvent(event)} />
-              )}
-            </View>
-            <Text style={[styles.eventMessage, { color: colors.text }]}>{event.message || t('notifDetail')}</Text>
-          </Surface>
-        );
-      })}
-      </React.Fragment>
     );
   };
 
@@ -505,6 +537,7 @@ const styles = StyleSheet.create({
   eventHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
   eventInfo: { flex: 1 },
   eventMessage: { fontSize: 14, lineHeight: 20, marginLeft: 30 },
+  eventRoute: { fontSize: 12, marginTop: 6, marginLeft: 30 },
   headerInfo: { marginLeft: 12, flex: 1 },
   itemName: { fontSize: 15, fontWeight: 'bold' },
   itemDate: { fontSize: 12 },

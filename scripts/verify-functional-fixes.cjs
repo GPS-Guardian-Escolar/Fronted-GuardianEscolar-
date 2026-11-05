@@ -246,7 +246,10 @@ async function main() {
   assert.equal(history.toLocalDateKey(date), '2026-10-24');
   assert.equal(history.matchesHistoryStatus({ estado: 'En Proceso', alerta: false }, 'En Proceso'), true);
   assert.equal(history.matchesHistoryStatus({ estado: 'En Proceso', alerta: true }, 'En Proceso'), true);
-  assert.equal(history.matchesHistoryStatus({ estado: 'En Proceso', alerta: true }, 'Con Incidente'), true);
+  assert.equal(history.matchesHistoryStatus({ estado: 'En Proceso', alerta: true }, 'Con Incidente'), false);
+  assert.equal(history.matchesHistoryStatus({ rowType: 'event', eventType: 'LOCATION_UNAVAILABLE' }, 'Con Incidente'), true);
+  assert.equal(history.matchesHistoryStatus({ rowType: 'event', eventType: 'LOCATION_UNAVAILABLE' }, 'En Proceso'), false);
+  assert.equal(history.matchesHistoryStatus({ rowType: 'event', eventType: 'TRIP_STARTED' }, 'En Proceso'), true);
   assert.equal(history.getHistoryStatusKind({ estado: 'Completado' }), 'completed');
 
   console.log('Input validation, email preferences, QR, child authentication, concurrent GPS queue, translations, history and route geometry: passed.');
