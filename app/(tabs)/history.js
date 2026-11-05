@@ -134,6 +134,26 @@ export default function HistoryScreen() {
     ]);
   }
 
+  function confirmDeleteEvent(event) {
+    const receiptId = event.receiptId || event.id;
+    if (!receiptId) return;
+    showPlatformConfirm(t('delete'), t('delete') + '?', [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('delete'),
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await notificationService.deleteNotification(receiptId);
+            await loadData();
+          } catch (error) {
+            showPlatformNotice(t('error'), error?.response?.data?.message || 'No se pudo eliminar la notificación.', { tone: 'error' });
+          }
+        },
+      },
+    ]);
+  }
+
   const stats = {
     total: history.length,
     completados: history.filter(item => item.estado === 'Completado').length,
@@ -324,7 +344,8 @@ export default function HistoryScreen() {
   const renderHistoryItem = (item) => {
     const statusColor = getStatusColor(item);
     return (
-      <Surface key={item.id} style={[styles.historyCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: statusColor }]} elevation={1}>
+      <React.Fragment key={item.id}>
+      <Surface style={[styles.historyCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: statusColor }]} elevation={1}>
         <View style={styles.cardHeader}>
           <Avatar.Text size={44} label={item.estudiante.substring(0, 2).toUpperCase()} style={{ backgroundColor: COLORS.PRIMARIO }} color={COLORS.TEXTO_CONTRASTE} />
           <View style={styles.headerInfo}>
@@ -355,15 +376,32 @@ export default function HistoryScreen() {
           />
           <Detail label={t('histRoute')} value={item.ruta} />
         </View>
-        {(item.events || []).map(event => (
-          <View key={event.receiptId || event.notificationId} style={{ marginTop: 10 }}>
-            <Text style={{ color: colors.textSecondary }}>
-              {formatTripDate(event.eventDateTime || event.receivedAt, lang)} - {formatTripTime(event.eventDateTime || event.receivedAt, lang)}
-            </Text>
-            <Text style={{ color: colors.text }}>{event.message}</Text>
-          </View>
-        ))}
       </Surface>
+      {(item.events || []).map((event, index) => {
+        const eventType = String(event.eventType || event.event_type || '').toUpperCase();
+        const isWarning = ['DELAY', 'INACTIVITY', 'ROUTE_DEVIATION', 'SAFE_ZONE_EXIT', 'LOCATION_UNAVAILABLE', 'LOCATION_STOPPED'].includes(eventType);
+        const eventColor = isWarning ? colors.error : colors.primary;
+        const eventId = event.receiptId || event.id || event.notificationId || `${item.id}-event-${index}`;
+        const eventTime = event.eventDateTime || event.receivedAt;
+        return (
+          <Surface key={eventId} style={[styles.eventCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: eventColor }]} elevation={1}>
+            <View style={styles.eventHeader}>
+              <MaterialCommunityIcons name={isWarning ? 'alert-circle' : 'bell-outline'} size={20} color={eventColor} />
+              <View style={styles.eventInfo}>
+                <Text style={[styles.itemName, { color: colors.text }]}>{t('notifDetail')} · {item.estudiante}</Text>
+                <Text style={[styles.itemDate, { color: colors.textSecondary }]}>
+                  {formatTripDate(eventTime, lang)} · {formatTripTime(eventTime, lang)}
+                </Text>
+              </View>
+              {(event.receiptId || event.id) && (
+                <IconButton icon="trash-can-outline" size={18} containerColor={colors.surfaceSecondary} iconColor={colors.error} onPress={() => confirmDeleteEvent(event)} />
+              )}
+            </View>
+            <Text style={[styles.eventMessage, { color: colors.text }]}>{event.message || t('notifDetail')}</Text>
+          </Surface>
+        );
+      })}
+      </React.Fragment>
     );
   };
 
@@ -462,7 +500,11 @@ const styles = StyleSheet.create({
   statTitle: { fontSize: 11, fontWeight: '500' },
   listContainer: { gap: 12 },
   historyCard: { borderRadius: 12, padding: 12, borderWidth: 1, borderLeftWidth: 4 },
+  eventCard: { borderRadius: 12, padding: 12, borderWidth: 1, borderLeftWidth: 4, marginTop: -4 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  eventHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+  eventInfo: { flex: 1 },
+  eventMessage: { fontSize: 14, lineHeight: 20, marginLeft: 30 },
   headerInfo: { marginLeft: 12, flex: 1 },
   itemName: { fontSize: 15, fontWeight: 'bold' },
   itemDate: { fontSize: 12 },
