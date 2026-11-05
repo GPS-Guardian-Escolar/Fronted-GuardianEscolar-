@@ -152,6 +152,7 @@ export default function ScanQrScreen() {
           codigo: String(payload.code),
           nombre: payload.name || '',
           telefono: payload.contactPhone || '',
+          autoTrack: '1',
         },
       });
     } catch (error) {

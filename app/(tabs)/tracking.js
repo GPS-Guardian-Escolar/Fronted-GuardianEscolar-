@@ -19,6 +19,7 @@ import { useTrackingRealtime } from '../../hooks/useTrackingRealtime';
 import TrackingHeader from '../../features/tracking/components/TrackingHeader';
 import TrackingStudentSelector from '../../features/tracking/components/TrackingStudentSelector';
 import { calculateRouteGeometry } from '../../utils/routeGeometry';
+import { journeyPoints, shouldDrawJourneyPath } from '../../utils/locationQuality';
 import { buildTrackingMarkers } from '../../utils/trackingMarkers';
 import { showPlatformNotice } from '../../utils/noticeBus';
 
@@ -39,55 +40,6 @@ function getZoneColor(zone, colors) {
   return colors.error;
 }
 
-function distanceMeters(a, b) {
-  const earthRadius = 6371000;
-  const toRadians = value => (value * Math.PI) / 180;
-  const latitudeDelta = toRadians(b.latitude - a.latitude);
-  const longitudeDelta = toRadians(b.longitude - a.longitude);
-  const haversine = Math.sin(latitudeDelta / 2) ** 2
-    + Math.cos(toRadians(a.latitude)) * Math.cos(toRadians(b.latitude)) * Math.sin(longitudeDelta / 2) ** 2;
-  return earthRadius * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
-}
-
-function filterJourneyCoordinates(points) {
-  const minimumMovementMeters = 100;
-  const movingPoints = points.filter(point => Number(point.stoppedSeconds || 0) === 0);
-  const accepted = [];
-  if (movingPoints.length) accepted.push(movingPoints[0]);
-
-  // A path is drawn only after the following GPS fix confirms that the
-  // candidate continued away from the previous point. This avoids painting
-  // stationary GPS drift or a one-off incorrect fix as a trip.
-  for (let index = 1; index < movingPoints.length - 1; index += 1) {
-    const previous = accepted[accepted.length - 1];
-    const candidate = movingPoints[index];
-    const confirmation = movingPoints[index + 1];
-    const travelled = distanceMeters(previous, candidate);
-    const netDistance = distanceMeters(previous, confirmation);
-    const nextDistance = distanceMeters(candidate, confirmation);
-    const elapsedSeconds = Math.max(1, (candidate.timestamp - previous.timestamp) / 1000);
-    const previousToCandidate = {
-      latitude: candidate.latitude - previous.latitude,
-      longitude: candidate.longitude - previous.longitude,
-    };
-    const candidateToNext = {
-      latitude: confirmation.latitude - candidate.latitude,
-      longitude: confirmation.longitude - candidate.longitude,
-    };
-    const continuesForward = (previousToCandidate.latitude * candidateToNext.latitude)
-      + (previousToCandidate.longitude * candidateToNext.longitude) > 0;
-    const settlesAtNewPlace = nextDistance <= minimumMovementMeters;
-
-    if (travelled >= minimumMovementMeters
-      && netDistance >= minimumMovementMeters
-      && travelled / elapsedSeconds <= 30
-      && (continuesForward || settlesAtNewPlace)) {
-      accepted.push(candidate);
-    }
-  }
-  return accepted;
-}
-
 const RECENT_ALERT_TRANSLATION_KEYS = {
   DELAY: 'trackAlertDelay',
   INACTIVITY: 'trackAlertInactivity',
@@ -95,6 +47,7 @@ const RECENT_ALERT_TRANSLATION_KEYS = {
   SAFE_ZONE_ENTRY: 'trackAlertSafeZoneEntry',
   SAFE_ZONE_EXIT: 'trackAlertSafeZoneExit',
   TRIP_STARTED: 'trackAlertTripStarted',
+  TRIP_FINISHED: 'trackAlertTripFinished',
   LOCATION_UNAVAILABLE: 'trackAlertLocationUnavailable',
   LOCATION_STOPPED: 'trackAlertLocationStopped',
 };
@@ -120,6 +73,7 @@ export default function TrackingScreen() {
   const [refreshFailed, setRefreshFailed] = useState(false);
   const refreshInProgress = useRef(false);
   const [activeTrip, setActiveTrip] = useState(null);
+  const journeyCoordinateHistory = useRef([]);
   const [isLoading, setIsLoading] = useState(true);
   const [clockNow, setClockNow] = useState(0);
   const refreshSequence = useRef(0);
@@ -172,6 +126,7 @@ export default function TrackingScreen() {
       setRecentTripId(null);
       setRecentAlert(null);
       setJourneyCoordinates([]);
+      journeyCoordinateHistory.current = [];
       setRouteGeometry([]);
       setRouteGeometries([]);
       setAssignedRouteStatus('none');
@@ -186,6 +141,7 @@ export default function TrackingScreen() {
         setRouteGeometries([]);
         setAssignedRouteStatus('none');
         setJourneyCoordinates([]);
+        journeyCoordinateHistory.current = [];
         return;
       }
       if (updateGeometry) {
@@ -207,12 +163,6 @@ export default function TrackingScreen() {
       setRouteGeometry(drawableRoutes[0]?.coordinates || []);
       setAssignedRouteStatus(routes.length === 0 ? 'none' : drawableRoutes.length === routes.length ? 'ready' : 'failed');
       }
-      if (Number(selectedStudent.dispositivos_vinculados || 0) < 1) {
-        setLocation(null);
-        setActiveTrip(null);
-        setJourneyCoordinates([]);
-        return;
-      }
       const trips = await trackingService.listTrips();
       if (sequence !== refreshSequence.current) return;
       const studentTrips = trips
@@ -220,7 +170,8 @@ export default function TrackingScreen() {
         .sort((a, b) => new Date(b.tripStartedAt || 0) - new Date(a.tripStartedAt || 0));
       setRecentTripId(studentTrips[0]?.id || null);
       setRefreshFailed(false);
-      const selectedTrip = studentTrips.find(trip => trip.status === 'IN_PROGRESS');
+      const selectedTrip = studentTrips.find(trip => trip.status === 'IN_PROGRESS')
+        || studentTrips.find(trip => trip.status === 'PENDING');
       setActiveTrip(selectedTrip || null);
       if (!userSelectedRoute.current && selectedTrip?.routeId && (selectedStudent.routes || []).some(route => String(route.id) === String(selectedTrip.routeId))) {
         setSelectedRouteId(selectedTrip.routeId);
@@ -228,6 +179,7 @@ export default function TrackingScreen() {
       if (!selectedTrip) {
         setLocation(null);
         setJourneyCoordinates([]);
+        journeyCoordinateHistory.current = [];
         return;
       }
       const coordinates = await trackingService.listCoordinates(selectedTrip.id);
@@ -237,7 +189,7 @@ export default function TrackingScreen() {
         const timeB = new Date(b.recordedAt || b.createdAt || b.timestamp || 0).getTime();
         return timeA - timeB;
       });
-      const validCoordinates = filterJourneyCoordinates(orderedCoordinates
+      const validCoordinates = orderedCoordinates
         .map(point => ({
           latitude: Number(point.latitude),
           longitude: Number(point.longitude),
@@ -246,8 +198,9 @@ export default function TrackingScreen() {
           stoppedSeconds: point.stoppedSeconds,
           recordedAt: point.recordedAt,
         }))
-        .filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && Number.isFinite(point.timestamp)));
-      setJourneyCoordinates(validCoordinates.map(({ latitude, longitude, timestamp }) => ({ latitude, longitude, timestamp })));
+        .filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && Number.isFinite(point.timestamp));
+      journeyCoordinateHistory.current = validCoordinates;
+      setJourneyCoordinates(selectedTrip.status === 'IN_PROGRESS' ? journeyPoints(validCoordinates) : []);
       const latest = validCoordinates[validCoordinates.length - 1];
       if (!latest) {
         setLocation(null);
@@ -364,14 +317,15 @@ export default function TrackingScreen() {
         recordedAt: point.recordedAt,
       };
       if (!Number.isFinite(normalized.latitude) || !Number.isFinite(normalized.longitude)) return;
-      setLocation(normalized);
-      setJourneyCoordinates(current => {
-        const ordered = [...current, normalized]
+      setLocation(current => !current || normalized.timestamp > current.timestamp ? normalized : current);
+      setJourneyCoordinates(() => {
+        const ordered = [...journeyCoordinateHistory.current, normalized]
           .filter(point => Number.isFinite(point.timestamp))
           .sort((a, b) => a.timestamp - b.timestamp)
           .filter((point, index, all) => index === 0 || point.timestamp !== all[index - 1].timestamp)
           .slice(-500);
-        return filterJourneyCoordinates(ordered);
+        journeyCoordinateHistory.current = ordered;
+        return journeyPoints(ordered);
       });
     },
     onError: (error) => console.warn(
@@ -379,6 +333,20 @@ export default function TrackingScreen() {
       error?.message || error,
     ),
   });
+
+  const finishActiveTrip = async () => {
+    if (!activeTrip?.id) return;
+    try {
+      await trackingService.finishTrip(activeTrip.id);
+      showPlatformNotice(t('trackTripFinished'), t('trackTripFinishedDetail'), { tone: 'success' });
+      setActiveTrip(null);
+      setLocation(null);
+      setJourneyCoordinates([]);
+      await refreshLocation(false, false);
+    } catch (error) {
+      showPlatformNotice(t('error'), error?.response?.data?.message || t('trackTripFinishFailed'), { tone: 'error' });
+    }
+  };
 
   return (
     <View style={[styles.container, themed.screen]}>
@@ -388,10 +356,11 @@ export default function TrackingScreen() {
         <TrackingHeader
           student={selectedStudent}
           status={
-            Number(selectedStudent?.dispositivos_vinculados || 0) < 1
+            !activeTrip && Number(selectedStudent?.dispositivos_vinculados || 0) < 1
               ? t('trackNoDevice')
               : activeTrip && isLocationStale ? t('trackOffline')
-                : activeTrip && location ? t('trackOnline')
+                : activeTrip?.status === 'PENDING' && location ? t('trackWaitingMovement')
+                  : activeTrip && location ? t('trackOnline')
                   : activeTrip ? t('trackWaitingLocation') : t('trackWaitingTrip')
           }
           onRefresh={() => refreshLocation(false)}
@@ -413,7 +382,7 @@ export default function TrackingScreen() {
         <Surface style={[styles.mapCard, themed.surface]} elevation={1}>
           <SafeMap
             key={selectedStudent?.id || 'tracking-map'}
-            currentLocation={hasLiveLocation ? (journeyCoordinates[journeyCoordinates.length - 1] || location) : null}
+            currentLocation={hasLiveLocation ? location : null}
             initialRegion={INITIAL_REGION}
             style={styles.map}
             markers={buildTrackingMarkers(
@@ -426,7 +395,8 @@ export default function TrackingScreen() {
             coordinates={showAssignedRoute ? routeGeometry : []}
             showRoute={showAssignedRoute && routeGeometry.length >= 2}
             routePaths={showAssignedRoute ? routeGeometries : []}
-            journeyCoordinates={showJourneyPath && hasLiveLocation ? journeyCoordinates : []}
+            journeyCoordinates={showJourneyPath && activeTrip?.status === 'IN_PROGRESS'
+              && shouldDrawJourneyPath(hasLiveLocation, journeyCoordinates) ? journeyCoordinates : []}
             primaryColor={colors.primary}
             routeColor={colors.primary}
             journeyColor={colors.primary}
@@ -566,6 +536,17 @@ export default function TrackingScreen() {
 
         {/* Botones de Acción */}
         <View style={styles.actionButtons}>
+          {activeTrip?.status === 'IN_PROGRESS' && (
+            <Button
+              mode="contained"
+              style={styles.finishBtn}
+              buttonColor={colors.error}
+              onPress={finishActiveTrip}
+              contentStyle={styles.btnContent}
+            >
+              {t('trackFinishTrip')}
+            </Button>
+          )}
           <Button 
             mode="outlined" 
             style={[styles.historyBtn, { borderColor: colors.primary, backgroundColor: colors.surfaceSecondary }]} 
@@ -644,6 +625,7 @@ const styles = StyleSheet.create({
   actionButtons: { flexDirection: 'row', gap: 12, marginTop: 8 },
   historyBtn: { flex: 1, borderRadius: AppRadius.button, borderColor: COLORS.PRIMARIO, borderWidth: 1, backgroundColor: COLORS.PRIMARIO_CLARO },
   routeBtn: { flex: 1, borderRadius: AppRadius.button },
+  finishBtn: { flex: 1, borderRadius: AppRadius.button },
   btnContent: { height: 48 },
 });
 

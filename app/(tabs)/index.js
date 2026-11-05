@@ -60,7 +60,7 @@ export default function DashboardScreen() {
           if (!isActive) return;
           setStudents(storedStudents);
           setNotifications([...apiNotifications, ...storedNotifications]);
-          setTrips(apiTrips);
+          setTrips(apiTrips.filter(trip => String(trip.status || '').toUpperCase() !== 'PENDING'));
           setLoading(false);
         })
         .catch((error) => {
