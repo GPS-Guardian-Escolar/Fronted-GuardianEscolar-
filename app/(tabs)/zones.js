@@ -1,14 +1,22 @@
+import { AppRadius } from '../../theme/tokens';
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Modal, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
-import { Text, Surface, Avatar, Button, IconButton } from 'react-native-paper';
+import { Text, Surface, Avatar } from 'react-native-paper';
+import IconButton from '../../components/ui/PaperIconButton';
+import Button from '../../components/ui/PaperButton';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { COLORS } from '../../constants/colors';
 import SafeMap from '../../components/SafeMap';
 import { getStudents, addZone, updateZone, deleteZone, getInitials, addRoute, updateRoute, deleteRoute } from '../../utils/studentStorage';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { canManageStudent } from '../../features/students/studentActions';
 import { useTheme } from '../../contexts/ThemeContext';
 import { calculateRouteGeometry } from '../../utils/routeGeometry';
+import { buildRouteMarkers } from '../../utils/trackingMarkers';
+import { emitNotice } from '../../utils/noticeBus';
+import { mapsService } from '../../services/maps.service';
 
 const { width } = Dimensions.get('window');
 const isWeb = width > 768;
@@ -18,7 +26,7 @@ const VALID_ZONE_TYPES = ['Casa', 'Escuela', 'Personalizado'];
 
 function showZonesAlert(title, message) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    window.alert(`${title}\n\n${message}`);
+    emitNotice(title, message, { tone: 'error' });
     return;
   }
   Alert.alert(title, message);
@@ -50,7 +58,7 @@ function normalizeRouteForm(route) {
 }
 
 function normalizeRouteValue(value = '') {
-  return String(value).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim().toLowerCase().replace(/\\s+/g, ' ');
+  return String(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
 function isDuplicateRoute(route, existingRoutes = [], editingId) {
@@ -62,17 +70,6 @@ function isDuplicateRoute(route, existingRoutes = [], editingId) {
 function formatCoordinates(latitude, longitude) {
   if (latitude == null || longitude == null) return '';
   return String(latitude) + ', ' + String(longitude);
-}
-
-function getRouteCoordinates(route) {
-  return [
-    { latitude: Number(route?.originLatitude), longitude: Number(route?.originLongitude) },
-    ...(route?.stops || [])
-      .slice()
-      .sort((a, b) => Number(a.stopOrder || 0) - Number(b.stopOrder || 0))
-      .map(stop => ({ latitude: Number(stop.latitude), longitude: Number(stop.longitude) })),
-    { latitude: Number(route?.destinationLatitude), longitude: Number(route?.destinationLongitude) },
-  ].filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude));
 }
 
 function requestErrorMessage(error, fallback) {
@@ -88,6 +85,7 @@ export default function ZonesScreen() {
   const router = useRouter();
   const { t } = useLanguage();
   const { theme } = useTheme();
+  const { user } = useAuth();
   const colors = theme.colors;
   const themed = {
     screen: { backgroundColor: colors.background },
@@ -99,11 +97,14 @@ export default function ZonesScreen() {
   };
   const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const canManage = canManageStudent(selectedStudent, user);
   const [activeTab, setActiveTab] = useState('zones'); // 'zones' or 'routes'
   
   const [modalVisible, setModalVisible] = useState(false);
   const [editingZone, setEditingZone] = useState(null);
   const [form, setForm] = useState(EMPTY_ZONE);
+  const [zoneCandidates, setZoneCandidates] = useState([]);
+  const [selectedZoneCandidate, setSelectedZoneCandidate] = useState(null);
 
   const [modalRouteVisible, setModalRouteVisible] = useState(false);
   const [editingRoute, setEditingRoute] = useState(null);
@@ -125,7 +126,7 @@ export default function ZonesScreen() {
     setStudents(data);
     setSelectedStudent(prev => {
       if (prev) {
-        return data.find(s => s.id === prev.id) || prev;
+        return data.find(s => s.id === prev.id) || null;
       }
       return prev;
     });
@@ -144,18 +145,25 @@ export default function ZonesScreen() {
   );
 
   function openAddZone() {
+    if (!canManage) return;
     setEditingZone(null);
+    setZoneCandidates([]);
+    setSelectedZoneCandidate(null);
     setForm({ ...EMPTY_ZONE, radius: `100 ${t('zonesMeters')}` });
     setModalVisible(true);
   }
 
   function openEditZone(zone) {
+    if (!canManage) return;
     setEditingZone(zone);
+    setZoneCandidates([]);
+    setSelectedZoneCandidate(null);
     setForm({ ...EMPTY_ZONE, ...zone, radius: `${parseRadiusMeters(zone.radius)} ${t('zonesMeters')}`, address: zone.address || formatCoordinates(zone.center?.latitude, zone.center?.longitude) });
     setModalVisible(true);
   }
 
   async function handleSaveZone() {
+    if (!canManage) return;
     const radius = parseRadiusMeters(form.radius);
     if (!String(form.name || '').trim()) {
       showZonesAlert(t('zonesRequiredFields'), t('zonesEnterName'));
@@ -177,9 +185,15 @@ export default function ZonesScreen() {
       showZonesAlert(t('zonesRequiredFields'), t('zonesRadiusRange'));
       return;
     }
-    const payload = normalizeZoneForm(form, t('zonesMeters'));
     setLoading(true);
     try {
+      if (!selectedZoneCandidate) {
+        const candidates = await mapsService.geocodeCandidates(form.address);
+        setZoneCandidates(candidates);
+        setSelectedZoneCandidate(candidates[0]);
+        return;
+      }
+      const payload = { ...normalizeZoneForm(form, t('zonesMeters')), coordinates: selectedZoneCandidate };
       if (editingZone) {
         await updateZone(selectedStudent.id, editingZone.id, payload);
       } else {
@@ -198,10 +212,12 @@ export default function ZonesScreen() {
   }
 
   function confirmDeleteZone(zone) {
+    if (!canManage) return;
     setDeleteConfirmation({ type: 'zone', item: zone });
   }
 
   function openAddRoute() {
+    if (!canManage) return;
     setEditingRoute(null);
     setRouteForm(EMPTY_ROUTE);
     setRouteGeometry([]);
@@ -226,6 +242,7 @@ export default function ZonesScreen() {
   }
 
   function openEditRoute(route) {
+    if (!canManage) return;
     setEditingRoute(route);
     setRouteForm(route);
     setRoutePoints([
@@ -286,6 +303,7 @@ export default function ZonesScreen() {
     });
   }
   async function handleSaveRoute() {
+    if (!canManage) return;
     if (!routeForm.name.trim() || !routeForm.start.trim() || !routeForm.end.trim()) {
       showZonesAlert(t('zonesRequiredFields'), t('zonesRequiredRouteMsg'));
       return;
@@ -327,10 +345,12 @@ export default function ZonesScreen() {
   }
 
   function confirmDeleteRoute(route) {
+    if (!canManage) return;
     setDeleteConfirmation({ type: 'route', item: route });
   }
 
   async function handleConfirmDelete() {
+    if (!canManage) return;
     if (!deleteConfirmation) return;
     const { type, item } = deleteConfirmation;
     setDeleteConfirmation(null);
@@ -353,10 +373,14 @@ export default function ZonesScreen() {
 
   const currentZones = selectedStudent?.zones || [];
   const currentRoutes = selectedStudent?.routes || [];
+  const selectedRouteId = currentRoutes.find(route => String(route.id) === String(selectedStudent?.preferredRouteId))?.id
+    ?? currentRoutes[0]?.id ?? null;
 
   useEffect(() => {
     let cancelled = false;
-    const routes = selectedStudent?.routes || [];
+    const routes = (selectedStudent?.routes || []).filter(route => String(route.id) === String(selectedRouteId));
+    setRouteGeometry([]);
+    setRouteGeometries([]);
     if (!routes.length) {
       setRouteGeometry([]);
       setRouteGeometries([]);
@@ -364,14 +388,14 @@ export default function ZonesScreen() {
     }
     Promise.all(routes.map(async (route, index) => {
       const geometry = await calculateRouteGeometry(route).catch(() => []);
-      return { id: route.id || `route-${index}`, coordinates: geometry, color: '#8B95A7' };
+      return { id: route.id || `route-${index}`, coordinates: geometry, color: colors.primary };
     })).then(paths => {
       if (cancelled) return;
       setRouteGeometries(paths.filter(path => path.coordinates.length >= 2));
       setRouteGeometry(paths[0]?.coordinates || []);
     });
     return () => { cancelled = true; };
-  }, [selectedStudent?.id, selectedStudent?.routes]);
+  }, [selectedStudent?.id, selectedStudent?.routes, selectedRouteId, colors.primary]);
 
   if (!selectedStudent) {
     return (
@@ -436,6 +460,8 @@ export default function ZonesScreen() {
           </View>
         </View>
 
+        {!canManage && <Text accessibilityRole="text" style={[styles.subtitle, themed.textSecondary]}>{t('studReadOnlyDetails')}</Text>}
+
         {/* Tabs */}
         <View style={[styles.tabsContainer, themed.surfaceSecondary]}>
           <TouchableOpacity 
@@ -456,9 +482,9 @@ export default function ZonesScreen() {
           <>
             <View style={styles.actionRow}>
               <Text style={[styles.countText, themed.textSecondary]}>{currentZones.length} {t('zonesConfigured')}</Text>
-              <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.accent }]} onPress={openAddZone}>
+              {canManage && (<TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.accent }]} onPress={openAddZone}>
                 <Text style={[styles.addBtnText, { color: colors.textOnAccent }]}>{t('zonesNewZone')}</Text>
-              </TouchableOpacity>
+              </TouchableOpacity>)}
             </View>
 
             <View style={styles.zonesGrid}>
@@ -485,12 +511,12 @@ export default function ZonesScreen() {
                       </View>
                     </View>
                     <View style={styles.zoneFooter}>
-                      <TouchableOpacity style={[styles.editBtn, { backgroundColor: colors.primary }]} onPress={() => openEditZone(zone)}>
+                      {canManage && (<TouchableOpacity style={[styles.editBtn, { backgroundColor: colors.primary }]} onPress={() => openEditZone(zone)}>
                         <Text style={[styles.editBtnText, { color: colors.textOnPrimary }]}>{t('live') === 'Live' ? 'Edit' : 'Editar'}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[styles.deleteBtn, { backgroundColor: colors.error }]} onPress={() => confirmDeleteZone(zone)}>
+                      </TouchableOpacity>)}
+                      {canManage && (<TouchableOpacity style={[styles.deleteBtn, { backgroundColor: colors.error }]} onPress={() => confirmDeleteZone(zone)}>
                         <Text style={[styles.deleteBtnText, { color: colors.onError }]}>{t('live') === 'Live' ? 'Delete' : 'Eliminar'}</Text>
-                      </TouchableOpacity>
+                      </TouchableOpacity>)}
                     </View>
                     </Surface>
                   );
@@ -543,9 +569,9 @@ export default function ZonesScreen() {
           <>
             <View style={styles.actionRow}>
               <Text style={[styles.countText, themed.textSecondary]}>{(selectedStudent.routes || []).length} {t('zonesSavedRouteCount')}</Text>
-              <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.accent }]} onPress={openAddRoute}>
+              {canManage && (<TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.accent }]} onPress={openAddRoute}>
                 <Text style={[styles.addBtnText, { color: colors.textOnAccent }]}>{t('zonesNewRoute')}</Text>
-              </TouchableOpacity>
+              </TouchableOpacity>)}
             </View>
 
             <View style={styles.zonesGrid}>
@@ -578,12 +604,12 @@ export default function ZonesScreen() {
                         <MaterialCommunityIcons name={'map-outline'} size={16} color={colors.primary} />
                         <Text style={[styles.viewBtnText, { color: colors.primary }]}>{t('zonesViewMap')}</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={[styles.editBtn, { backgroundColor: colors.primary }]} onPress={() => openEditRoute(route)}>
+                      {canManage && (<TouchableOpacity style={[styles.editBtn, { backgroundColor: colors.primary }]} onPress={() => openEditRoute(route)}>
                         <Text style={[styles.editBtnText, { color: colors.textOnPrimary }]}>{t('live') === 'Live' ? 'Edit' : 'Editar'}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[styles.deleteBtn, { backgroundColor: colors.error }]} onPress={() => confirmDeleteRoute(route)}>
+                      </TouchableOpacity>)}
+                      {canManage && (<TouchableOpacity style={[styles.deleteBtn, { backgroundColor: colors.error }]} onPress={() => confirmDeleteRoute(route)}>
                         <Text style={[styles.deleteBtnText, { color: colors.onError }]}>{t('live') === 'Live' ? 'Delete' : 'Eliminar'}</Text>
-                      </TouchableOpacity>
+                      </TouchableOpacity>)}
                     </View>
                   </Surface>
                 ))
@@ -631,12 +657,8 @@ export default function ZonesScreen() {
               <SafeMap
                 style={{ flex: 1 }}
                 initialRegion={{ latitude: 4.5709, longitude: -74.2973, latitudeDelta: 0.05, longitudeDelta: 0.05 }}
-                markers={getRouteCoordinates(routePreview).map((point, index, points) => ({
-                  ...point,
-                  label: index === 0 ? 'I' : index === points.length - 1 ? 'D' : `P${index}`,
-                  title: index === 0 ? t('zonesRouteStart') : index === points.length - 1 ? t('zonesRouteEnd') : `${t('zonesRouteStop')} ${index}`,
-                  color: index === 0 ? colors.accent : index === points.length - 1 ? colors.error : colors.primary,
-                }))}
+                markers={buildRouteMarkers(routePreview, currentZones, colors, t)}
+                routeColor={colors.primary}
                 coordinates={routePreviewGeometry}
                 showRoute={routePreviewGeometry.length >= 2}
               />
@@ -664,7 +686,30 @@ export default function ZonesScreen() {
               </View>
               <ScrollView style={styles.modalFormScroll} showsVerticalScrollIndicator contentContainerStyle={styles.modalScroll}>
                 <ZField label={t('zonesZoneName')} value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder={t('zonesZoneNamePlaceholder')} color={form.color} />
-                <ZField label={t('zonesAddress')} value={form.address} onChange={v => setForm(f => ({ ...f, address: v }))} placeholder={t('zonesAddressPlaceholder')} color={form.color} />
+                <ZField label={t('zonesAddress')} value={form.address} onChange={v => {
+                  setForm(f => ({ ...f, address: v }));
+                  setZoneCandidates([]);
+                  setSelectedZoneCandidate(null);
+                }} placeholder={t('zonesAddressPlaceholder')} color={form.color} />
+                {selectedZoneCandidate && (
+                  <View style={styles.zoneLocationPreview}>
+                    <Text style={[styles.fieldLabel, themed.textSecondary]}>{t('zonesConfirmLocation')}</Text>
+                    <Text style={[styles.locationAddress, themed.text]}>{selectedZoneCandidate.formattedAddress}</Text>
+                    <Text style={[styles.locationInstruction, themed.textSecondary]}>{t('zonesTapMapToAdjust')}</Text>
+                    <SafeMap
+                      style={styles.zonePreviewMap}
+                      initialRegion={{ latitude: selectedZoneCandidate.latitude, longitude: selectedZoneCandidate.longitude, latitudeDelta: 0.004, longitudeDelta: 0.004 }}
+                      markers={[{ id: 'zone-preview', latitude: selectedZoneCandidate.latitude, longitude: selectedZoneCandidate.longitude, label: 'Z', title: selectedZoneCandidate.formattedAddress, color: form.color || colors.primary }]}
+                      safeZones={[{ center: selectedZoneCandidate, radius: parseRadiusMeters(form.radius) || 100, color: form.color || colors.primary }]}
+                      onMapPress={({ latitude, longitude }) => setSelectedZoneCandidate(candidate => ({ ...candidate, latitude, longitude, manuallyPositioned: true }))}
+                    />
+                    {zoneCandidates.length > 1 && zoneCandidates.map(candidate => (
+                      <TouchableOpacity key={`${candidate.placeId}-${candidate.latitude}-${candidate.longitude}`} onPress={() => setSelectedZoneCandidate(candidate)} style={[styles.locationCandidate, { borderColor: colors.border }, candidate === selectedZoneCandidate && { borderColor: form.color || colors.primary }]}>
+                        <Text style={[styles.locationCandidateText, themed.text]}>{candidate.formattedAddress}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
                 
                 <View style={styles.formRow}>
                   <View style={styles.formHalf}>
@@ -729,7 +774,7 @@ export default function ZonesScreen() {
                   style={[styles.saveBtn, { backgroundColor: form.color || colors.primary }]}
                   contentStyle={styles.buttonContent}
                 >
-                  {editingZone ? t('zonesSave') : t('zonesCreate')}
+                  {selectedZoneCandidate ? t('zonesConfirmSaveLocation') : editingZone ? t('zonesSave') : t('zonesCreate')}
                 </Button>
               </View>
             </Surface>
@@ -875,7 +920,7 @@ const styles = StyleSheet.create({
   headerRow: { marginTop: 10, marginBottom: 14 },
   title: { fontSize: 22, fontWeight: 'bold', color: COLORS.TEXTO_GENERAL },
   subtitle: { fontSize: 13, color: COLORS.TEXTO_SECUNDARIO, marginTop: 4 },
-  headerBtn: { backgroundColor: COLORS.BLANCO, borderRadius: 8 },
+  headerBtn: { backgroundColor: COLORS.BLANCO, borderRadius: AppRadius.button },
   tabsContainer: { flexDirection: 'row', backgroundColor: COLORS.GRIS_BORDE, borderRadius: 10, padding: 4, marginBottom: 16 },
   tab: { flex: 1, minHeight: 42, justifyContent: 'center', alignItems: 'center', borderRadius: 8 },
   tabActive: { elevation: 3, shadowColor: COLORS.NEGRO, shadowOpacity: 0.16, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
@@ -883,7 +928,7 @@ const styles = StyleSheet.create({
   tabTextActive: { color: COLORS.PRIMARIO, fontWeight: 'bold' },
   actionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 12 },
   countText: { fontSize: 12, color: COLORS.TEXTO_SECUNDARIO },
-  addBtn: { backgroundColor: COLORS.ACENTO, minHeight: 40, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, justifyContent: 'center' },
+  addBtn: { backgroundColor: COLORS.ACENTO, minHeight: 40, paddingHorizontal: 14, paddingVertical: 8, borderRadius: AppRadius.button, justifyContent: 'center' },
   addBtnText: { color: COLORS.BLANCO, fontSize: 12, fontWeight: 'bold' },
   zonesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginBottom: 18 },
   zoneCard: { width: isWeb ? '48%' : '100%', backgroundColor: COLORS.BLANCO, borderRadius: 10, padding: 0, overflow: 'hidden', shadowColor: COLORS.NEGRO, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 2 },
@@ -896,7 +941,7 @@ const styles = StyleSheet.create({
   zoneLabel: { fontSize: 11, color: COLORS.TEXTO_SECUNDARIO, marginBottom: 2 },
   zoneValue: { fontSize: 13, color: COLORS.TEXTO_GENERAL, fontWeight: '500', marginBottom: 10 },
   zoneRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  routeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, padding: 14, borderBottomWidth: 1, borderColor: COLORS.GRIS_BORDE },
+  routeHeader: { flexGrow: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, padding: 14, borderBottomWidth: 1, borderColor: COLORS.GRIS_BORDE },
   routeName: { fontSize: 16, fontWeight: 'bold', color: COLORS.NEGRO },
   routeAssign: { fontSize: 11, color: COLORS.TEXTO_SECUNDARIO, marginTop: 2 },
   routeStatus: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0 },
@@ -909,11 +954,11 @@ const styles = StyleSheet.create({
   timelineLine: { flex: 1, height: 2, backgroundColor: COLORS.GRIS_BORDE, marginHorizontal: 8 },
   timelineText: { fontSize: 12, color: COLORS.NEGRO, marginHorizontal: 6, fontWeight: '500', flexShrink: 1 },
   zoneFooter: { flexDirection: 'row', padding: 14, gap: 10, paddingTop: 8 },
-  viewBtn: { flex: 1, minHeight: 40, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 5 },
+  viewBtn: { flex: 1, minHeight: 40, borderRadius: AppRadius.button, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 5 },
   viewBtnText: { fontWeight: '700', fontSize: 13 },
-  editBtn: { flex: 1, backgroundColor: COLORS.PRIMARIO, minHeight: 40, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  editBtn: { flex: 1, backgroundColor: COLORS.PRIMARIO, minHeight: 40, borderRadius: AppRadius.button, alignItems: 'center', justifyContent: 'center' },
   editBtnText: { color: COLORS.BLANCO, fontWeight: '600', fontSize: 13 },
-  deleteBtn: { flex: 1, backgroundColor: '#FDE2E2', minHeight: 40, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  deleteBtn: { flex: 1, backgroundColor: '#FDE2E2', minHeight: 40, borderRadius: AppRadius.button, alignItems: 'center', justifyContent: 'center' },
   deleteBtnText: { color: COLORS.ALERTA, fontWeight: '600', fontSize: 13 },
   mapCard: { height: isWeb ? 520 : 330, backgroundColor: COLORS.BLANCO, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.GRIS_BORDE },
   mapCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1 },
@@ -932,7 +977,7 @@ const styles = StyleSheet.create({
   deleteConfirmDelete: { flex: 1, minHeight: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7 },
   deleteConfirmDeleteText: { fontWeight: '700' },
   modalSheet: { backgroundColor: COLORS.BLANCO, borderRadius: 12, width: isWeb ? '90%' : '96%', maxWidth: 1020, height: isWeb ? '92%' : '92%', maxHeight: '94%', overflow: 'hidden' },
-  zoneModalSheet: { height: isWeb ? 470 : undefined, maxHeight: isWeb ? 470 : '92%' },
+    zoneModalSheet: { height: isWeb ? 720 : undefined, maxHeight: isWeb ? 720 : '92%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1 },
   modalTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.NEGRO },
   inputBox: { marginBottom: 16 },
@@ -942,18 +987,24 @@ const styles = StyleSheet.create({
   formHalf: { flex: 1 },
   fieldGroup: { marginBottom: 12 },
   fieldLabel: { fontSize: 13, color: COLORS.TEXTO_SECUNDARIO, marginBottom: 6, fontWeight: '500' },
+    zoneLocationPreview: { marginBottom: 14 },
+    locationAddress: { fontSize: 13, fontWeight: '600', marginBottom: 8 },
+    locationInstruction: { fontSize: 12, marginBottom: 8 },
+    zonePreviewMap: { height: 210, borderRadius: 8, overflow: 'hidden', marginBottom: 8 },
+    locationCandidate: { borderWidth: 1, borderRadius: AppRadius.button, padding: 10, marginTop: 6 },
+    locationCandidateText: { fontSize: 12 },
   input: { backgroundColor: COLORS.FONDO_PRINCIPAL, borderWidth: 1, borderColor: COLORS.GRIS_BORDE, borderRadius: 8, paddingHorizontal: 12, minHeight: 44, fontSize: 14, color: COLORS.TEXTO_GENERAL },
   typeSelector: { marginBottom: 12 },
   typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 5 },
-  typeChip: { minHeight: 34, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 18, borderWidth: 1, borderColor: COLORS.GRIS_BORDE, justifyContent: 'center' },
+  typeChip: { minHeight: 34, paddingHorizontal: 12, paddingVertical: 7, borderRadius: AppRadius.button, borderWidth: 1, borderColor: COLORS.GRIS_BORDE, justifyContent: 'center' },
   typeChipActive: { backgroundColor: COLORS.PRIMARIO, borderColor: COLORS.PRIMARIO },
   typeChipText: { fontSize: 11, color: COLORS.TEXTO_SECUNDARIO },
   typeChipTextActive: { color: COLORS.BLANCO, fontWeight: 'bold' },
   modalFooter: { flexDirection: 'row', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 10, paddingHorizontal: 20, paddingVertical: 10, borderTopWidth: 1, flexShrink: 0 },
-  cancelBtn: { flex: isWeb ? undefined : 1, minWidth: isWeb ? 110 : 0, minHeight: 44, paddingHorizontal: 20, borderRadius: 8, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
+  cancelBtn: { flex: isWeb ? undefined : 1, minWidth: isWeb ? 110 : 0, minHeight: 44, paddingHorizontal: 20, borderRadius: AppRadius.button, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
   cancelBtnText: { color: COLORS.TEXTO_SECUNDARIO, fontWeight: 'bold' },
-  deleteActionBtn: { flex: isWeb ? undefined : 1, minWidth: isWeb ? 110 : 0, minHeight: 44, paddingHorizontal: 18, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  saveBtn: { flex: isWeb ? undefined : 1, minHeight: 44, minWidth: isWeb ? 120 : 0, borderRadius: 8, justifyContent: 'center', backgroundColor: COLORS.PRIMARIO },
+  deleteActionBtn: { flex: isWeb ? undefined : 1, minWidth: isWeb ? 110 : 0, minHeight: 44, paddingHorizontal: 18, borderRadius: AppRadius.button, justifyContent: 'center', alignItems: 'center' },
+  saveBtn: { flex: isWeb ? undefined : 1, minHeight: 44, minWidth: isWeb ? 120 : 0, borderRadius: AppRadius.button, justifyContent: 'center', backgroundColor: COLORS.PRIMARIO },
   buttonContent: { minHeight: 44 },
   routeZonePicker: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
   routeModalSheet: { height: isWeb ? '90%' : '92%', maxHeight: '96%' },
@@ -974,7 +1025,7 @@ const styles = StyleSheet.create({
   routeZoneAction: { minHeight: 32, paddingHorizontal: 10, borderRadius: 6, justifyContent: 'center', backgroundColor: COLORS.ACENTO },
   routeZoneActionText: { color: COLORS.BLANCO, fontSize: 11, fontWeight: '700' },
   routePlannerControls: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 20, paddingTop: 10 },
-  routePlannerBtn: { minHeight: 36, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: COLORS.GRIS_BORDE, justifyContent: 'center' },
+  routePlannerBtn: { minHeight: 36, paddingHorizontal: 12, borderRadius: AppRadius.button, borderWidth: 1, borderColor: COLORS.GRIS_BORDE, justifyContent: 'center' },
   routePlannerBtnActive: { backgroundColor: COLORS.PRIMARIO, borderColor: COLORS.PRIMARIO },
   routePlannerBtnDisabled: { opacity: 0.45 },
   routePlannerBtnText: { color: COLORS.TEXTO_GENERAL, fontSize: 12, fontWeight: '600' },

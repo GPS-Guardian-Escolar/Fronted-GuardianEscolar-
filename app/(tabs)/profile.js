@@ -1,21 +1,26 @@
+import { AppRadius } from '../../theme/tokens';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
-import { Avatar, Button, Divider, IconButton, Surface, Switch, Text, TextInput } from 'react-native-paper';
+import { Avatar, Divider, Surface, Switch, Text, TextInput } from 'react-native-paper';
+import IconButton from '../../components/ui/PaperIconButton';
+import Button from '../../components/ui/PaperButton';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
+import { COLORS } from '../../constants/colors';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { authService } from '../../services/auth.service';
 import { notificationService } from '../../services/notification.service';
 import { SUPPORTED_LANGUAGES } from '../../translations';
 import { validateInputEdit, isValidEmail, isValidPersonName, isValidPhone, normalizePhoneDigits, passwordChecks } from '../../utils/validators';
+import { emitNotice } from '../../utils/noticeBus';
 
 function showProfileAlert(title, message) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    window.alert([title, message].filter(Boolean).join('\n\n'));
+    emitNotice(title, message, { tone: 'error' });
   } else {
     Alert.alert(title, message);
   }
@@ -349,7 +354,7 @@ export default function ProfileScreen() {
             </Button>
           </View>
           <View style={[styles.profileRow, !isWide && styles.profileRowMobile]}>
-            <Avatar.Text size={60} label={form.name.substring(0, 2).toUpperCase()} style={{ backgroundColor: colors.primary }} color={colors.textOnPrimary} />
+            <Avatar.Text size={60} label={form.name.substring(0, 2).toUpperCase()} style={{ backgroundColor: COLORS.PRIMARIO }} color={COLORS.TEXTO_CONTRASTE} />
             <View style={styles.profileInputs}>
               <ProfileField colors={colors} label={t('profileName')} value={form.name} editable={isEditing} onChangeText={name => {
                 if (!validateInputEdit(name, 'name', form.name)) { showProfileAlert(t('error'), t('inputNameBlocked')); return; }
@@ -593,12 +598,12 @@ const styles = StyleSheet.create({
   infoValueText: { fontSize: 13 },
   badgeGreen: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   badgeGreenText: { fontSize: 10, fontWeight: 'bold' },
-  logoutBtnRed: { marginTop: 10, borderRadius: 8, paddingVertical: 4 },
+  logoutBtnRed: { marginTop: 10, borderRadius: AppRadius.button, paddingVertical: 4 },
   modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalSheet: { borderRadius: 12, padding: 20, width: '100%', maxWidth: 460, borderWidth: 1 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottomWidth: 1, paddingBottom: 10 },
   modalTitle: { fontSize: 18, fontWeight: 'bold' },
-  modalButton: { borderRadius: 8, marginTop: 8 },
+  modalButton: { borderRadius: AppRadius.button, marginTop: 8 },
   modalError: { marginTop: 8, marginBottom: 4, fontSize: 13 },
   reqsBox: { borderRadius: 8, padding: 10, marginBottom: 12, borderWidth: 1 },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 },
@@ -606,7 +611,7 @@ const styles = StyleSheet.create({
   twoFAStatusBox: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1 },
   twoFAStatusTitle: { fontSize: 14, fontWeight: '700' },
   twoFAStatusSub: { fontSize: 12, marginTop: 2 },
-  twoFAMethodBtn: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 10, gap: 10 },
+  twoFAMethodBtn: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: AppRadius.button, padding: 12, marginBottom: 10, gap: 10 },
   twoFAMethodText: { fontSize: 13, fontWeight: '600' },
   languageOption: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 8, padding: 12, marginBottom: 10 },
   languageFlag: { fontSize: 20, marginRight: 10 },

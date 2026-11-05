@@ -28,7 +28,7 @@ export function useAuth() {
     try {
       setLoading(true)
       setError(null)
-      await authService.register(nombre, email, password)
+      await authService.register({ name: nombre, email, password })
       return true
     } catch (err) {
       setError(err.response?.data?.message || 'Error al registrarse')
@@ -42,7 +42,7 @@ export function useAuth() {
     try {
       setLoading(true)
       setError(null)
-      await authService.forgotPassword(email)
+      await authService.requestPasswordRecovery(email)
       return true
     } catch (err) {
       setError(err.response?.data?.message || 'Error al enviar el correo')

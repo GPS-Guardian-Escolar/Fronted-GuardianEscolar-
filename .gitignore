@@ -52,3 +52,9 @@ app-example
 # generated native folders
 /ios
 /android
+
+# generated mobile artifacts
+/public/*.apk
+
+# test coverage output
+/coverage/

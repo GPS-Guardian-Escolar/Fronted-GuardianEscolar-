@@ -1,26 +1,28 @@
-import { Button } from 'react-native-paper';
+import Button from '../../../components/ui/PaperButton';
 import { StyleSheet } from 'react-native';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { AppTouch } from '../../../theme/tokens';
 
-export default function TripControls({ status, loading, onStart, onFinish }) {
+export default function TripControls({ status, loading, onStart }) {
   const { theme } = useTheme();
   const colors = theme.colors;
-  const sharing = status === 'sharing';
+
+  // The student can start sharing, but only the guardian can finish a trip.
+  if (status === 'sharing') return null;
 
   return (
     <Button
       mode="contained"
-      buttonColor={sharing ? colors.error : colors.primary}
-      textColor={sharing ? (colors.onError || colors.textOnPrimary) : colors.textOnPrimary}
+      buttonColor={colors.primary}
+      textColor={colors.textOnPrimary}
       style={styles.button}
       loading={loading}
       disabled={loading}
-      onPress={sharing ? onFinish : onStart}
-      accessibilityLabel={sharing ? 'Finalizar compartir ubicación' : 'Iniciar compartir ubicación'}
-      accessibilityHint={sharing ? 'Detiene el envío de ubicación del trayecto escolar' : 'Solicita permisos e inicia el rastreo del trayecto escolar'}
+      onPress={onStart}
+      accessibilityLabel="Iniciar compartir ubicación"
+      accessibilityHint="Solicita permisos e inicia el rastreo del trayecto escolar"
     >
-      {sharing ? 'Finalizar trayecto' : 'Iniciar trayecto'}
+      Iniciar trayecto
     </Button>
   );
 }

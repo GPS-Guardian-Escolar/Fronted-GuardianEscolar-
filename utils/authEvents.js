@@ -1,4 +1,5 @@
 const listeners = new Set();
+const permissionListeners = new Set();
 const AUTH_EXPIRED_KEY = 'gps_guardian_auth_expired_event';
 
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
@@ -21,4 +22,13 @@ export const emitAuthExpired = () => {
       window.localStorage.setItem(AUTH_EXPIRED_KEY, `${Date.now()}-${Math.random()}`);
     } catch {}
   }
+};
+
+export const subscribePermissionDenied = (listener) => {
+  permissionListeners.add(listener);
+  return () => permissionListeners.delete(listener);
+};
+
+export const emitPermissionDenied = (details = {}) => {
+  permissionListeners.forEach((listener) => listener(details));
 };

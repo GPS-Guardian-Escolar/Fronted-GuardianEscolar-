@@ -1,16 +1,17 @@
 import { lightColors } from '../theme/tokens'
+import { palette } from '../theme/colors'
 
 export const COLORS = {
   primary: lightColors.primary,
-  secondary: '#0D47A1',
-  accent: '#42A5F5',
+  secondary: palette.blue900,
+  accent: palette.blue700,
   danger: lightColors.error,
-  warning: '#FB8C00',
-  success: '#43A047',
+  warning: '#1A4F8A',
+  success: palette.green500,
   white: lightColors.surface,
   black: '#000000',
   gray: lightColors.muted,
-  lightGray: '#F5F5F5',
+  lightGray: palette.slate100,
   background: lightColors.background,
 }
 

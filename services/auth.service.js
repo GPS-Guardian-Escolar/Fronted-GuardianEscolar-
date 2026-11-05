@@ -2,6 +2,7 @@ import api from './api';
 import { storage } from '../utils/storage';
 import { getAuthDeviceInfo } from '../utils/deviceIdentity';
 import { isValidEmail } from '../utils/validators';
+import { ENDPOINTS } from '../config/endpoints';
 
 const RECOVERY_GENERIC_MESSAGE = 'If an account exists, we sent password recovery instructions.';
 const DEVICE_CONFIRMATION_REQUIRED = 'DEVICE_CONFIRMATION_REQUIRED';
@@ -105,7 +106,7 @@ export const authService = {
   login: async (email, password) => {
     try {
       const deviceInfo = await getAuthDeviceInfo();
-      const response = await api.post('/auth/login', {
+      const response = await api.post(ENDPOINTS.LOGIN, {
         email: email.trim().toLowerCase(),
         password,
         ...deviceInfo,
@@ -135,7 +136,7 @@ export const authService = {
 
   register: async ({ name, email, password, phone, acceptedTerms, termsVersion }) => {
     try {
-      const response = await api.post('/auth/register', {
+      const response = await api.post(ENDPOINTS.REGISTER, {
         fullName: name.trim(),
         email: email.trim().toLowerCase(),
         phone: phone?.trim() || '',
@@ -144,7 +145,9 @@ export const authService = {
         termsVersion,
         returnUrl: getAuthReturnUrl('/login'),
       });
-      return normalizeAuthResponse(response.data);
+      // Registration only creates a pending account. Never persist a JWT returned
+      // by the API until the user verifies the email and explicitly signs in.
+      return { success: true, message: response.data?.message || response.data?.mensaje || '' };
     } catch (error) {
       throw new Error(getApiErrorMessage(error, 'No se pudo crear la cuenta.'));
     }
@@ -157,7 +160,7 @@ export const authService = {
     }
 
     try {
-      const response = await api.post('/auth/password/forgot', { email });
+      const response = await api.post(ENDPOINTS.FORGOT_PASSWORD, { email });
       return { success: true, message: response.data?.message || response.data?.mensaje || RECOVERY_GENERIC_MESSAGE };
     } catch (error) {
       throw new Error(getApiErrorMessage(error, RECOVERY_GENERIC_MESSAGE));
@@ -166,7 +169,7 @@ export const authService = {
 
   resetPasswordWithToken: async (token, newPassword) => {
     try {
-      const response = await api.post('/auth/password/reset', {
+      const response = await api.post(ENDPOINTS.RESET_PASSWORD, {
         token,
         newPassword,
       });
@@ -178,7 +181,7 @@ export const authService = {
 
   verifyEmailWithToken: async (token) => {
     try {
-      const response = await api.get('/auth/verify-email', {
+      const response = await api.get(ENDPOINTS.VERIFY_EMAIL, {
         params: { token },
         skipAuth: true,
       });
@@ -190,7 +193,7 @@ export const authService = {
 
   confirmLoginWithToken: async (token) => {
     try {
-      const response = await api.get('/auth/confirm-login', {
+      const response = await api.get(ENDPOINTS.CONFIRM_LOGIN, {
         params: { token },
         skipAuth: true,
       });
@@ -202,7 +205,7 @@ export const authService = {
 
   getCurrentUser: async () => {
     try {
-      const response = await api.get('/auth/me');
+      const response = await api.get(ENDPOINTS.ME);
       const user = normalizeBackendUser(response.data);
       await storage.setUser(user);
       return user;
@@ -213,7 +216,7 @@ export const authService = {
 
   updatePassword: async (_email, currentPassword, newPassword) => {
     try {
-      const response = await api.put('/auth/password', {
+      const response = await api.put(ENDPOINTS.PASSWORD, {
         currentPassword,
         newPassword,
       });
@@ -232,7 +235,7 @@ export const authService = {
 
   updateEmail: async (_email, currentPassword, newEmail) => {
     try {
-      const response = await api.put('/auth/email', {
+      const response = await api.put(ENDPOINTS.EMAIL, {
         currentPassword,
         newEmail: newEmail.trim().toLowerCase(),
       });
@@ -246,7 +249,7 @@ export const authService = {
 
   updateProfile: async (_email, newName, newPhone) => {
     try {
-      const response = await api.put('/auth/profile', {
+      const response = await api.put(ENDPOINTS.PROFILE, {
         fullName: newName.trim(),
         phone: newPhone?.trim() || '',
       });
@@ -264,7 +267,7 @@ export const authService = {
 
   request2FACode: async (method) => {
     try {
-      const response = await api.post('/auth/2fa/request', { method });
+      const response = await api.post(ENDPOINTS.TWO_FACTOR_REQUEST, { method });
       return {
         success: true,
         message: response.data?.message || response.data?.mensaje || 'Code sent.',
@@ -279,7 +282,7 @@ export const authService = {
   verify2FA: async (token, code, method) => {
     try {
       const deviceInfo = await getAuthDeviceInfo();
-      const response = await api.post('/auth/2fa/verify', {
+      const response = await api.post(ENDPOINTS.TWO_FACTOR_VERIFY, {
         token,
         code,
         method,
@@ -300,7 +303,7 @@ export const authService = {
 
   resend2FA: async (token) => {
     try {
-      const response = await api.post('/auth/2fa/resend', { token });
+      const response = await api.post(ENDPOINTS.TWO_FACTOR_RESEND, { token });
       return {
         success: true,
         message: response.data?.message || response.data?.mensaje || 'Código reenviado.',
@@ -314,7 +317,7 @@ export const authService = {
 
   disable2FA: async (currentPassword) => {
     try {
-      const response = await api.post('/auth/2fa/disable', {
+      const response = await api.post(ENDPOINTS.TWO_FACTOR_DISABLE, {
         currentPassword,
       });
       return normalizeBackendUser(response.data);
@@ -342,7 +345,13 @@ export const authService = {
   getRecoverySession: async () => null,
 
   logout: async () => {
-    await storage.clearAll();
+    try {
+      await api.post(ENDPOINTS.LOGOUT);
+    } catch (error) {
+      console.warn('No se pudo revocar la sesion en el servidor:', error?.message || error);
+    } finally {
+      await storage.clearAll();
+    }
   },
 
   refreshToken: async () => {

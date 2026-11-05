@@ -1,7 +1,10 @@
+import { AppRadius } from '../../theme/tokens';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
-import { Button, IconButton, Text, TextInput } from 'react-native-paper';
+import { Text, TextInput } from 'react-native-paper';
+import IconButton from '../ui/PaperIconButton';
+import Button from '../ui/PaperButton';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 
@@ -232,7 +235,7 @@ const styles = StyleSheet.create({
   trigger: {
     minHeight: 45,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: AppRadius.button,
     paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -280,7 +283,7 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: AppRadius.button,
   },
   selectorPanel: {
     paddingBottom: 4,
@@ -301,7 +304,7 @@ const styles = StyleSheet.create({
     width: '31.8%',
     minHeight: 36,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: AppRadius.button,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -326,7 +329,7 @@ const styles = StyleSheet.create({
     width: '31.8%',
     minHeight: 36,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: AppRadius.button,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 8,
@@ -357,7 +360,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 24,
+    borderRadius: AppRadius.button,
   },
   dayText: {
     fontSize: 13,
