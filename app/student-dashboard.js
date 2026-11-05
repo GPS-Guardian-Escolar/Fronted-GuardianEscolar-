@@ -24,7 +24,7 @@ import {
   stopBackgroundUpdates,
 } from '../services/background/locationTracking';
 import { BASE_URL } from '../config/endpoints';
-import { showPlatformConfirm, showPlatformNotice } from '../utils/noticeBus';
+import { showPlatformNotice } from '../utils/noticeBus';
 import { AppRadius, AppTypography } from '../theme/tokens';
 import { trackingErrorMessage } from '../features/child/trackingErrors';
 import PermissionGate from '../features/child/components/PermissionGate';
@@ -304,18 +304,7 @@ export default function StudentDashboardScreen() {
       try {
         await startBackgroundUpdates(tripId);
       } catch (locationError) {
-        if (createdTrip) {
-          try {
-            await trackingService.updateStatus(tripId, {
-              status: 'CANCELED',
-              tripEndedAt: new Date().toISOString(),
-            }, { childToken: session.childToken });
-            await stopBackgroundUpdates();
-            setActiveTripId('');
-          } catch (statusError) {
-            console.warn('No se pudo cancelar el trayecto tras rechazar la ubicación:', statusError?.message || statusError);
-          }
-        }
+        if (createdTrip) console.warn('El trayecto recién creado quedó disponible para gestión del acudiente tras fallar el inicio del rastreo.');
         throw locationError;
       }
       const result = await flushQueue();
@@ -330,41 +319,6 @@ export default function StudentDashboardScreen() {
       trackingOperation.current = false;
       setTrackingLoading(false);
     }
-  };
-
-  const finishTracking = async () => {
-    setTrackingLoading(true);
-    try {
-      await stopBackgroundUpdates({ preserveTrip: true });
-      const result = await flushQueue();
-      if (result.remaining > 0) throw new Error(t('trackingPendingLocations'));
-      if (activeTripId) {
-        await trackingService.updateStatus(activeTripId, {
-          status: 'COMPLETED',
-          tripEndedAt: new Date().toISOString(),
-        }, { childToken: (await getChildSession()).childToken });
-      }
-      await stopBackgroundUpdates();
-      setSentCount(count => count + result.sent);
-      setQueueSize(result.remaining);
-      setActiveTripId('');
-      setTrackingStatus('paused');
-    } catch (error) {
-      showPlatformNotice(t('error'), error.message || t('studentStopTrackingError'), { tone: 'error' });
-    } finally {
-      setTrackingLoading(false);
-    }
-  };
-
-  const confirmFinishTracking = () => {
-    showPlatformConfirm(
-      t('studentFinishTrip'),
-      t('studentConfirmFinishTrip'),
-      [
-        { text: t('cancel'), style: 'cancel' },
-        { text: t('studentFinishTrip'), style: 'destructive', onPress: finishTracking },
-      ]
-    );
   };
 
   const callEmergencyContact = async () => {
@@ -441,7 +395,6 @@ export default function StudentDashboardScreen() {
               status={trackingStatus}
               loading={trackingLoading}
               onStart={handleStartTracking}
-              onFinish={confirmFinishTracking}
             />
           )}{/* Card 1: Mi Información */}
           <Surface style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]} elevation={2}>

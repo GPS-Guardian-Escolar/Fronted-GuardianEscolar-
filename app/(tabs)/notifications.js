@@ -7,9 +7,7 @@ import {
   TouchableOpacity,
   Text as RNText,
   Dimensions,
-  Alert,
   RefreshControl,
-  Platform
 } from 'react-native';
 import { COLORS } from '../../constants/colors';
 import { useFocusEffect } from 'expo-router';
@@ -122,19 +120,13 @@ export default function NotificationsScreen() {
   if (loadError) return <AppError message="No se pudieron cargar las notificaciones." onRetry={loadNotifications} />;
 
   function confirmDeleteNotif(item) {
-    if (Platform.OS === 'web') {
-      const confirmed = window.confirm(t('delete') + '?');
-      if (confirmed) {
-        (async () => {
-          const isRemoteReceipt = item.receiptId && !String(item.receiptId).startsWith('notif-');
-          if (isRemoteReceipt) await notificationService.deleteNotification(item.receiptId);
-          else await deleteNotification(item.id);
-          await deleteHistory(item.id);
-          setNotifications(prev => prev.filter(n => n.id !== item.id));
-        })();
-      }
-      return;
-    }
+    const removeNotification = async () => {
+      const isRemoteReceipt = item.receiptId && !String(item.receiptId).startsWith('notif-');
+      if (isRemoteReceipt) await notificationService.deleteNotification(item.receiptId);
+      else await deleteNotification(item.id);
+      await deleteHistory(item.id);
+      setNotifications(prev => prev.filter(n => n.id !== item.id));
+    };
 
     showPlatformConfirm(
       t('delete'),
@@ -144,13 +136,7 @@ export default function NotificationsScreen() {
         { 
           text: t('delete'), 
           style: 'destructive',
-          onPress: async () => {
-            const isRemoteReceipt = item.receiptId && !String(item.receiptId).startsWith('notif-');
-            if (isRemoteReceipt) await notificationService.deleteNotification(item.receiptId);
-            else await deleteNotification(item.id);
-            await deleteHistory(item.id);
-            setNotifications(prev => prev.filter(n => n.id !== item.id));
-          }
+          onPress: removeNotification
         }
       ]
     );

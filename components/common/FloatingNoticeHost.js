@@ -21,7 +21,8 @@ export default function FloatingNoticeHost() {
   useEffect(() => subscribeNotice((nextNotice) => {
     if (timerRef.current) clearTimeout(timerRef.current);
     setNotice(nextNotice);
-    timerRef.current = setTimeout(() => setNotice(null), nextNotice.duration);
+    const isConfirm = nextNotice.title === '__confirm__' && nextNotice.message?.confirm;
+    timerRef.current = isConfirm ? null : setTimeout(() => setNotice(null), nextNotice.duration);
   }), []);
 
   useEffect(() => () => {
