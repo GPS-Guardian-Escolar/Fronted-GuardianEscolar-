@@ -238,6 +238,7 @@ export const ENDPOINTS = {
 
   TRIPS: '/trips',
   TRIP_BY_ID: (id) => `/trips/${id}`,
+  TRIP_FINISH: (id) => `/trips/${id}/finish`,
   TRIP_COORDINATES: (id) => `/trips/${id}/coordinates`,
 
   NOTIFICATIONS: '/notifications',

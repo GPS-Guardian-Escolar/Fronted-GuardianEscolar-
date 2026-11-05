@@ -93,4 +93,10 @@ describe('trackingService.startOrResumeTrip', () => {
     await expect(trackingService.deleteTrip('trip-7')).resolves.toBeUndefined();
     expect(api.delete).toHaveBeenCalledWith('/trips/trip-7');
   });
+
+  it('finishes a trip through the guardian-only lifecycle endpoint', async () => {
+    api.patch.mockResolvedValue({ data: { id: 'trip-8', status: 'COMPLETED' } });
+    await expect(trackingService.finishTrip('trip-8')).resolves.toEqual({ id: 'trip-8', status: 'COMPLETED' });
+    expect(api.patch).toHaveBeenCalledWith('/trips/trip-8/finish');
+  });
 });

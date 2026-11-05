@@ -59,6 +59,7 @@ export default function NotificationsScreen() {
       .replace(/ entered safe zone /gi, ' ingresó a la zona segura ')
       .replace(/ left safe zone /gi, ' salió de la zona segura ')
       .replace(/Trip started for /gi, 'Se inició el trayecto de ')
+      .replace(/Trip finished for /gi, 'Finalizó el trayecto de ')
       .replace(/Long inactivity detected during (.+)'s trip/gi, 'Se detectó inactividad prolongada durante el trayecto de $1')
       .replace(/Possible route deviation detected for /gi, 'Se detectó un posible desvío de ruta para ');
     const tipo = String(item.tipo || item.type || '').toUpperCase();

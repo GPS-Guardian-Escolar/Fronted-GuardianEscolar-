@@ -47,6 +47,7 @@ const RECENT_ALERT_TRANSLATION_KEYS = {
   SAFE_ZONE_ENTRY: 'trackAlertSafeZoneEntry',
   SAFE_ZONE_EXIT: 'trackAlertSafeZoneExit',
   TRIP_STARTED: 'trackAlertTripStarted',
+  TRIP_FINISHED: 'trackAlertTripFinished',
   LOCATION_UNAVAILABLE: 'trackAlertLocationUnavailable',
   LOCATION_STOPPED: 'trackAlertLocationStopped',
 };
@@ -333,6 +334,20 @@ export default function TrackingScreen() {
     ),
   });
 
+  const finishActiveTrip = async () => {
+    if (!activeTrip?.id) return;
+    try {
+      await trackingService.finishTrip(activeTrip.id);
+      showPlatformNotice(t('trackTripFinished'), t('trackTripFinishedDetail'), { tone: 'success' });
+      setActiveTrip(null);
+      setLocation(null);
+      setJourneyCoordinates([]);
+      await refreshLocation(false, false);
+    } catch (error) {
+      showPlatformNotice(t('error'), error?.response?.data?.message || t('trackTripFinishFailed'), { tone: 'error' });
+    }
+  };
+
   return (
     <View style={[styles.container, themed.screen]}>
       <ScrollView contentContainerStyle={[styles.scrollContent, isWeb && styles.scrollContentWeb]}>
@@ -521,6 +536,17 @@ export default function TrackingScreen() {
 
         {/* Botones de Acción */}
         <View style={styles.actionButtons}>
+          {activeTrip?.status === 'IN_PROGRESS' && (
+            <Button
+              mode="contained"
+              style={styles.finishBtn}
+              buttonColor={colors.error}
+              onPress={finishActiveTrip}
+              contentStyle={styles.btnContent}
+            >
+              {t('trackFinishTrip')}
+            </Button>
+          )}
           <Button 
             mode="outlined" 
             style={[styles.historyBtn, { borderColor: colors.primary, backgroundColor: colors.surfaceSecondary }]} 
@@ -599,6 +625,7 @@ const styles = StyleSheet.create({
   actionButtons: { flexDirection: 'row', gap: 12, marginTop: 8 },
   historyBtn: { flex: 1, borderRadius: AppRadius.button, borderColor: COLORS.PRIMARIO, borderWidth: 1, backgroundColor: COLORS.PRIMARIO_CLARO },
   routeBtn: { flex: 1, borderRadius: AppRadius.button },
+  finishBtn: { flex: 1, borderRadius: AppRadius.button },
   btnContent: { height: 48 },
 });
 
