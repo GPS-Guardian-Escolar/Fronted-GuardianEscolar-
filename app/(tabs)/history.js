@@ -15,7 +15,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { deleteHistory, deleteNotification, getHistory } from '../../utils/studentStorage';
 import { trackingService } from '../../services/tracking.service';
 import { notificationService } from '../../services/notification.service';
-import { getHistoryStatusKind, matchesHistoryStatus, toLocalDateKey } from '../../utils/tripHistory';
+import { getHistoryObservationKey, getHistoryStatusKind, hasTrackingIncident, matchesHistoryStatus, toLocalDateKey } from '../../utils/tripHistory';
 import AppError from '../../components/ui/AppError';
 import AppLoading from '../../components/ui/AppLoading';
 import { showPlatformConfirm, showPlatformNotice } from '../../utils/noticeBus';
@@ -37,12 +37,16 @@ function formatTripTime(value, lang = 'es') {
 function normalizeTrip(trip, notifications = [], lang = 'es') {
   const status = String(trip.status || '').toUpperCase();
   const tripEvents = notifications.filter(notification => String(notification.tripId) === String(trip.id));
-  const alerta = Boolean(trip.hadDeviation)
-    || tripEvents.some(notification => notification.eventType === 'ROUTE_DEVIATION');
+  const alerta = hasTrackingIncident(trip, tripEvents);
+  const incidentEventType = tripEvents.find(notification => [
+    'LOCATION_UNAVAILABLE', 'LOCATION_STOPPED', 'SAFE_ZONE_EXIT', 'ROUTE_DEVIATION',
+  ].includes(String(notification.eventType || '').toUpperCase()))?.eventType
+    || (trip.hadDeviation ? 'ROUTE_DEVIATION' : null);
   const advertencia = tripEvents.some(notification => notification.eventType === 'INACTIVITY');
   return {
     id: `trip-${trip.id}`,
     backendId: trip.id,
+    events: [...tripEvents].sort((a, b) => new Date(b.eventDateTime || b.receivedAt) - new Date(a.eventDateTime || a.receivedAt)),
     estudiante: trip.student || 'Estudiante',
     fecha: formatTripDate(trip.tripStartedAt, lang),
     fechaKey: toLocalDateKey(trip.tripStartedAt),
@@ -51,8 +55,35 @@ function normalizeTrip(trip, notifications = [], lang = 'es') {
     ruta: trip.route || 'Ruta asignada',
     estado: status === 'IN_PROGRESS' ? 'En Proceso' : status === 'COMPLETED' ? 'Completado' : status === 'CANCELED' ? 'Cancelado' : 'Pendiente',
     alerta,
+    incidentEventType,
     advertencia: !alerta && advertencia,
     duracion: trip.tripStartedAt && trip.tripEndedAt ? Math.max(0, Math.round((new Date(trip.tripEndedAt) - new Date(trip.tripStartedAt)) / 60000)) : 0,
+    sortTimestamp: new Date(trip.tripStartedAt || 0).getTime(),
+  };
+}
+
+function normalizeDeviceLinkedEvent(event, index, lang, t) {
+  const message = event.message || event.mensaje || t('studentPhoneLinked');
+  const nameMatch = String(message).match(/(?:celular|tel.?fono) de\s+(.+?)\s+qued.?\s+vinculado/i);
+  const eventTime = event.eventDateTime || event.receivedAt;
+  const receiptId = event.receiptId || event.id || event.notificationId || `device-linked-${index}`;
+  return {
+    id: `device-linked-${receiptId}`,
+    rowType: 'event',
+    event,
+    eventType: 'DEVICE_LINKED',
+    message,
+    estudiante: nameMatch?.[1]?.trim() || t('studentLabel'),
+    fecha: formatTripDate(eventTime, lang),
+    fechaKey: toLocalDateKey(eventTime),
+    sortTimestamp: new Date(eventTime || 0).getTime(),
+    horaInicio: formatTripTime(eventTime, lang),
+    horaFin: '--',
+    ruta: t('histNoTripYet'),
+    estado: 'Informativo',
+    alerta: false,
+    advertencia: false,
+    backendId: null,
   };
 }
 
@@ -83,19 +114,25 @@ export default function HistoryScreen() {
         trackingService.listTrips(),
         notificationService.listNotifications(),
       ]);
-      const remoteHistory = (trips || []).map(trip => normalizeTrip(trip, notifications || [], lang));
+      const remoteHistory = (trips || [])
+        .filter(trip => String(trip.status || '').toUpperCase() !== 'PENDING')
+        .map(trip => normalizeTrip(trip, notifications || [], lang));
       const remoteIds = new Set(remoteHistory.map(item => item.backendId));
       const localOnly = storedHistory.filter(item => !item.backendId && !remoteIds.has(item.id));
-      setHistory([...remoteHistory, ...localOnly]);
+      const linkedDeviceEvents = (notifications || [])
+        .filter(event => String(event.eventType || event.event_type || '').toUpperCase() === 'DEVICE_LINKED'
+          && !event.tripId)
+        .map((event, index) => normalizeDeviceLinkedEvent(event, index, lang, t));
+      setHistory([...remoteHistory, ...linkedDeviceEvents, ...localOnly]);
     } catch (error) {
-      setLoadError(error);
+      if (!silent) setLoadError(error);
     } finally {
       if (!silent) {
         setRefreshing(false);
         setLoading(false);
       }
     }
-  }, [lang]);
+  }, [lang, t]);
 
   useFocusEffect(useCallback(() => {
     loadData();
@@ -105,6 +142,37 @@ export default function HistoryScreen() {
 
   if (loading) return <AppLoading message="Cargando historial..." />;
   if (loadError) return <AppError message="No se pudo cargar el historial." onRetry={loadData} />;
+
+  const historyRows = history.flatMap(item => item.rowType === 'event' ? [item] : [
+    { ...item, rowType: 'trip' },
+    ...(item.events || []).map((event, index) => {
+      const eventType = String(event.eventType || event.event_type || '').toUpperCase();
+      const eventTime = event.eventDateTime || event.receivedAt;
+      const isIncident = ['DELAY', 'INACTIVITY', 'ROUTE_DEVIATION', 'SAFE_ZONE_EXIT', 'LOCATION_UNAVAILABLE', 'LOCATION_STOPPED'].includes(eventType);
+      const status = eventType === 'TRIP_COMPLETED' ? 'Completado'
+        : eventType === 'TRIP_STARTED' ? 'En Proceso'
+          : isIncident ? 'Con Incidente' : t('notifDetail');
+      const eventId = event.receiptId || event.id || event.notificationId || `${item.id}-event-${index}`;
+      return {
+        id: `event-${item.backendId || item.id}-${eventId}`,
+        rowType: 'event',
+        event,
+        eventType,
+        message: event.message || t('notifDetail'),
+        estudiante: item.estudiante,
+        fecha: formatTripDate(eventTime, lang),
+        fechaKey: toLocalDateKey(eventTime),
+        sortTimestamp: new Date(eventTime || 0).getTime(),
+        horaInicio: formatTripTime(eventTime, lang),
+        horaFin: '--',
+        ruta: item.ruta,
+        estado: status,
+        alerta: isIncident,
+        advertencia: false,
+        backendId: null,
+      };
+    }),
+  ]).sort((a, b) => (b.sortTimestamp || 0) - (a.sortTimestamp || 0));
 
   function confirmDeleteHistory(item) {
     const removeItem = async () => {
@@ -127,15 +195,36 @@ export default function HistoryScreen() {
     ]);
   }
 
+  function confirmDeleteEvent(event) {
+    const receiptId = event.receiptId || event.id;
+    if (!receiptId) return;
+    showPlatformConfirm(t('delete'), t('delete') + '?', [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('delete'),
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await notificationService.deleteNotification(receiptId);
+            await loadData();
+          } catch (error) {
+            showPlatformNotice(t('error'), error?.response?.data?.message || 'No se pudo eliminar la notificación.', { tone: 'error' });
+          }
+        },
+      },
+    ]);
+  }
+
   const stats = {
-    total: history.length,
-    completados: history.filter(item => item.estado === 'Completado').length,
-    incidentes: history.filter(item => (item.alerta && !item.advertencia) || item.estado === 'Con Incidente').length,
-    enProceso: history.filter(item => item.estado === 'En Proceso').length,
+    total: historyRows.length,
+    completados: historyRows.filter(item => getHistoryStatusKind(item) === 'completed').length,
+    incidentes: historyRows.filter(item => getHistoryStatusKind(item) === 'incident').length,
+    enProceso: historyRows.filter(item => getHistoryStatusKind(item) === 'inProgress').length,
+    informativos: historyRows.filter(item => getHistoryStatusKind(item) === 'informational').length,
     horas: history.reduce((acc, item) => acc + (parseInt(item.duracion, 10) || 0), 0) / 60,
   };
 
-  const filteredHistory = history.filter((item) => {
+  const filteredHistory = historyRows.filter((item) => {
     const matchesStudent = !filterStudent || item.estudiante.toLowerCase().includes(filterStudent.toLowerCase());
     const matchesDate = !filterDate || item.fechaKey === filterDate;
     const matchesStatus = matchesHistoryStatus(item, statusFilter);
@@ -147,6 +236,7 @@ export default function HistoryScreen() {
     if (kind === 'incident') return t('histIncident');
     if (kind === 'inProgress') return t('histInProcess');
     if (kind === 'completed') return t('histCompleted');
+    if (kind === 'informational') return t('histInformational');
     return item.estado;
   };
 
@@ -155,6 +245,7 @@ export default function HistoryScreen() {
     if (kind === 'inProgress') return colors.primary;
     if (kind === 'completed') return colors.accent;
     if (kind === 'incident') return colors.error;
+    if (kind === 'informational') return colors.primary;
     if (item.advertencia) return colors.warning;
     return colors.textSecondary;
   };
@@ -171,7 +262,7 @@ export default function HistoryScreen() {
     const activeFilters = [
       [t('tabStudent'), filterStudent || t('histFilterAll')],
       [t('histDate'), filterDate || t('histFilterAll')],
-      [t('histStatus'), statusFilter === 'all' ? t('histFilterAll') : statusFilter === 'En Proceso' ? t('histInProcess') : statusFilter === 'Completado' ? t('histCompleted') : t('histIncident')],
+      [t('histStatus'), statusFilter === 'all' ? t('histFilterAll') : statusFilter === 'En Proceso' ? t('histInProcess') : statusFilter === 'Completado' ? t('histCompleted') : statusFilter === 'Informativo' ? t('histInformational') : t('histIncident')],
     ];
     const rows = filteredHistory.map((item) => `
       <tr>
@@ -180,7 +271,7 @@ export default function HistoryScreen() {
         <td>${escapeHtml(item.horaInicio)}${item.horaFin && item.horaFin !== '--' ? ` - ${escapeHtml(item.horaFin)}` : ''}</td>
         <td>${escapeHtml(item.ruta)}</td>
         <td><span class="status">${escapeHtml(getDisplayedStatus(item))}</span></td>
-        <td>${escapeHtml(item.alerta ? t('histObsAlert') : item.advertencia ? t('histObsInactivity') : t('histObsNormal'))}</td>
+        <td>${escapeHtml(item.rowType === 'event' ? item.message : t(getHistoryObservationKey(item)))}</td>
       </tr>
     `).join('');
 
@@ -228,6 +319,7 @@ export default function HistoryScreen() {
           <div class="card"><div class="metric">${stats.completados}</div><div class="label">${escapeHtml(t('histCompleted'))}</div></div>
           <div class="card"><div class="metric">${stats.enProceso}</div><div class="label">${escapeHtml(t('histInProcess'))}</div></div>
           <div class="card"><div class="metric">${stats.incidentes}</div><div class="label">${escapeHtml(t('histIncident'))}</div></div>
+          <div class="card"><div class="metric">${stats.informativos}</div><div class="label">${escapeHtml(t('histInformational'))}</div></div>
         </section>
 
         <section class="filters">
@@ -316,6 +408,34 @@ export default function HistoryScreen() {
 
   const renderHistoryItem = (item) => {
     const statusColor = getStatusColor(item);
+    if (item.rowType === 'event') {
+      return (
+        <Surface key={item.id} style={[styles.historyCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: statusColor }]} elevation={1}>
+          <View style={styles.cardHeader}>
+            <Avatar.Text size={44} label={item.estudiante.substring(0, 2).toUpperCase()} style={{ backgroundColor: COLORS.PRIMARIO }} color={COLORS.TEXTO_CONTRASTE} />
+            <View style={styles.headerInfo}>
+              <Text style={[styles.itemName, { color: colors.text }]}>{item.estudiante}</Text>
+              <Text style={[styles.itemDate, { color: colors.textSecondary }]}>{item.fecha}</Text>
+            </View>
+            {(item.event?.receiptId || item.event?.id) && (
+              <IconButton icon="trash-can-outline" size={18} containerColor={colors.surfaceSecondary} iconColor={colors.error} onPress={() => confirmDeleteEvent(item.event)} />
+            )}
+          </View>
+
+          <View style={[styles.detailsGrid, { backgroundColor: colors.surfaceSecondary }]}>
+            <Detail label={t('histRegTime')} value={item.horaInicio} />
+            <View style={styles.detailItem}>
+              <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>{t('histStatus')}</Text>
+              <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
+                <Text style={[styles.statusBadgeText, { color: statusColor }]}>{getDisplayedStatus(item)}</Text>
+              </View>
+            </View>
+            <Detail label={t('histObservation')} value={item.message} danger={item.alerta} />
+            <Detail label={t('histRoute')} value={item.ruta} />
+          </View>
+        </Surface>
+      );
+    }
     return (
       <Surface key={item.id} style={[styles.historyCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: statusColor }]} elevation={1}>
         <View style={styles.cardHeader}>
@@ -334,12 +454,17 @@ export default function HistoryScreen() {
             <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
               <Text style={[styles.statusBadgeText, { color: statusColor }]}>{getDisplayedStatus(item)}</Text>
             </View>
+            {item.estado === 'En Proceso' && item.alerta && !item.events?.length && (
+              <Text style={[styles.detailValue, { color: colors.error, marginTop: 4 }]}>
+                {t('histActiveIncidentHint')}
+              </Text>
+            )}
           </View>
           <Detail
             label={t('histObservation')}
-            value={item.alerta ? t('histObsAlert') : item.advertencia ? t('histObsInactivity') : t('histObsNormal')}
-            danger={item.alerta}
-            warning={item.advertencia}
+            value={t(getHistoryObservationKey(item))}
+            danger={item.alerta && !item.events?.length}
+            warning={item.advertencia && !item.events?.length}
           />
           <Detail label={t('histRoute')} value={item.ruta} />
         </View>
@@ -401,6 +526,7 @@ export default function HistoryScreen() {
           <StatCard title={t('histFilterCompleted')} value={stats.completados} icon="check-circle" color={colors.accent} type="Completado" />
           <StatCard title={t('histInProcess')} value={stats.enProceso} icon="bus-clock" color={colors.primary} type="En Proceso" />
           <StatCard title={t('histFilterIncident')} value={stats.incidentes} icon="alert-circle" color={colors.error} type="Con Incidente" />
+          <StatCard title={t('histInformational')} value={stats.informativos} icon="information" color={colors.primary} type="Informativo" />
         </View>
 
         <View style={styles.listContainer}>

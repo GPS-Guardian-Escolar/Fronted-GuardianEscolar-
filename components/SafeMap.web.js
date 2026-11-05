@@ -62,6 +62,7 @@ export default function SafeMap({
   const resizeObserverRef = useRef(null);
   const overlaysRef = useRef([]);
   const [error, setError] = useState('');
+  const [mapReady, setMapReady] = useState(false);
   const region = useMemo(() => normalizeRegion(initialRegion, currentLocation, markers), [initialRegion, currentLocation, markers]);
   const normalizedMarkers = useMemo(() => normalizeMarkers(markers, primaryColor), [markers, primaryColor]);
   const route = useMemo(() => normalizeRoute(coordinates), [coordinates]);
@@ -82,6 +83,7 @@ export default function SafeMap({
           streetViewControl: false,
           fullscreenControl: false,
         });
+        setMapReady(true);
         if (onMapPress) mapRef.current.addListener('click', event => onMapPress({ latitude: event.latLng.lat(), longitude: event.latLng.lng() }));
       })
       .catch((loadError) => {
@@ -206,7 +208,7 @@ export default function SafeMap({
     if (fitPoints.length && !currentCoordinate) {
       mapRef.current.fitBounds(bounds, 48);
     }
-  }, [currentCoordinate, normalizedMarkers, route, routes, journey, showRoute, zones, primaryColor, routeColor, journeyColor]);
+  }, [mapReady, currentCoordinate, normalizedMarkers, route, routes, journey, showRoute, zones, primaryColor, routeColor, journeyColor]);
 
   if (!GOOGLE_MAPS_API_KEY) {
     return <View style={[sharedStyles.container, style]}><ErrorState message="Configura EXPO_PUBLIC_GOOGLE_MAPS_API_KEY en .env para cargar Google Maps." /></View>;

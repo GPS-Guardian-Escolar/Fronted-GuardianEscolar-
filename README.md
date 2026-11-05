@@ -69,6 +69,7 @@ Variables recomendadas para Render:
 | `EXPO_PUBLIC_STUDENT_LINK_BASE_URL` | `/` |
 | `EXPO_PUBLIC_WEB_PROXY` | `true` |
 | `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` | Clave publica restringida por dominio |
+| `ANDROID_APP_SHA256_CERT_FINGERPRINT` | Huella SHA-256 del certificado que firma la app Android para abrir los QR directamente en la app |
 
 `EXPO_PUBLIC_*` se incorporan durante `npx expo export --platform web` y no deben contener
 secretos. `API_UPSTREAM`, `PUBLIC_SCHEME` y `PUBLIC_PORT` solo se usan cuando inicia Nginx.
@@ -76,6 +77,13 @@ En Render, `RENDER_EXTERNAL_URL` hace que el script use `https/443`; en Docker l
 `http/80`. `PUBLIC_SCHEME` y `PUBLIC_PORT` permiten una definicion explicita si se requiere.
 El script restringe `envsubst` a esas tres variables, conservando variables nativas como
 `$host`, `$uri`, `$scheme` y `$http_upgrade`.
+
+Para que Android abra en la app instalada los QR HTTPS de `/scan-qr`, Render debe servir
+`/.well-known/assetlinks.json`. El contenedor lo genera al iniciar cuando se configura
+`ANDROID_APP_SHA256_CERT_FINGERPRINT` con la huella SHA-256 del certificado de firma de EAS.
+La app Android debe compilarse de nuevo con el filtro de enlaces incluido en `app.config.js`.
+Sin la misma huella en ambos lados, Android continuará abriendo el QR en el navegador; el
+seguimiento de fondo solo está disponible en la app nativa instalada, no en el navegador.
 
 Nginx conserva estas rutas:
 
