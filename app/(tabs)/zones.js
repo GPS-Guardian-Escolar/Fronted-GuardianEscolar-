@@ -16,8 +16,6 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { calculateRouteGeometry } from '../../utils/routeGeometry';
 import { buildRouteMarkers } from '../../utils/trackingMarkers';
 import { emitNotice } from '../../utils/noticeBus';
-import RouteSelector from '../../components/common/RouteSelector';
-import { studentService } from '../../services/student.service';
 import { mapsService } from '../../services/maps.service';
 
 const { width } = Dimensions.get('window');
@@ -99,7 +97,6 @@ export default function ZonesScreen() {
   };
   const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [savingPreferredRouteId, setSavingPreferredRouteId] = useState(null);
   const canManage = canManageStudent(selectedStudent, user);
   const [activeTab, setActiveTab] = useState('zones'); // 'zones' or 'routes'
   
@@ -379,24 +376,6 @@ export default function ZonesScreen() {
   const selectedRouteId = currentRoutes.find(route => String(route.id) === String(selectedStudent?.preferredRouteId))?.id
     ?? currentRoutes[0]?.id ?? null;
 
-  const choosePreferredRoute = async (route) => {
-    if (!selectedStudent?.id || !canManage || savingPreferredRouteId != null) return;
-    const studentId = selectedStudent.id;
-    setSavingPreferredRouteId(route.id);
-    try {
-      await studentService.setPreferredRoute(studentId, route.id);
-      const updatePreference = student => student?.id === studentId
-        ? { ...student, preferredRouteId: route.id } : student;
-      setSelectedStudent(updatePreference);
-      setStudents(current => current.map(updatePreference));
-      emitNotice(t('zonesPreferredRouteSaved'), route.name || t('trackAssignedRoute'), { tone: 'success' });
-    } catch (error) {
-      showZonesAlert(t('error'), error?.response?.data?.message || t('zonesPreferredRouteFailed'));
-    } finally {
-      setSavingPreferredRouteId(null);
-    }
-  };
-
   useEffect(() => {
     let cancelled = false;
     const routes = (selectedStudent?.routes || []).filter(route => String(route.id) === String(selectedRouteId));
@@ -482,9 +461,6 @@ export default function ZonesScreen() {
         </View>
 
         {!canManage && <Text accessibilityRole="text" style={[styles.subtitle, themed.textSecondary]}>{t('studReadOnlyDetails')}</Text>}
-
-        <RouteSelector routes={currentRoutes} selectedRouteId={selectedRouteId}
-          savingRouteId={savingPreferredRouteId} onSelect={choosePreferredRoute} disabled={!canManage} />
 
         {/* Tabs */}
         <View style={[styles.tabsContainer, themed.surfaceSecondary]}>

@@ -121,11 +121,6 @@ export default function HistoryScreen() {
       }
     };
 
-    if (Platform.OS === 'web') {
-      if (window.confirm(t('histDeleteConfirm'))) removeItem();
-      return;
-    }
-
     showPlatformConfirm(t('histDelete'), t('histDeleteConfirm'), [
       { text: t('cancel'), style: 'cancel' },
       { text: t('delete'), style: 'destructive', onPress: removeItem },
