@@ -1,7 +1,8 @@
 import React from 'react';
-import { Alert, Linking, Platform, View, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
+import { Linking, Platform, View, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Text, Surface, Button } from 'react-native-paper';
+import { Text, Surface } from 'react-native-paper';
+import Button from '../components/ui/PaperButton';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,10 +13,10 @@ import { studentService } from '../services/student.service';
 import { trackingService } from '../services/tracking.service';
 import {
   flushQueue,
-  getActiveTripId,
   getChildSession,
   clearChildSession,
   getQueueSize,
+  getTrackingError,
   isTrackingActive,
   requestPermissions,
   saveChildSession,
@@ -23,11 +24,13 @@ import {
   stopBackgroundUpdates,
 } from '../services/background/locationTracking';
 import { BASE_URL } from '../config/endpoints';
-import { AppTypography } from '../theme/tokens';
+import { showPlatformNotice } from '../utils/noticeBus';
+import { AppRadius, AppTypography } from '../theme/tokens';
+import { trackingErrorMessage } from '../features/child/trackingErrors';
 import PermissionGate from '../features/child/components/PermissionGate';
 import SharingStatusCard from '../features/child/components/SharingStatusCard';
 import TripControls from '../features/child/components/TripControls';
-import TripMap from '../features/child/components/TripMap';
+import LanguageSelector from '../components/common/LanguageSelector';
 
 const DEVICE_ID_KEY = '@guardian_student_device_id';
 
@@ -91,6 +94,8 @@ export default function StudentDashboardScreen() {
   const [activeTripId, setActiveTripId] = React.useState('');
   const [queueSize, setQueueSize] = React.useState(0);
   const [sentCount, setSentCount] = React.useState(0);
+  const trackingOperation = React.useRef(false);
+  const describeTrackingError = React.useCallback(error => trackingErrorMessage(error, t), [t]);
 
   // Datos del contacto de emergencia enviados por el QR.
   const parentName = studentProfile?.contactName || studentProfile?.contactoNombre || params.contacto || user?.name || t('notRegistered');
@@ -110,6 +115,20 @@ export default function StudentDashboardScreen() {
           return;
         }
 
+        // The QR link code is single-use. Once this device already has a child
+        // token, do not validate the consumed code again after navigation.
+        if (existingSession.childToken && String(existingSession.studentId) === String(resolvedStudentId)) {
+          const profile = await studentService.childProfile(existingSession.childToken);
+          if (mounted) {
+            setStudentProfile(profile);
+            setStoredSession(existingSession);
+            setActiveTripId(existingSession.activeTripId || '');
+            setLinkedCount(profile.linkedDevices);
+            setLinkStatus('linked');
+          }
+          return;
+        }
+
         const profile = await studentService.linkedProfile(String(resolvedStudentId), String(resolvedCode));
         const linkedDevices = Number(profile?.linkedDevices);
         if (!Number.isFinite(linkedDevices) || linkedDevices < 1) {
@@ -121,15 +140,6 @@ export default function StudentDashboardScreen() {
         if (mounted) {
           setStudentProfile(profile);
           setLinkedCount(linkedDevices);
-        }
-
-        if (existingSession.childToken && String(existingSession.studentId) === String(resolvedStudentId)) {
-          if (mounted) {
-            setStoredSession(existingSession);
-            setActiveTripId(existingSession.activeTripId || '');
-            setLinkStatus('linked');
-          }
-          return;
         }
 
         const deviceIdentifier = await getStudentDeviceId();
@@ -172,19 +182,29 @@ export default function StudentDashboardScreen() {
   }, [params.codigo, params.id, router]);
 
   React.useEffect(() => {
-    if (!params.id || !params.codigo) return undefined;
-
+    const resolvedStudentId = params.id || storedSession.studentId;
+    const resolvedCode = params.codigo || storedSession.studentCode;
+    if (!resolvedStudentId || !resolvedCode || linkStatus !== 'linked') return undefined;
     let mounted = true;
     const checkLinkStatus = async () => {
       try {
-        const profile = await studentService.linkedProfile(String(params.id), String(params.codigo));
+        const profile = storedSession.childToken
+          ? await studentService.childProfile(storedSession.childToken)
+          : await studentService.linkedProfile(String(resolvedStudentId), String(resolvedCode));
         const linkedDevices = Number(profile?.linkedDevices);
+        if (mounted) {
+          setStudentProfile(profile);
+          if (Number.isFinite(linkedDevices)) setLinkedCount(linkedDevices);
+        }
         if (mounted && Number.isFinite(linkedDevices) && linkedDevices < 1) {
           await clearChildSession();
           router.replace('/welcome');
         }
-      } catch {
-        // A temporary network failure must not expel the device.
+      } catch (error) {
+        if (mounted && [401, 403, 404].includes(error?.response?.status)) {
+          await clearChildSession();
+          router.replace('/welcome');
+        }
       }
     };
 
@@ -193,43 +213,40 @@ export default function StudentDashboardScreen() {
       mounted = false;
       clearInterval(timer);
     };
-  }, [params.codigo, params.id, router]);
+  }, [linkStatus, params.codigo, params.id, router, storedSession.studentId, storedSession.studentCode, storedSession.childToken]);
   React.useEffect(() => {
+    if (linkStatus !== 'linked' || !storedSession.childToken || !storedSession.studentId) return undefined;
     let mounted = true;
     const restoreTracking = async () => {
-      const [tripId, active, size] = await Promise.all([
-        getActiveTripId(),
-        isTrackingActive(),
-        getQueueSize(),
-      ]);
-      if (!mounted) return;
-      setActiveTripId(tripId || '');
-      setQueueSize(size);
-      setTrackingStatus(active ? 'sharing' : 'paused');
-      if (tripId && !active && Platform.OS !== 'web') {
-        try {
-          try {
-            await startBackgroundUpdates(tripId);
-          } catch (locationError) {
-          try {
-            await trackingService.updateStatus(tripId, {
-              status: 'CANCELED',
-              tripEndedAt: new Date().toISOString(),
-            }, { childToken: (await getChildSession()).childToken });
-          } catch (statusError) {
-            console.warn('No se pudo cancelar el trayecto tras fallar el rastreo:', statusError?.message || statusError);
+      if (trackingOperation.current) return;
+      trackingOperation.current = true;
+      setTrackingLoading(true);
+      try {
+        const trip = await trackingService.getActiveTrip(storedSession.studentId, { childToken: storedSession.childToken });
+        if (!mounted) return;
+        const tripId = trip?.id;
+        setActiveTripId(tripId || '');
+        if (tripId) {
+          await startBackgroundUpdates(tripId);
+          const result = await flushQueue();
+          if (mounted) {
+            setSentCount(count => count + result.sent);
+            setQueueSize(result.remaining);
+            setPermissionError('');
+            setTrackingStatus('sharing');
           }
-            throw locationError;
-          }
-          if (mounted) setTrackingStatus('sharing');
-        } catch (error) {
-          try {
-            await stopBackgroundUpdates();
-          } catch (stopError) {
-            console.warn('No se pudo detener el rastreo tras un fallo:', stopError?.message || stopError);
-          }
-          if (mounted) setPermissionError(error.message || 'No se pudo reanudar el rastreo.');
+        } else {
+          await stopBackgroundUpdates();
+          if (mounted) setTrackingStatus('paused');
         }
+      } catch (error) {
+        if (mounted) {
+          setPermissionError(describeTrackingError(error));
+          setTrackingStatus('paused');
+        }
+      } finally {
+        trackingOperation.current = false;
+        if (mounted) setTrackingLoading(false);
       }
     };
 
@@ -239,6 +256,9 @@ export default function StudentDashboardScreen() {
       if (mounted) {
         setQueueSize(size);
         setTrackingStatus(active ? 'sharing' : 'paused');
+        const locationError = getTrackingError();
+        if (locationError) setPermissionError(describeTrackingError(new Error(locationError)));
+        else if (active) setPermissionError('');
       }
     }, 15000);
 
@@ -246,38 +266,17 @@ export default function StudentDashboardScreen() {
       mounted = false;
       clearInterval(timer);
     };
-  }, []);
+  }, [linkStatus, storedSession.childToken, storedSession.studentId, describeTrackingError]);
 
-  const describeTrackingError = (error) => {
-    const raw = String(
-      error?.response?.data?.message
-        || error?.response?.data?.error
-        || error?.response?.data?.details
-        || error?.message
-        || ''
-    ).trim();
-    const normalized = raw.toLowerCase();
-    if (normalized.includes('no active route assigned')) {
-      return 'No hay una ruta activa asignada a este estudiante. El acudiente debe crearla y asignarla antes de iniciar el trayecto.';
-    }
-    if (normalized.includes('does not have the requested route assigned')) {
-      return 'La ruta seleccionada no está asignada a este estudiante. Asigna la ruta desde la sección Hijos y vuelve a intentarlo.';
-    }
-    if (normalized.includes('not linked') || normalized.includes('device is not linked')) {
-      return 'Este celular ya no está vinculado a ese estudiante. Escanea nuevamente el código QR del acudiente.';
-    }
-    if (error?.response?.status === 400) {
-      return raw || 'El servidor rechazó el inicio del trayecto. Verifica que el estudiante tenga una ruta activa asignada.';
-    }
-    return raw || 'No se pudo iniciar el rastreo del trayecto. Revisa los permisos e inténtalo nuevamente.';
-  };
   const handleStartTracking = async () => {
+    if (trackingOperation.current || linkStatus !== 'linked') return;
+    trackingOperation.current = true;
     setTrackingLoading(true);
     setPermissionError('');
     try {
       const permission = await requestPermissions();
       if (!permission.granted) {
-        setPermissionError(permission.reason);
+        setPermissionError(describeTrackingError(new Error(permission.reason)));
         setTrackingStatus('paused');
         return;
       }
@@ -289,11 +288,14 @@ export default function StudentDashboardScreen() {
         return;
       }
 
-      const trip = await trackingService.startTrip({
+      // After a reload, the server trip can still be active while the browser
+      // has stopped watching location. Reuse that trip when Retry is pressed.
+      const { trip, created: createdTrip } = await trackingService.startOrResumeTrip({
         studentId: String(resolvedStudentId),
         tripStartedAt: new Date().toISOString(),
+        routeId: studentProfile?.preferredRouteId || undefined,
       }, { childToken: session.childToken });
-      const tripId = String(trip.id || trip.tripId || trip.uuid || '');
+      const tripId = String(trip?.id || trip?.tripId || trip?.uuid || '');
       if (!tripId) {
         throw new Error('El backend no devolvió el identificador del trayecto.');
       }
@@ -302,14 +304,7 @@ export default function StudentDashboardScreen() {
       try {
         await startBackgroundUpdates(tripId);
       } catch (locationError) {
-        try {
-          await trackingService.updateStatus(tripId, {
-            status: 'CANCELED',
-            tripEndedAt: new Date().toISOString(),
-          }, { childToken: session.childToken });
-        } catch (statusError) {
-          console.warn('No se pudo cancelar el trayecto tras rechazar la ubicación:', statusError?.message || statusError);
-        }
+        if (createdTrip) console.warn('El trayecto recién creado quedó disponible para gestión del acudiente tras fallar el inicio del rastreo.');
         throw locationError;
       }
       const result = await flushQueue();
@@ -318,62 +313,25 @@ export default function StudentDashboardScreen() {
       setActiveTripId(tripId);
       setTrackingStatus('sharing');
     } catch (error) {
-      const status = error?.response?.status;
-      setPermissionError(status === 401
-        ? 'El dispositivo no tiene una sesión de rastreo válida. Desvincúlalo y vuelve a vincularlo desde el código QR.'
-        : describeTrackingError(error));
+      setPermissionError(describeTrackingError(error));
       setTrackingStatus('paused');
     } finally {
+      trackingOperation.current = false;
       setTrackingLoading(false);
     }
-  };
-
-  const finishTracking = async () => {
-    setTrackingLoading(true);
-    try {
-      await stopBackgroundUpdates({ preserveTrip: true });
-      const result = await flushQueue();
-      if (result.remaining > 0) throw new Error(t('trackingPendingLocations'));
-      if (activeTripId) {
-        await trackingService.updateStatus(activeTripId, {
-          status: 'COMPLETED',
-          tripEndedAt: new Date().toISOString(),
-        }, { childToken: (await getChildSession()).childToken });
-      }
-      await stopBackgroundUpdates();
-      setSentCount(count => count + result.sent);
-      setQueueSize(result.remaining);
-      setActiveTripId('');
-      setTrackingStatus('paused');
-    } catch (error) {
-      Alert.alert(t('error'), error.message || t('studentStopTrackingError'));
-    } finally {
-      setTrackingLoading(false);
-    }
-  };
-
-  const confirmFinishTracking = () => {
-    Alert.alert(
-      t('studentFinishTrip'),
-      t('studentConfirmFinishTrip'),
-      [
-        { text: t('cancel'), style: 'cancel' },
-        { text: t('studentFinishTrip'), style: 'destructive', onPress: finishTracking },
-      ]
-    );
   };
 
   const callEmergencyContact = async () => {
     const phoneDigits = String(parentPhone).replace(/[^\d+]/g, '');
     if (!phoneDigits || phoneDigits === t('notRegistered')) {
-      Alert.alert(t('studentContactUnavailable'), t('studentQrNoEmergencyPhone'));
+      showPlatformNotice(t('studentContactUnavailable'), t('studentQrNoEmergencyPhone'), { tone: 'warning' });
       return;
     }
 
     const phoneUrl = `tel:${phoneDigits}`;
     const supported = await Linking.canOpenURL(phoneUrl);
     if (!supported) {
-      Alert.alert(t('studentCannotCall'), t('studentDeviceCannotCall'));
+      showPlatformNotice(t('studentCannotCall'), t('studentDeviceCannotCall'), { tone: 'error' });
       return;
     }
     await Linking.openURL(phoneUrl);
@@ -384,6 +342,7 @@ export default function StudentDashboardScreen() {
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top, backgroundColor: colors.primary }]}>
         <Text style={[styles.headerTitle, { color: colors.textOnPrimary }]}>GPS Guardian Escolar</Text>
+        <LanguageSelector style={styles.headerControls} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -430,14 +389,12 @@ export default function StudentDashboardScreen() {
             sentCount={sentCount}
             activeTripId={activeTripId}
           />
-          <TripMap coordinates={[]} />
           <PermissionGate message={permissionError} onRetry={handleStartTracking} />
           {!permissionError && (
             <TripControls
               status={trackingStatus}
               loading={trackingLoading}
               onStart={handleStartTracking}
-              onFinish={confirmFinishTracking}
             />
           )}{/* Card 1: Mi Información */}
           <Surface style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]} elevation={2}>
@@ -540,15 +497,20 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   header: {
     paddingBottom: 15,
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
+    justifyContent: 'space-between',
   },
   headerTitle: {
     color: '#FFF',
-    fontSize: 20,
+    flex: 1,
+    fontSize: 16,
     fontWeight: 'bold',
+    marginRight: 8,
+  },
+  headerControls: {
+    flexShrink: 0,
   },
   scrollContent: {
     flexGrow: 1,
@@ -671,7 +633,7 @@ const styles = StyleSheet.create({
   },
   emergencyBtn: {
     marginTop: 8,
-    borderRadius: 8,
+    borderRadius: AppRadius.button,
     paddingVertical: 4,
   },
   trackingBadge: {
@@ -698,7 +660,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   trackingButton: {
-    borderRadius: 8,
+    borderRadius: AppRadius.button,
     marginTop: 14,
     minHeight: 48,
     justifyContent: 'center',

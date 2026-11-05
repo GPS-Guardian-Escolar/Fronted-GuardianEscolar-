@@ -1,3 +1,4 @@
+import { AppRadius } from '../../theme/tokens';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
@@ -19,6 +20,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { authService } from '../../services/auth.service';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { emitNotice } from '../../utils/noticeBus';
 
 const isWeb = Dimensions.get('window').width > 768;
 
@@ -77,7 +79,7 @@ export default function VerifyCodeScreen() {
     const fullCode = code.join('');
     setErrorMsg('');
     if (fullCode.length < 6) {
-      alert(t('authVerifyCode'));
+      emitNotice(t('error'), t('authVerifyCode'), { tone: 'error' });
       return;
     }
     if (!twoFAToken) {
@@ -148,7 +150,7 @@ export default function VerifyCodeScreen() {
           <View style={[styles.card, isWeb && styles.cardWeb, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.title, { color: colors.text }]}>{t('authVerifyCode')}</Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Enviamos un código de verificación a tu {destination}{'\n'}
+              {t('twoFACodeSentTo')} {destination}{'\n'}
               <Text style={[styles.email, { color: colors.text }]}>{params.email || method}</Text>
             </Text>
 
@@ -312,7 +314,7 @@ const styles = StyleSheet.create({
   },
   verifyBtn: {
     backgroundColor: COLORS.PRIMARIO,
-    borderRadius: 8,
+    borderRadius: AppRadius.button,
     paddingVertical: 14,
     alignItems: 'center',
     marginBottom: 16,

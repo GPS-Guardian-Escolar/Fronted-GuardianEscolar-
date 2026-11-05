@@ -1,9 +1,11 @@
+import { AppRadius } from '../../theme/tokens';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Button, Text, TextInput } from 'react-native-paper';
+import { Text, TextInput } from 'react-native-paper';
+import Button from '../../components/ui/PaperButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
 import LanguageSelector from '../../components/common/LanguageSelector';
@@ -209,6 +211,6 @@ const styles = StyleSheet.create({
   requirementText: { fontSize: 12 },
   errorBox: { borderRadius: 8, padding: 10, marginBottom: 12, borderWidth: 1 },
   feedbackText: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
-  actionButton: { borderRadius: 8, marginTop: 4 },
+  actionButton: { borderRadius: AppRadius.button, marginTop: 4 },
   buttonContent: { height: 48 },
 });

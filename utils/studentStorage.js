@@ -7,8 +7,6 @@ import { mapsService } from '../services/maps.service';
 
 const NOTIF_KEY = '@guardian_notificaciones';
 const HISTORY_KEY = '@guardian_historial';
-const ROUTES_KEY = '@guardian_local_routes';
-const ZONES_KEY = '@guardian_local_zones';
 
 const GRADE_TO_ENUM = {
   'Pre Kinder': 'PRE_KINDER',
@@ -144,16 +142,9 @@ export function calculateAge(fechaNacimiento) {
   return age > 0 ? String(age) : '';
 }
 
-function buildLinkCode(id = '') {
-  return String(id).replace(/-/g, '').slice(0, 10).toUpperCase();
-}
 
 async function getStudentExtras(studentId, preloadedZones) {
-  const [apiZones, localZones, localRoutes] = await Promise.all([
-    Array.isArray(preloadedZones) ? preloadedZones : safeZoneService.list().catch(() => []),
-    getLocalCollection(ZONES_KEY, studentId),
-    getLocalCollection(ROUTES_KEY, studentId),
-  ]);
+  const apiZones = Array.isArray(preloadedZones) ? preloadedZones : await safeZoneService.list();
   const zones = apiZones
     .filter(zone => String(zone.studentId) === String(studentId))
     .map(zone => ({
@@ -166,11 +157,11 @@ radius: `${zone.radiusMeters} Metros`,
       color: zone.color,
       center: { latitude: Number(zone.latitude), longitude: Number(zone.longitude) },
     }));
-  return { zones: zones.length ? zones : localZones, routes: localRoutes };
+  return { zones, routes: [] };
 }
 
 async function mapStudent(apiStudent, apiZones) {
-  const contacts = await studentService.listEmergencyContacts(apiStudent.id).catch(() => []);
+  const contacts = await studentService.listEmergencyContacts(apiStudent.id);
   const primaryContact = contacts.find(contact => contact.isPrimary || contact.esPrincipal) || contacts[0];
   const extras = await getStudentExtras(apiStudent.id, apiZones);
   const fullName = apiStudent.fullName || apiStudent.nombreCompleto || '';
@@ -203,9 +194,11 @@ async function mapStudent(apiStudent, apiZones) {
     contacto_parentesco: primaryContact?.relationship || primaryContact?.parentesco || '',
     dispositivos_vinculados: apiStudent.linkedDevices || 0,
     acudientes_vinculados: apiStudent.linkedGuardians || apiStudent.acudientesVinculados || 1,
+    preferredRouteId: apiStudent.preferredRouteId || null,
     correo_acudiente: apiStudent.guardianEmail || apiStudent.correoAcudiente || '',
     foto: apiStudent.photoData || apiStudent.foto || '',
-    codigo_vinculacion: buildLinkCode(apiStudent.id),
+    codigo_vinculacion: null,
+    codigo_expira_en: null,
     label: getInitials(fullName),
     color: COLORS.PRIMARIO,
     status: (apiStudent.isActive ?? apiStudent.estaActivo) ? 'SAFE' : 'INFO',
@@ -217,7 +210,7 @@ async function mapStudent(apiStudent, apiZones) {
 async function refreshStudents() {
   const [students, apiZones] = await Promise.all([
     studentService.list(),
-    safeZoneService.list().catch(() => []),
+    safeZoneService.list(),
   ]);
   return Promise.all(students.map(student => mapStudent(student, apiZones)));
 }
@@ -262,44 +255,11 @@ export async function updateStudent(id, studentData) {
 
 export async function deleteStudent(id) {
   await studentService.remove(id);
-  await removeLocalCollections(id);
   return refreshStudents();
 }
 
-async function getLocalMap(storageKey) {
-  const data = await AsyncStorage.getItem(storageKey);
-  return data ? JSON.parse(data) : {};
-}
-
-async function setLocalMap(storageKey, value) {
-  await AsyncStorage.setItem(storageKey, JSON.stringify(value));
-}
-
-async function getLocalCollection(storageKey, studentId) {
-  const map = await getLocalMap(storageKey);
-  return map[studentId] || [];
-}
-
-async function setLocalCollection(storageKey, studentId, collection) {
-  const map = await getLocalMap(storageKey);
-  map[studentId] = collection;
-  await setLocalMap(storageKey, map);
-}
-
-async function removeLocalCollections(studentId) {
-  for (const storageKey of [ROUTES_KEY, ZONES_KEY]) {
-    const map = await getLocalMap(storageKey);
-    delete map[studentId];
-    await setLocalMap(storageKey, map);
-  }
-}
-
-function generateLocalId(prefix) {
-  return `${prefix}-${Date.now()}`;
-}
-
 export async function addZone(studentId, zoneData) {
-  const coordinates = await mapsService.geocode(zoneData.address);
+  const coordinates = zoneData.coordinates || await mapsService.geocode(zoneData.address);
   const saved = await safeZoneService.create({
     studentId,
     zoneName: zoneData.name,
@@ -320,7 +280,7 @@ function formatCoordinates(latitude, longitude) {
 }
 
 export async function updateZone(studentId, zoneId, zoneData) {
-  const coordinates = await mapsService.geocode(zoneData.address);
+  const coordinates = zoneData.coordinates || await mapsService.geocode(zoneData.address);
   const saved = await safeZoneService.update(zoneId, {
     studentId,
     zoneName: zoneData.name,
@@ -350,8 +310,10 @@ export async function addRoute(studentId, routeData) {
     description: `Origen: ${routeData.start}. Destino: ${routeData.end}.`,
     originLatitude: origin.latitude,
     originLongitude: origin.longitude,
+    originAddress: routeData.start,
     destinationLatitude: destination.latitude,
     destinationLongitude: destination.longitude,
+    destinationAddress: routeData.end,
      stops: (routeData.routePoints || []).slice(1, -1).map((point, index) => ({
        stopOrder: index + 1,
        stopName: 'Punto intermedio ' + (index + 1),
@@ -373,8 +335,10 @@ export async function updateRoute(studentId, routeId, routeData) {
     description: `Origen: ${routeData.start}. Destino: ${routeData.end}.`,
     originLatitude: origin.latitude,
     originLongitude: origin.longitude,
+    originAddress: routeData.start,
     destinationLatitude: destination.latitude,
     destinationLongitude: destination.longitude,
+    destinationAddress: routeData.end,
      stops: (routeData.routePoints || []).slice(1, -1).map((point, index) => ({
        stopOrder: index + 1,
        stopName: 'Punto intermedio ' + (index + 1),

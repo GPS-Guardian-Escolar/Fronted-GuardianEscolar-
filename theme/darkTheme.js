@@ -22,7 +22,7 @@ export const darkTheme = {
     error: darkColors.error,
     onError: darkColors.onError,
     errorLight: '#3D1A1A',
-    warning: palette.amber300,
+    warning: darkColors.primary,
     success: palette.green300,
     info: '#7AB7FF',
     border: darkColors.border,

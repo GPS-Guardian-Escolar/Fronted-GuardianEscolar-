@@ -66,6 +66,7 @@ export default function AppButton({
           opacity: isDisabled ? 0.54 : pressed ? 0.86 : 1,
         },
         style,
+        { borderRadius: AppRadius.button },
       ]}
     >
       {loading ? <ActivityIndicator color={palette.color} /> : (
@@ -80,7 +81,7 @@ export default function AppButton({
 const styles = StyleSheet.create({
   base: {
     alignItems: 'center',
-    borderRadius: AppRadius.md,
+    borderRadius: AppRadius.button,
     borderWidth: 1,
     flexDirection: 'row',
     justifyContent: 'center',
