@@ -1,3 +1,4 @@
+import { AppRadius } from '../../theme/tokens';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -66,7 +67,7 @@ export default function LanguageSelector({ style }) {
 
 const styles = StyleSheet.create({
   root: { zIndex: 20 },
-  trigger: { minHeight: 48, minWidth: 58, paddingHorizontal: 12, borderWidth: 1, borderRadius: 999, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7 },
+  trigger: { minHeight: 48, minWidth: 58, paddingHorizontal: 12, borderWidth: 1, borderRadius: AppRadius.button, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7 },
   code: { fontSize: 14, fontWeight: '700' },
   overlay: { flex: 1, justifyContent: 'center', padding: 22 },
   sheet: { width: '100%', maxWidth: 440, alignSelf: 'center', padding: 18, borderWidth: 1, borderRadius: 16 },

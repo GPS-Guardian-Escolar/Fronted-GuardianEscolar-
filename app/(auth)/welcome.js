@@ -10,7 +10,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { markOnboardingSeen } from '../../features/onboarding/onboardingStorage';
 import { SUPPORTED_LANGUAGES } from '../../translations';
-import { AppSpacing, AppTouch, AppTypography } from '../../theme/tokens';
+import { AppRadius, AppSpacing, AppTouch, AppTypography } from '../../theme/tokens';
 
 const slides = [
   { id: 'safety', icon: 'shield-check-outline', titleKey: 'welcomeSlide1Title', textKey: 'welcomeSlide1Text' },
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
   },
   topButton: {
     alignItems: 'center',
-    borderRadius: AppTouch.icon / 2,
+    borderRadius: AppRadius.button,
     borderWidth: 1,
     height: AppTouch.icon,
     justifyContent: 'center',
@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
   },
   skipButton: {
     alignItems: 'center',
-    borderRadius: 999,
+    borderRadius: AppRadius.button,
     borderWidth: 1,
     justifyContent: 'center',
     minHeight: AppTouch.min,

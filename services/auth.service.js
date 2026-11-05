@@ -145,7 +145,9 @@ export const authService = {
         termsVersion,
         returnUrl: getAuthReturnUrl('/login'),
       });
-      return normalizeAuthResponse(response.data);
+      // Registration only creates a pending account. Never persist a JWT returned
+      // by the API until the user verifies the email and explicitly signs in.
+      return { success: true, message: response.data?.message || response.data?.mensaje || '' };
     } catch (error) {
       throw new Error(getApiErrorMessage(error, 'No se pudo crear la cuenta.'));
     }

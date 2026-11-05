@@ -17,6 +17,7 @@ export const AppTypography = {
 };
 
 export const AppRadius = {
+  button: 8,
   sm: 6,
   md: 10,
   lg: 16,

@@ -32,7 +32,8 @@ function isExpired(exp) {
 
 function parseLegacyUrl(value) {
   try {
-    const base = typeof window !== 'undefined' ? window.location.origin : 'https://gps-guardian-escolar.invalid';
+    const base = (typeof window !== 'undefined' && window.location?.origin)
+      || 'https://gps-guardian-escolar.invalid';
     const url = new URL(value, base);
     const params = url.searchParams;
     const payload = normalizePayload({

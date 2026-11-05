@@ -1,9 +1,11 @@
+import { AppRadius } from '../../theme/tokens';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
-import { Button, Checkbox, Text, TextInput } from 'react-native-paper';
+import { KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Checkbox, Text, TextInput } from 'react-native-paper';
+import Button from '../../components/ui/PaperButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { authService } from '../../services/auth.service';
@@ -11,7 +13,6 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import LanguageSelector from '../../components/common/LanguageSelector';
 import { validateInputEdit, isValidEmail, isValidPersonName, isValidPhone, normalizeColombianPhoneInput, passwordChecks } from '../../utils/validators';
-import { emitNotice } from '../../utils/noticeBus';
 
 const TERMS_VERSION = '2026-08-20';
 const TERMS_SECTION_KEYS = Array.from({ length: 9 }, (_, index) => index + 1);
@@ -112,12 +113,7 @@ export default function RegisterScreen() {
     setIsSubmitting(true);
     try {
       await authService.register({ name: name.trim(), email: email.trim(), password, phone: phoneDigits, acceptedTerms: true, termsVersion: TERMS_VERSION });
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        emitNotice(t('success'), t('authRegisterSuccess'), { tone: 'success' });
-      } else {
-        Alert.alert(t('success'), t('authRegisterSuccess'));
-      }
-      router.replace('/(auth)/login');
+      router.replace({ pathname: '/(auth)/login', params: { notice: 'registration-email', email: email.trim().toLowerCase() } });
     } catch (error) {
       const message = String(error?.response?.data?.message || error?.message || '').toLowerCase();
       const key = /email|correo|mail/.test(message) && /delivery|send|enviar|proveedor/.test(message)
@@ -389,7 +385,7 @@ const styles = StyleSheet.create({
   termsText: { flex: 1, fontSize: 12, lineHeight: 16 },
   errorBox: { borderRadius: 8, padding: 10, marginBottom: 12, borderWidth: 1 },
   errorBoxText: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
-  registerButton: { borderRadius: 8, marginBottom: 12 },
+  registerButton: { borderRadius: AppRadius.button, marginBottom: 12 },
   buttonContent: { height: 44 },
   footerLinks: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   hasAccountText: { fontSize: 12 },

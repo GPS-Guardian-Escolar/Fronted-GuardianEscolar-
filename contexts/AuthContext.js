@@ -21,6 +21,13 @@ export const AuthProvider = ({ children }) => {
         const savedUser = await storage.getUser();
 
         if (savedToken && savedUser) {
+          // Older releases could persist the API token returned by registration.
+          // Treat that pending registration as unauthenticated even if its email
+          // was verified later; the user must explicitly sign in on this device.
+          if (savedUser.emailVerified === false) {
+            await storage.clearAll();
+            return;
+          }
           const currentUser = await authService.getCurrentUser();
           setToken(savedToken);
           setUser(currentUser || savedUser);
@@ -52,7 +59,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     const result = await authService.login(email, password);
-    if (result.requires2FA) {
+    if (result.requires2FA || result.requiresDeviceConfirmation) {
       return result;
     }
     const { token: newToken, user: newUser } = result;

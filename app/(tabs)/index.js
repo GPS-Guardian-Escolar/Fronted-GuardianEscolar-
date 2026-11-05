@@ -1,3 +1,4 @@
+import { AppRadius } from '../../theme/tokens';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -430,7 +431,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 7,
-    borderRadius: 8,
+    borderRadius: AppRadius.button,
     gap: 6,
   },
   addBtnText: {
