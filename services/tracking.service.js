@@ -22,6 +22,11 @@ export const trackingService = {
     await api.delete(ENDPOINTS.TRIP_BY_ID(tripId));
   },
 
+  finishTrip: async (tripId) => {
+    const response = await api.patch(ENDPOINTS.TRIP_FINISH(tripId));
+    return response.data;
+  },
+
   getActiveTrip: async (studentId, options = {}) => {
     const response = await api.get(`${ENDPOINTS.TRIPS}/active`, {
       ...buildChildAuthConfig(options), params: { studentId },
@@ -42,6 +47,17 @@ export const trackingService = {
       }
       throw error;
     }
+  },
+
+  startOrResumeMonitoring: async ({ studentId, routeId }, options = {}) => {
+    const existing = await trackingService.getActiveTrip(studentId, options);
+    if (existing?.id) return { trip: existing, created: false };
+    const response = await api.post(`${ENDPOINTS.TRIPS}/monitoring`, {
+      studentId,
+      routeId,
+      tripStartedAt: new Date().toISOString(),
+    }, buildChildAuthConfig(options));
+    return { trip: response.data, created: true };
   },
 
   addCoordinate: async (tripId, data, options = {}) => {

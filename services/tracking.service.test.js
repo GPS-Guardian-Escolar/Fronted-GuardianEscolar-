@@ -64,9 +64,39 @@ describe('trackingService.startOrResumeTrip', () => {
       .resolves.toEqual({ trip: { id: 'concurrent' }, created: false });
   });
 
+  it('creates a pending monitoring trip without starting a trip before movement', async () => {
+    api.get.mockResolvedValue({ status: 204 });
+    api.post.mockResolvedValue({ data: { id: 'monitor-1', status: 'PENDING' } });
+
+    await expect(trackingService.startOrResumeMonitoring({
+      studentId: 'student-1',
+      routeId: 'route-1',
+    }, { childToken: 'device-token' })).resolves.toEqual({
+      trip: { id: 'monitor-1', status: 'PENDING' },
+      created: true,
+    });
+    expect(api.post).toHaveBeenCalledWith('/trips/monitoring', expect.objectContaining({
+      studentId: 'student-1',
+      routeId: 'route-1',
+    }), { skipAuth: true, headers: { Authorization: 'Bearer device-token' } });
+  });
+
+  it('reuses a pending or active monitoring trip', async () => {
+    api.get.mockResolvedValue({ data: { id: 'monitor-existing', status: 'PENDING' } });
+    await expect(trackingService.startOrResumeMonitoring({ studentId: 'student-1' }))
+      .resolves.toEqual({ trip: { id: 'monitor-existing', status: 'PENDING' }, created: false });
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
   it('removes a trip from the remote history', async () => {
     api.delete.mockResolvedValue({ status: 204 });
     await expect(trackingService.deleteTrip('trip-7')).resolves.toBeUndefined();
     expect(api.delete).toHaveBeenCalledWith('/trips/trip-7');
+  });
+
+  it('finishes a trip through the guardian-only lifecycle endpoint', async () => {
+    api.patch.mockResolvedValue({ data: { id: 'trip-8', status: 'COMPLETED' } });
+    await expect(trackingService.finishTrip('trip-8')).resolves.toEqual({ id: 'trip-8', status: 'COMPLETED' });
+    expect(api.patch).toHaveBeenCalledWith('/trips/trip-8/finish');
   });
 });
