@@ -156,7 +156,6 @@ async function main() {
     '../config/endpoints': {
       ENDPOINTS: {
         TRIPS: '/trips',
-        TRIP_STATUS: tripId => `/trips/${tripId}/status`,
         TRIP_COORDINATES: tripId => `/trips/${tripId}/coordinates`,
       },
     },
@@ -164,7 +163,6 @@ async function main() {
   await trackingService.startTrip({ studentId: 'student-1' }, { childToken: 'device-token' });
   await trackingService.listCoordinates('trip-1', { childToken: 'device-token' });
   await trackingService.addCoordinate('trip-1', { latitude: 4, longitude: -74 }, { childToken: 'device-token' });
-  await trackingService.updateStatus('trip-1', { status: 'COMPLETED' }, { childToken: 'device-token' });
   for (const [index, call] of trackingCalls.entries()) {
     const config = index === 1 ? call[1] : call[2];
     assert.equal(config.skipAuth, true);

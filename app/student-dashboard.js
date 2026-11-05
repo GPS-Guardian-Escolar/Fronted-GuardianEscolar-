@@ -304,18 +304,7 @@ export default function StudentDashboardScreen() {
       try {
         await startBackgroundUpdates(tripId);
       } catch (locationError) {
-        if (createdTrip) {
-          try {
-            await trackingService.updateStatus(tripId, {
-              status: 'CANCELED',
-              tripEndedAt: new Date().toISOString(),
-            }, { childToken: session.childToken });
-            await stopBackgroundUpdates();
-            setActiveTripId('');
-          } catch (statusError) {
-            console.warn('No se pudo cancelar el trayecto tras rechazar la ubicación:', statusError?.message || statusError);
-          }
-        }
+        if (createdTrip) console.warn('El trayecto recién creado quedó disponible para gestión del acudiente tras fallar el inicio del rastreo.');
         throw locationError;
       }
       const result = await flushQueue();

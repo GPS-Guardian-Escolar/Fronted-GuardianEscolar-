@@ -44,11 +44,6 @@ export const trackingService = {
     }
   },
 
-  updateStatus: async (tripId, data, options = {}) => {
-    const response = await api.patch(ENDPOINTS.TRIP_STATUS(tripId), data, buildChildAuthConfig(options));
-    return response.data;
-  },
-
   addCoordinate: async (tripId, data, options = {}) => {
     const response = await api.post(ENDPOINTS.TRIP_COORDINATES(tripId), data, buildChildAuthConfig(options));
     return response.data;
